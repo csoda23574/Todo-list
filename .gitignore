@@ -1,0 +1,37 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+
+# ─── Build outputs ───────────────────────────────────────────────────────────
+todo-dist/
+www/
+
+# ─── Electron user data (runtime, not source) ────────────────────────────────
+app-settings.json
+window-state.json
+
+# ─── Android build artifacts ─────────────────────────────────────────────────
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+android/.gradle/
+android/local.properties
+android/app/.cxx/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ─── OS generated ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Editor / IDE ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+
+# ─── Environment / secrets ───────────────────────────────────────────────────
+.env
+.env.local

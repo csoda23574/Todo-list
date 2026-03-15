@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Todo List</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Background overlay -->
+        <div class="bg-overlay" id="bgOverlay"></div>
+        <!-- Electron custom titlebar (hidden in browser mode) -->
+        <div class="titlebar" id="titlebar">
+            <div class="titlebar-drag"></div>
+            <div class="win-controls" id="winControls">
+                <button class="win-btn" id="winMinimize" title="최소화" aria-label="최소화">
+                    <svg viewBox="0 0 10 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                        <line x1="1" y1="1" x2="9" y2="1" />
+                    </svg>
+                </button>
+                <button class="win-btn" id="winMaximize" title="최대화" aria-label="최대화">
+                    <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="0.75" y="0.75" width="8.5" height="8.5" />
+                    </svg>
+                </button>
+                <button class="win-btn win-close" id="winClose" title="트레이로 이동" aria-label="트레이로 이동">
+                    <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"
+                        stroke-linecap="round">
+                        <line x1="1" y1="1" x2="9" y2="9" />
+                        <line x1="9" y1="1" x2="1" y2="9" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="header-date" id="headerDate"></div>
+                <div class="header-title-row">
+                    <h1 class="header-title" id="headerTitle">My Tasks</h1>
+                    <span class="sync-dot" id="syncDot" data-status="offline" title="클라우드 동기화"></span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="icon-btn" id="uiToggleBtn" title="UI 숨기기/보이기" aria-label="UI 숨기기">
+                    <!-- 눈 (보임) -->
+                    <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <!-- 눈 빗금 (숨김) -->
+                    <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                </button>
+                <button class="icon-btn" id="refreshBtn" title="새로고침" aria-label="동기화 새로고침">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10" />
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                    </svg>
+                </button>
+                <button class="icon-btn" id="settingsBtn" title="설정" aria-label="설정 열기">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                </button>
+                <button class="icon-btn" id="themeToggle" title="테마 전환" aria-label="다크모드 전환">
+                    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5" />
+                        <line x1="12" y1="1" x2="12" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="23" />
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                        <line x1="1" y1="12" x2="3" y2="12" />
+                        <line x1="21" y1="12" x2="23" y2="12" />
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                    </svg>
+                    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats bar -->
+        <div class="stats-bar">
+            <div class="stat-item">
+                <span class="stat-number" id="totalCount">0</span>
+                <span class="stat-label">전체</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-number" id="doneCount">0</span>
+                <span class="stat-label">완료</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-number" id="pendingCount">0</span>
+                <span class="stat-label">미완료</span>
+            </div>
+            <div class="stat-progress-wrap">
+                <div class="stat-progress-bar">
+                    <div class="stat-progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Tabs -->
+        <div class="category-tabs-bar" id="categoryTabsBar">
+            <!-- Rendered by JS -->
+        </div>
+
+        <!-- Filter tabs -->
+        <div class="filter-tabs">
+            <button class="filter-tab active" data-filter="all">전체</button>
+            <button class="filter-tab" data-filter="pending">미완료</button>
+            <button class="filter-tab" data-filter="done">완료</button>
+        </div>
+
+        <!-- Todo List -->
+        <div class="todo-list-wrapper">
+            <ul class="todo-list" id="todoList">
+                <!-- Items rendered by JS -->
+            </ul>
+            <div class="empty-state" id="emptyState">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 80 80" fill="none">
+                        <circle cx="40" cy="40" r="38" stroke="currentColor" stroke-width="2" stroke-dasharray="6 4"
+                            opacity="0.3" />
+                        <path d="M28 40h24M40 28v24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                            opacity="0.4" />
+                    </svg>
+                </div>
+                <p class="empty-title">할 일이 없습니다</p>
+                <p class="empty-sub">아래 + 버튼을 눌러 새 항목을 추가하세요</p>
+            </div>
+        </div>
+
+        <!-- Add button -->
+        <div class="add-btn-wrap">
+            <button class="add-fab" id="addBtn" title="항목 추가" aria-label="새 항목 추가">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Add / Edit Modal -->
+    <div class="modal-backdrop" id="taskModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">새 할 일 추가</h2>
+                <button class="modal-close" id="modalClose" aria-label="닫기">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="taskInput">할 일</label>
+                    <input type="text" id="taskInput" class="form-input" placeholder="무엇을 해야 하나요?" maxlength="200"
+                        autocomplete="off" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="taskNote">메모 (선택)</label>
+                    <textarea id="taskNote" class="form-input form-textarea" placeholder="추가 메모를 입력하세요..."
+                        maxlength="500" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="taskPriority">우선순위</label>
+                    <div class="priority-selector" id="prioritySelector">
+                        <button class="priority-btn" data-priority="low">낮음</button>
+                        <button class="priority-btn active" data-priority="medium">보통</button>
+                        <button class="priority-btn" data-priority="high">높음</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="taskResetTime">개별 초기화 시간 <span class="form-label-sub">(비우면 전역 설정
+                            사용)</span></label>
+                    <div class="task-reset-wrap">
+                        <input type="time" id="taskResetTime" class="form-input time-input" />
+                        <button type="button" class="btn-text-danger task-reset-clear" id="taskResetClear">초기화
+                            없음</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="modalCancel">취소</button>
+                <button class="btn btn-primary" id="modalSave">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="modal-card settings-card">
+            <div class="modal-header">
+                <h2 class="modal-title" id="settingsTitle">설정</h2>
+                <button class="modal-close" id="settingsClose" aria-label="닫기">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body settings-body">
+
+                <!-- App Title Section -->
+                <div class="settings-section">
+                    <div class="settings-section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
+                            height="18">
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                        </svg>
+                        앱 제목
+                    </div>
+                    <div class="settings-row">
+                        <span class="settings-row-label">제목 텍스트</span>
+                        <input type="text" id="appTitleInput" class="form-input"
+                            style="width:160px;font-size:13px;padding:7px 10px;" placeholder="My Tasks" maxlength="30"
+                            autocomplete="off" />
+                    </div>
+                </div>
+
+                <!-- Reset Timer Section -->
+                <div class="settings-section">
+                    <div class="settings-section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
+                            height="18">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        초기화 타이머
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>자동 초기화</span>
+                            <span class="settings-row-sub">설정한 시간에 할 일 목록을 초기화합니다</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="resetEnabled" />
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-sub-group" id="resetSubGroup">
+                        <div class="settings-row">
+                            <span class="settings-row-label">초기화 시간</span>
+                            <input type="time" id="resetTime" class="form-input time-input" value="00:00" />
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-row-label">
+                                <span>반복 주기</span>
+                            </div>
+                            <select id="resetRepeat" class="form-input select-input">
+                                <option value="daily">매일</option>
+                                <option value="weekly">매주</option>
+                                <option value="weekday">평일만</option>
+                            </select>
+                        </div>
+                        <div class="reset-next-info" id="resetNextInfo"></div>
+                    </div>
+                </div>
+
+                <!-- Background Section -->
+                <div class="settings-section">
+                    <div class="settings-section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
+                            height="18">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                        </svg>
+                        배경화면
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>배경 이미지</span>
+                            <span class="settings-row-sub">PNG, JPG, WEBP, GIF 지원</span>
+                        </div>
+                        <label class="file-upload-btn" for="bgFileInput">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
+                                height="16">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                            파일 선택
+                        </label>
+                        <input type="file" id="bgFileInput" accept="image/*" style="display:none" />
+                    </div>
+                    <div class="bg-preview-wrap" id="bgPreviewWrap">
+                        <img id="bgPreviewImg" class="bg-preview-img" src="" alt="배경 미리보기" />
+                        <div class="bg-preview-actions">
+                            <span class="bg-preview-name" id="bgPreviewName"></span>
+                            <button class="btn-text-danger" id="bgRemoveBtn">제거</button>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <span class="settings-row-label">배경 투명도</span>
+                        <div class="range-wrap">
+                            <input type="range" id="bgOpacity" min="0" max="90" value="50" class="range-input" />
+                            <span class="range-value" id="bgOpacityValue">50%</span>
+                        </div>
+                    </div>
+                    <div class="settings-row">
+                        <span class="settings-row-label">배경 블러</span>
+                        <div class="range-wrap">
+                            <input type="range" id="bgBlur" min="0" max="20" value="0" class="range-input" />
+                            <span class="range-value" id="bgBlurValue">0px</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Windows App Settings (Electron only) -->
+                <div class="settings-section" id="electronSettingsSection" style="display:none">
+                    <div class="settings-section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
+                            height="18">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                            <line x1="8" y1="21" x2="16" y2="21" />
+                            <line x1="12" y1="17" x2="12" y2="21" />
+                        </svg>
+                        Windows 앱 설정
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>시작 시 자동 실행</span>
+                            <span class="settings-row-sub">Windows 로그인 시 자동으로 앱을 시작합니다</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="autoLaunchEnabled" />
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>항상 위에 표시</span>
+                            <span class="settings-row-sub">다른 모든 창 위에 고정합니다</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="alwaysOnTopEnabled" />
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Danger Zone -->
+                <div class="settings-section danger-section">
+                    <div class="settings-section-title danger-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
+                            height="18">
+                            <polygon points="10.29 3.86 1.82 18 22.18 18 13.71 3.86 10.29 3.86" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        위험 구역
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>모든 할 일 삭제</span>
+                            <span class="settings-row-sub">현재 목록을 모두 지웁니다</span>
+                        </div>
+                        <button class="btn btn-danger" id="clearAllBtn">전체 삭제</button>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="settingsCancelBtn">취소</button>
+                <button class="btn btn-primary" id="settingsSaveBtn">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Delete confirm modal -->
+    <div class="modal-backdrop" id="confirmModal" role="dialog" aria-modal="true">
+        <div class="modal-card confirm-card">
+            <div class="confirm-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+            </div>
+            <h3 class="confirm-title">항목을 삭제하시겠습니까?</h3>
+            <p class="confirm-sub">이 작업은 되돌릴 수 없습니다.</p>
+            <div class="confirm-actions">
+                <button class="btn btn-ghost" id="confirmCancel">취소</button>
+                <button class="btn btn-danger" id="confirmDelete">삭제</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Crop Modal -->
+    <div class="modal-backdrop" id="cropModal" role="dialog" aria-modal="true" aria-labelledby="cropModalTitle">
+        <div class="modal-card crop-card">
+            <div class="modal-header">
+                <h2 class="modal-title" id="cropModalTitle">배경 이미지 자르기</h2>
+                <button class="modal-close" id="cropModalClose" aria-label="닫기">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body crop-body">
+                <div class="crop-viewport" id="cropViewport">
+                    <canvas id="cropCanvas"></canvas>
+                    <div class="crop-overlay" id="cropOverlay">
+                        <div class="crop-box" id="cropBox">
+                            <div class="crop-handle crop-handle-nw" data-dir="nw"></div>
+                            <div class="crop-handle crop-handle-ne" data-dir="ne"></div>
+                            <div class="crop-handle crop-handle-sw" data-dir="sw"></div>
+                            <div class="crop-handle crop-handle-se" data-dir="se"></div>
+                            <div class="crop-handle crop-handle-n" data-dir="n"></div>
+                            <div class="crop-handle crop-handle-s" data-dir="s"></div>
+                            <div class="crop-handle crop-handle-w" data-dir="w"></div>
+                            <div class="crop-handle crop-handle-e" data-dir="e"></div>
+                            <div class="crop-crosshair-h"></div>
+                            <div class="crop-crosshair-v"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="crop-info" id="cropInfo">선택 영역을 드래그해 조절하세요</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="cropCancelBtn">취소</button>
+                <button class="btn btn-primary" id="cropConfirmBtn">이 영역으로 설정</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="firebase-sync.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

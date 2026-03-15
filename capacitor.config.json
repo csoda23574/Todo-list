@@ -1,0 +1,12 @@
+{
+    "appId": "com.personal.todolist",
+    "appName": "Todo List",
+    "webDir": "www",
+    "server": {
+        "androidScheme": "https"
+    },
+    "android": {
+        "allowMixedContent": true,
+        "backgroundColor": "#f0f2f7"
+    }
+}
