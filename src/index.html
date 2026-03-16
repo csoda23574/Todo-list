@@ -407,6 +407,25 @@
                     </div>
                 </div>
 
+                <!-- Developer Tools (개발자 도구) -->
+                <!-- <div class="settings-section" id="devToolsSection" style="display:none">
+                    <div class="settings-section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
+                            height="18">
+                            <polyline points="16 18 22 12 16 6" />
+                            <polyline points="8 6 2 12 8 18" />
+                        </svg>
+                        개발자 도구
+                    </div>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span>알림 테스트</span>
+                            <span class="settings-row-sub">시스템 알림이 올바르게 작동하는지 확인합니다</span>
+                        </div>
+                        <button class="btn btn-ghost" id="testNotificationBtn">테스트 알림 보내기</button>
+                    </div>
+                </div> -->
+
                 <!-- Danger Zone -->
                 <div class="settings-section danger-section">
                     <div class="settings-section-title danger-title">
@@ -500,6 +519,12 @@
     <!-- Firebase SDK (compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <!-- Capacitor (for mobile) -->
+    <script type="module">
+        import { Capacitor } from 'https://cdn.jsdelivr.net/npm/@capacitor/core@6.2.0/dist/index.js';
+        import { LocalNotifications } from 'https://cdn.jsdelivr.net/npm/@capacitor/local-notifications@6.0.2/dist/index.js';
+        window.CapacitorCore = { Capacitor, LocalNotifications };
+    </script>
     <script src="firebase-sync.js"></script>
     <script src="app.js"></script>
 </body>

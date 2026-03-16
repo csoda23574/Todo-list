@@ -41,6 +41,73 @@ let resetTimerInterval = null;
 let remoteSyncInProgress = false;
 
 /* ===================================================
+   Platform Detection & Notification Helpers
+=================================================== */
+function isElectron() {
+    return typeof window !== 'undefined' && window.electronAPI;
+}
+
+function isCapacitor() {
+    return typeof window !== 'undefined' && window.CapacitorCore && window.CapacitorCore.Capacitor.isNativePlatform();
+}
+
+async function showSystemNotification(title, body) {
+    try {
+        // Electron 환경
+        if (isElectron()) {
+            await window.electronAPI.showNotification(title, body);
+            return;
+        }
+
+        // Capacitor 모바일 환경
+        if (isCapacitor()) {
+            const { LocalNotifications } = window.CapacitorCore;
+
+            // 권한 확인 및 요청
+            const permission = await LocalNotifications.checkPermissions();
+            if (permission.display !== 'granted') {
+                const result = await LocalNotifications.requestPermissions();
+                if (result.display !== 'granted') {
+                    console.log('[Notification] Permission denied');
+                    return;
+                }
+            }
+
+            // 알림 발송
+            await LocalNotifications.schedule({
+                notifications: [
+                    {
+                        title: title,
+                        body: body,
+                        id: Date.now(),
+                        schedule: { at: new Date(Date.now() + 1000) }, // 1초 후
+                        sound: undefined,
+                        attachments: undefined,
+                        actionTypeId: '',
+                        extra: null
+                    }
+                ]
+            });
+            return;
+        }
+
+        // 브라우저 Web Notification API
+        if ('Notification' in window) {
+            if (Notification.permission === 'granted') {
+                new Notification(title, { body });
+            } else if (Notification.permission !== 'denied') {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    new Notification(title, { body });
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[Notification Error]', err);
+    }
+}
+
+/* ===================================================
    LocalStorage Helpers
 =================================================== */
 function saveToStorage(key, value) {
@@ -61,8 +128,24 @@ function loadFromStorage(key, fallback) {
 }
 
 function saveTodos() {
+    console.log('[saveTodos] 호출됨 - remoteSyncInProgress:', remoteSyncInProgress);
     saveToStorage(STORAGE_KEYS.TODOS, state.todos);
-    syncToCloud();
+    // Firebase 동기화
+    if (window.FirebaseSync?.isReady()) {
+        window.FirebaseSync.push({
+            todos: state.todos,
+            categories: state.categories,
+            settings: (() => {
+                const { bgImage, bgFileName, ...rest } = state.settings;
+                return rest;
+            })(),
+        });
+    }
+    // 동기화 완료 후 플래그 해제 (1초 후 - Firebase push 디바운스 800ms 고려)
+    setTimeout(() => {
+        remoteSyncInProgress = false;
+        console.log('[saveTodos] remoteSyncInProgress 해제');
+    }, 1200);
 }
 
 function saveSettings() {
@@ -74,7 +157,14 @@ function saveSettings() {
     } else {
         localStorage.removeItem(STORAGE_KEYS.BG_IMAGE);
     }
-    syncToCloud();
+    // Firebase 동기화
+    if (window.FirebaseSync?.isReady()) {
+        window.FirebaseSync.push({
+            todos: state.todos,
+            categories: state.categories,
+            settings: rest,
+        });
+    }
 }
 
 function loadState() {
@@ -159,6 +249,9 @@ const DOM = {
     get clearAllBtn() { return document.getElementById('clearAllBtn'); },
     get headerTitle() { return document.getElementById('headerTitle'); },
     get appTitleInput() { return document.getElementById('appTitleInput'); },
+    // Developer tools
+    get devToolsSection() { return document.getElementById('devToolsSection'); },
+    get testNotificationBtn() { return document.getElementById('testNotificationBtn'); },
     // Task reset
     get taskResetType() { return document.getElementById('taskResetType'); },
     get taskResetTime() { return document.getElementById('taskResetTime'); },
@@ -553,8 +646,13 @@ function openEditModal(id) {
 }
 
 function handleModalSave() {
+    console.log('[handleModalSave] 저장 버튼 클릭됨');
+
     const text = DOM.taskInput.value.trim();
+    console.log('[handleModalSave] 입력 텍스트:', text);
+
     if (!text) {
+        console.log('[handleModalSave] 텍스트가 비어있음 - 에러 표시');
         DOM.taskInput.classList.add('error-shake');
         DOM.taskInput.focus();
         DOM.taskInput.addEventListener('animationend', () => {
@@ -582,12 +680,15 @@ function handleModalSave() {
         itemResetSchedule = { type: 'yearly', dates, time: DOM.taskResetYearlyTime.value || '00:00' };
     }
 
+    console.log('[handleModalSave] 저장 준비 완료 - editingId:', state.editingId);
+
     if (state.editingId) {
         editTodo(state.editingId, text, note, priority, itemResetTime, itemResetDatetime, itemResetSchedule);
     } else {
         addTodo(text, note, priority, itemResetTime, itemResetDatetime, itemResetSchedule);
     }
 
+    console.log('[handleModalSave] 저장 완료 - 모달 닫기');
     closeModal(DOM.taskModal);
     state.editingId = null;
 }
@@ -684,6 +785,11 @@ function openSettingsModal() {
             if (topEl) topEl.checked = s.alwaysOnTop;
         }).catch(() => { });
     }
+
+    // Show developer tools section (for Electron)
+    // if (DOM.devToolsSection && window.electronAPI) {
+    //     DOM.devToolsSection.style.display = '';
+    // }
 
     openModal(DOM.settingsModal);
 }
@@ -1078,213 +1184,296 @@ function updateResetNextInfo() {
     DOM.resetNextInfo.textContent = `다음 초기화: ${next.toLocaleDateString('ko-KR', opts)}`;
 }
 
+/* ===================================================
+   Reset Timer Logic (초기화 로직)
+=================================================== */
+const LAST_RESET_KEY = 'todoApp_lastReset';
+
+// 중복 방지용 키 생성 (weekly/daily/weekday/everyN 고려)
+function buildResetKey(now, h, m) {
+    const repeat = state.settings.resetRepeat;
+    if (repeat === 'weekly') {
+        const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        const weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        return `${d.getUTCFullYear()}-W${weekNum}-${h}-${m}`;
+    }
+    if (repeat === 'monthly') {
+        return `${now.getFullYear()}-M${now.getMonth()}-${h}-${m}`;
+    }
+    if (repeat === 'yearly') {
+        return `${now.getFullYear()}-Y-${h}-${m}`;
+    }
+    return `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
+}
+
+function isWeekdayBlocked(now) {
+    const repeat = state.settings.resetRepeat;
+    const day = now.getDay();
+    return repeat === 'weekday' && (day === 0 || day === 6);
+}
+
+// 전역 초기화: itemResetTime 없는 항목만 체크 해제
+function doGlobalReset(now, h, m) {
+    if (isWeekdayBlocked(now)) return;
+
+    const repeat = state.settings.resetRepeat;
+
+    if (repeat && repeat.startsWith('every')) {
+        // everyN: 마지막 리셋 날짜 기준으로 N일 경과 여부를 직접 비교
+        const n = parseInt(repeat.slice(5), 10);
+        const lastKey = localStorage.getItem(LAST_RESET_KEY);
+        if (lastKey) {
+            const parts = lastKey.split('-');
+            if (parts.length >= 3) {
+                const lastDate = new Date(Number(parts[0]), Number(parts[1]), Number(parts[2]));
+                lastDate.setHours(h, m, 0, 0);
+                const nextDate = new Date(lastDate);
+                nextDate.setDate(nextDate.getDate() + n);
+                if (now < nextDate) return; // 아직 N일 미경과
+            }
+        }
+        // N일 이상 경과 → 오늘 날짜를 키로 저장
+        const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
+        if (localStorage.getItem(LAST_RESET_KEY) === todayKey) return; // 오늘 이미 실행
+        localStorage.setItem(LAST_RESET_KEY, todayKey);
+    } else {
+        const resetKey = buildResetKey(now, h, m);
+        if (localStorage.getItem(LAST_RESET_KEY) === resetKey) return;
+        localStorage.setItem(LAST_RESET_KEY, resetKey);
+    }
+
+    // 디버깅: 초기화 전 상태
+    const targetItems = state.todos.filter(t => !t.itemResetTime);
+    const completedBefore = targetItems.filter(t => t.done);
+    console.log(`[전역 초기화] 대상 항목: ${targetItems.length}개, 완료 상태: ${completedBefore.length}개`);
+    if (completedBefore.length > 0) {
+        console.log('  완료→미완료 변경:', completedBefore.map(t => `"${t.text}"`).join(', '));
+    }
+
+    remoteSyncInProgress = true;
+    console.log('[전역 초기화] remoteSyncInProgress = true 설정');
+
+    state.todos = state.todos.map(t => t.itemResetTime ? t : { ...t, done: false });
+    saveTodos();
+    renderTodos();
+    showToast('할 일 목록이 자동으로 초기화되었습니다', 'info');
+
+    // 시스템 알림
+    showSystemNotification(
+        '✅ 체크리스트 초기화',
+        '할 일 목록이 자동으로 초기화되었습니다.'
+    );
+}
+
+// 개별 초기화: itemResetTime이 hh:mm인 항목만 체크 해제
+function doItemResets(now, hh, mm) {
+    if (isWeekdayBlocked(now)) return;
+
+    let anyChanged = false;
+    const changedItems = [];
+    state.todos = state.todos.map(t => {
+        if (!t.itemResetTime || t.itemResetDatetime || t.itemResetSchedule) return t;
+        const [th, tm] = t.itemResetTime.split(':').map(Number);
+        if (th !== hh || tm !== mm) return t;
+
+        // 항목별 중복 방지 키
+        const itemKey = `todoApp_itemLastReset_${t.id}`;
+        const resetKey = buildResetKey(now, hh, mm);
+        if (localStorage.getItem(itemKey) === resetKey) return t;
+        localStorage.setItem(itemKey, resetKey);
+
+        anyChanged = true;
+        if (t.done) {
+            changedItems.push(t.text);
+        }
+        return { ...t, done: false };
+    });
+
+    if (anyChanged) {
+        console.log(`[개별 초기화 ${hh}:${String(mm).padStart(2, '0')}] 완료→미완료 변경: ${changedItems.length}개`);
+        if (changedItems.length > 0) {
+            console.log('  변경된 항목:', changedItems.map(t => `"${t}"`).join(', '));
+        }
+
+        console.log('[개별 초기화] state.todos 업데이트 전체 건수:', state.todos.length);
+        console.log('[개별 초기화] 변경된 항목들의 done 상태:',
+            state.todos.filter(t => changedItems.includes(t.text)).map(t => ({ text: t.text, done: t.done })));
+
+        remoteSyncInProgress = true;
+        console.log('[개별 초기화] remoteSyncInProgress = true 설정');
+
+        saveTodos();
+        renderTodos();
+
+        console.log('[개별 초기화] saveTodos() 완료, renderTodos() 완료');
+
+        showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
+
+        // 시스템 알림
+        showSystemNotification(
+            '🔄 항목 초기화',
+            '일부 할 일이 자동으로 초기화되었습니다.'
+        );
+    }
+}
+
+// 날짜 지정 1회 초기화
+function doItemDatetimeResets(now) {
+    let anyChanged = false;
+    const changedItems = [];
+    state.todos = state.todos.map(t => {
+        if (!t.itemResetDatetime) return t;
+        const itemKey = `todoApp_itemLastReset_${t.id}`;
+        if (localStorage.getItem(itemKey) === t.itemResetDatetime) return t; // 이미 실행
+        const targetDate = new Date(t.itemResetDatetime);
+        if (now < targetDate) return t; // 아직 시각 안 될
+        localStorage.setItem(itemKey, t.itemResetDatetime);
+        anyChanged = true;
+        if (t.done) {
+            changedItems.push(t.text);
+        }
+        return { ...t, done: false };
+    });
+    if (anyChanged) {
+        console.log(`[날짜/시간 초기화] 완료→미완료 변경: ${changedItems.length}개`);
+        if (changedItems.length > 0) {
+            console.log('  변경된 항목:', changedItems.map(t => `"${t}"`).join(', '));
+        }
+
+        remoteSyncInProgress = true;
+        console.log('[날짜/시간 초기화] remoteSyncInProgress = true 설정');
+
+        saveTodos();
+        renderTodos();
+        showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
+
+        // 시스템 알림
+        showSystemNotification(
+            '🔄 항목 초기화',
+            '일부 할 일이 자동으로 초기화되었습니다.'
+        );
+    }
+}
+
+// 주간/월간/연간 스케줄 초기화
+function doItemScheduleResets(now, catchUp = false) {
+    const hh = now.getHours();
+    const mm = now.getMinutes();
+    let anyChanged = false;
+    const changedItems = [];
+    state.todos = state.todos.map(t => {
+        if (!t.itemResetSchedule) return t;
+        const s = t.itemResetSchedule;
+        const [sh, sm] = (s.time || '00:00').split(':').map(Number);
+        if (catchUp) {
+            if (hh * 60 + mm < sh * 60 + sm) return t;
+        } else {
+            if (hh !== sh || mm !== sm) return t;
+        }
+        let matched = false;
+        if (s.type === 'weekly') matched = (s.weekdays || []).includes(now.getDay());
+        else if (s.type === 'monthly') matched = (s.days || []).includes(now.getDate());
+        else if (s.type === 'yearly') matched = (s.dates || []).some(d => d.month === (now.getMonth() + 1) && d.day === now.getDate());
+        if (!matched) return t;
+        const itemKey = `todoApp_itemLastReset_${t.id}`;
+        const occKey = `${s.type}-${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+        if (localStorage.getItem(itemKey) === occKey) return t;
+        localStorage.setItem(itemKey, occKey);
+        anyChanged = true;
+        if (t.done) {
+            changedItems.push(t.text);
+        }
+        return { ...t, done: false };
+    });
+    if (anyChanged) {
+        console.log(`[스케줄 초기화] 완료→미완료 변경: ${changedItems.length}개`);
+        if (changedItems.length > 0) {
+            console.log('  변경된 항목:', changedItems.map(t => `"${t}"`).join(', '));
+        }
+
+        remoteSyncInProgress = true;
+        console.log('[스케줄 초기화] remoteSyncInProgress = true 설정');
+
+        saveTodos();
+        renderTodos();
+        showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
+
+        // 시스템 알림
+        showSystemNotification(
+            '🔄 스케줄 초기화',
+            '일부 할 일이 자동으로 초기화되었습니다.'
+        );
+    }
+}
+
 function scheduleResetTimer() {
+    // 기존 타이머 정리
     if (resetTimerInterval) {
         clearInterval(resetTimerInterval);
         resetTimerInterval = null;
     }
 
-    if (!state.settings.resetEnabled) return;
+    // 타이머 재시작
+    initializeResetSystem();
+}
 
-    const LAST_RESET_KEY = 'todoApp_lastReset';
+// 초기화 시스템 초기화 함수
+function initializeResetSystem() {
+    // Catch-up 실행
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
 
-    // 중복 방지용 키 생성 (weekly/daily/weekday/everyN 고려)
-    function buildResetKey(now, h, m) {
+    // 전역 catch-up (resetEnabled인 경우만)
+    if (state.settings.resetEnabled) {
         const repeat = state.settings.resetRepeat;
-        if (repeat === 'weekly') {
-            const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-            const dayNum = d.getUTCDay() || 7;
-            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-            const weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-            return `${d.getUTCFullYear()}-W${weekNum}-${h}-${m}`;
-        }
-        if (repeat === 'monthly') {
-            return `${now.getFullYear()}-M${now.getMonth()}-${h}-${m}`;
-        }
-        if (repeat === 'yearly') {
-            return `${now.getFullYear()}-Y-${h}-${m}`;
-        }
-        return `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
-    }
-
-    function isWeekdayBlocked(now) {
-        const repeat = state.settings.resetRepeat;
-        const day = now.getDay();
-        return repeat === 'weekday' && (day === 0 || day === 6);
-    }
-
-    // 전역 초기화: itemResetTime 없는 항목만 체크 해제
-    function doGlobalReset(now, h, m) {
-        if (isWeekdayBlocked(now)) return;
-
-        const repeat = state.settings.resetRepeat;
-
-        if (repeat && repeat.startsWith('every')) {
-            // everyN: 마지막 리셋 날짜 기준으로 N일 경과 여부를 직접 비교
-            const n = parseInt(repeat.slice(5), 10);
-            const lastKey = localStorage.getItem(LAST_RESET_KEY);
-            if (lastKey) {
-                const parts = lastKey.split('-');
-                if (parts.length >= 3) {
-                    const lastDate = new Date(Number(parts[0]), Number(parts[1]), Number(parts[2]));
-                    lastDate.setHours(h, m, 0, 0);
-                    const nextDate = new Date(lastDate);
-                    nextDate.setDate(nextDate.getDate() + n);
-                    if (now < nextDate) return; // 아직 N일 미경과
-                }
-            }
-            // N일 이상 경과 → 오늘 날짜를 키로 저장
-            const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
-            if (localStorage.getItem(LAST_RESET_KEY) === todayKey) return; // 오늘 이미 실행
-            localStorage.setItem(LAST_RESET_KEY, todayKey);
-        } else {
-            const resetKey = buildResetKey(now, h, m);
-            if (localStorage.getItem(LAST_RESET_KEY) === resetKey) return;
-            localStorage.setItem(LAST_RESET_KEY, resetKey);
-        }
-
-        state.todos = state.todos.map(t => t.itemResetTime ? t : { ...t, done: false });
-        saveTodos();
-        renderTodos();
-        showToast('할 일 목록이 자동으로 초기화되었습니다', 'info');
-    }
-
-    // 개별 초기화: itemResetTime이 hh:mm인 항목만 체크 해제
-    function doItemResets(now, hh, mm) {
-        if (isWeekdayBlocked(now)) return;
-
-        let anyChanged = false;
-        state.todos = state.todos.map(t => {
-            if (!t.itemResetTime || t.itemResetDatetime || t.itemResetSchedule) return t;
-            const [th, tm] = t.itemResetTime.split(':').map(Number);
-            if (th !== hh || tm !== mm) return t;
-
-            // 항목별 중복 방지 키
-            const itemKey = `todoApp_itemLastReset_${t.id}`;
-            const resetKey = buildResetKey(now, hh, mm);
-            if (localStorage.getItem(itemKey) === resetKey) return t;
-            localStorage.setItem(itemKey, resetKey);
-
-            anyChanged = true;
-            return { ...t, done: false };
-        });
-
-        if (anyChanged) {
-            saveTodos();
-            renderTodos();
-            showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
-        }
-    }
-
-    // 날짜 지정 1회 초기화
-    function doItemDatetimeResets(now) {
-        let anyChanged = false;
-        state.todos = state.todos.map(t => {
-            if (!t.itemResetDatetime) return t;
-            const itemKey = `todoApp_itemLastReset_${t.id}`;
-            if (localStorage.getItem(itemKey) === t.itemResetDatetime) return t; // 이미 실행
-            const targetDate = new Date(t.itemResetDatetime);
-            if (now < targetDate) return t; // 아직 시각 안 될
-            localStorage.setItem(itemKey, t.itemResetDatetime);
-            anyChanged = true;
-            return { ...t, done: false };
-        });
-        if (anyChanged) {
-            saveTodos();
-            renderTodos();
-            showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
-        }
-    }
-
-    // 주간/월간/연간 스케줄 초기화
-    function doItemScheduleResets(now, catchUp = false) {
-        const hh = now.getHours();
-        const mm = now.getMinutes();
-        let anyChanged = false;
-        state.todos = state.todos.map(t => {
-            if (!t.itemResetSchedule) return t;
-            const s = t.itemResetSchedule;
-            const [sh, sm] = (s.time || '00:00').split(':').map(Number);
-            if (catchUp) {
-                if (hh * 60 + mm < sh * 60 + sm) return t;
-            } else {
-                if (hh !== sh || mm !== sm) return t;
-            }
-            let matched = false;
-            if (s.type === 'weekly') matched = (s.weekdays || []).includes(now.getDay());
-            else if (s.type === 'monthly') matched = (s.days || []).includes(now.getDate());
-            else if (s.type === 'yearly') matched = (s.dates || []).some(d => d.month === (now.getMonth() + 1) && d.day === now.getDate());
-            if (!matched) return t;
-            const itemKey = `todoApp_itemLastReset_${t.id}`;
-            const occKey = `${s.type}-${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
-            if (localStorage.getItem(itemKey) === occKey) return t;
-            localStorage.setItem(itemKey, occKey);
-            anyChanged = true;
-            return { ...t, done: false };
-        });
-        if (anyChanged) {
-            saveTodos();
-            renderTodos();
-            showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
-        }
-    }
-
-    // ① 앱 시작 시 catch-up: 오늘 초기화 시각이 이미 지났으면 즉시 실행
-    (function catchUpReset() {
-        const now = new Date();
-        const nowMins = now.getHours() * 60 + now.getMinutes();
-        const repeat = state.settings.resetRepeat;
-
-        // 전역 catch-up
         const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
 
-        // everyN은 doGlobalReset 내부에서 날짜 비교를 처리하므로 항상 호출
-        // calendar도 doGlobalReset 내부에서 datetime 체크
-        // daily/weekly/weekday/monthly/yearly는 설정 시각이 지난 경우에만 호출
         if (repeat && (repeat.startsWith('every') || repeat === 'calendar')) {
             doGlobalReset(now, h, m);
         } else if (nowMins >= h * 60 + m) {
             doGlobalReset(now, h, m);
         }
+    }
 
-        // 개별 항목 catch-up
-        const uniqueTimes = [...new Set(
-            state.todos.filter(t => t.itemResetTime).map(t => t.itemResetTime)
-        )];
-        uniqueTimes.forEach(timeStr => {
-            const [th, tm] = timeStr.split(':').map(Number);
-            if (nowMins >= th * 60 + tm) doItemResets(now, th, tm);
-        });
-        // 날짜 지정 한 시 초기화
-        doItemDatetimeResets(now);
-        // 주간/월간/연간 스케줄 catch-up
-        doItemScheduleResets(now, true);
-    })();
+    // 개별 항목 catch-up (항상 실행)
+    const uniqueTimes = [...new Set(
+        state.todos.filter(t => t.itemResetTime).map(t => t.itemResetTime)
+    )];
+    uniqueTimes.forEach(timeStr => {
+        const [th, tm] = timeStr.split(':').map(Number);
+        if (nowMins >= th * 60 + tm) doItemResets(now, th, tm);
+    });
 
-    // ② 실시간 정각 체크: 1초 인터벌로 hh:mm이 일치할 때 실행 (중복은 buildResetKey로 방지)
+    doItemDatetimeResets(now);
+    doItemScheduleResets(now, true);
+
+    // 타이머 시작
     resetTimerInterval = setInterval(() => {
         const now = new Date();
         const hh = now.getHours();
         const mm = now.getMinutes();
 
-        // 전역 초기화
-        const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
-        const repeat = state.settings.resetRepeat;
-        if (repeat === 'calendar') {
-            // 캘린더: 지정 일시의 분(minute)이 일치할 때만 호출
-            const cd = state.settings.resetCalendarDate;
-            if (cd) {
-                const calDate = new Date(cd);
-                if (hh === calDate.getHours() && mm === calDate.getMinutes()) {
-                    doGlobalReset(now, h, m);
+        // 전역 초기화 (resetEnabled인 경우만)
+        if (state.settings.resetEnabled) {
+            const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
+            const repeat = state.settings.resetRepeat;
+            if (repeat === 'calendar') {
+                const cd = state.settings.resetCalendarDate;
+                if (cd) {
+                    const calDate = new Date(cd);
+                    if (hh === calDate.getHours() && mm === calDate.getMinutes()) {
+                        doGlobalReset(now, h, m);
+                    }
                 }
+            } else if (hh === h && mm === m) {
+                doGlobalReset(now, h, m);
             }
-        } else if (hh === h && mm === m) {
-            doGlobalReset(now, h, m);
         }
 
-        // 개별 초기화
+        // 개별 초기화 (항상 실행)
         doItemResets(now, hh, mm);
         doItemDatetimeResets(now);
         doItemScheduleResets(now, false);
@@ -1297,24 +1486,22 @@ function scheduleResetTimer() {
 function saveCategories() {
     saveToStorage(STORAGE_KEYS.CATEGORIES, state.categories);
     saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, state.currentCategoryId);
-    syncToCloud();
+    // Firebase 동기화
+    if (window.FirebaseSync?.isReady()) {
+        window.FirebaseSync.push({
+            todos: state.todos,
+            categories: state.categories,
+            settings: (() => {
+                const { bgImage, bgFileName, ...rest } = state.settings;
+                return rest;
+            })(),
+        });
+    }
 }
 
 /* ===================================================
-   Cloud Sync
+   UI Toggle
 =================================================== */
-function syncToCloud() {
-    if (remoteSyncInProgress) return;
-    if (!window.FirebaseSync?.isReady()) return;
-    // bgImage는 용량이 커서 동기화 제외
-    const { bgImage, bgFileName, ...settingsForSync } = state.settings;
-    window.FirebaseSync.push({
-        todos: state.todos,
-        categories: state.categories,
-        settings: settingsForSync,
-    });
-}
-
 function toggleUI() {
     const container = document.querySelector('.app-container');
     if (!container) return;
@@ -1331,16 +1518,27 @@ function manualRefresh() {
     } else if (window.FirebaseSync?.init()) {
         window.FirebaseSync.startSync(applyRemoteData);
     }
-    setTimeout(() => btn.classList.remove('spinning'), 1000);
+    setTimeout(() => {
+        btn.classList.remove('spinning');
+        logResetStatus(); // 디버깅: 새로고침 시 초기화 상태 출력
+    }, 1000);
 }
 
 function applyRemoteData(cloudData) {
+    console.log('[applyRemoteData] 호출됨 - remoteSyncInProgress:', remoteSyncInProgress);
+
+    if (remoteSyncInProgress) {
+        console.log('[applyRemoteData] 로컬 작업 진행 중 - 원격 데이터 무시');
+        return;
+    }
+
     remoteSyncInProgress = true;
     try {
         let changed = false;
 
         if (cloudData.todos &&
             JSON.stringify(cloudData.todos) !== JSON.stringify(state.todos)) {
+            console.log('[applyRemoteData] todos 데이터 불일치 - 원격 데이터로 업데이트');
             state.todos = cloudData.todos;
             saveToStorage(STORAGE_KEYS.TODOS, state.todos);
             changed = true;
@@ -1647,10 +1845,21 @@ function bindEvents() {
     DOM.uiToggleBtn?.addEventListener('click', toggleUI);
 
     // Task modal
-    DOM.modalClose.addEventListener('click', () => closeModal(DOM.taskModal));
-    DOM.modalCancel.addEventListener('click', () => closeModal(DOM.taskModal));
-    DOM.modalSave.addEventListener('click', handleModalSave);
-    DOM.taskInput.addEventListener('keydown', (e) => {
+    console.log('[bindEvents] Task 모달 버튼 확인:', {
+        modalClose: !!DOM.modalClose,
+        modalCancel: !!DOM.modalCancel,
+        modalSave: !!DOM.modalSave,
+        taskInput: !!DOM.taskInput
+    });
+
+    if (!DOM.modalSave) {
+        console.error('[bindEvents] ERROR: modalSave 버튼을 찾을 수 없습니다!');
+    }
+
+    DOM.modalClose?.addEventListener('click', () => closeModal(DOM.taskModal));
+    DOM.modalCancel?.addEventListener('click', () => closeModal(DOM.taskModal));
+    DOM.modalSave?.addEventListener('click', handleModalSave);
+    DOM.taskInput?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleModalSave();
@@ -1682,6 +1891,25 @@ function bindEvents() {
         closeModal(DOM.settingsModal);
         setTimeout(() => openClearAllModal(), 200);
     });
+
+    // Test notification button (developer tool)
+    // if (DOM.testNotificationBtn) {
+    //     DOM.testNotificationBtn.addEventListener('click', async () => {
+    //         if (window.electronAPI) {
+    //             try {
+    //                 await window.electronAPI.showNotification(
+    //                     '🔔 테스트 알림',
+    //                     '시스템 알림이 정상적으로 작동하고 있습니다!'
+    //                 );
+    //                 showToast('테스트 알림을 전송했습니다', 'success');
+    //             } catch (err) {
+    //                 showToast('알림 전송 실패: ' + err.message, 'error');
+    //             }
+    //         } else {
+    //             showToast('Electron 환경이 아닙니다', 'error');
+    //         }
+    //     });
+    // }
 
     // Reset timer form — keep tempSettings in sync with DOM
     DOM.resetEnabled.addEventListener('change', () => {
@@ -1788,6 +2016,78 @@ function bindElectronEvents() {
 }
 
 /* ===================================================
+   Debug Logging
+=================================================== */
+function parseResetKeyToDate(resetKey) {
+    if (!resetKey) return null;
+
+    // ISO datetime 형식 (2026-03-17T14:00:00)
+    if (resetKey.includes('T')) {
+        const date = new Date(resetKey);
+        return date;
+    }
+
+    // Weekly 형식 (2026-W11-9-0)
+    if (resetKey.includes('W')) {
+        return null; // 주차 형식은 정확한 날짜 복원 어려움
+    }
+
+    // 일반 형식 (2026-2-17-9-0: year-month-date-hour-minute)
+    const parts = resetKey.split('-');
+    if (parts.length >= 5) {
+        const year = parseInt(parts[0]);
+        const month = parseInt(parts[1]);
+        const day = parseInt(parts[2]);
+        const hour = parseInt(parts[3]);
+        const minute = parseInt(parts[4]);
+        return new Date(year, month, day, hour, minute, 0);
+    }
+
+    return null;
+}
+
+function formatResetTime(resetKey) {
+    if (!resetKey) return 'None';
+
+    const date = parseResetKeyToDate(resetKey);
+    if (!date || isNaN(date.getTime())) {
+        return resetKey; // 파싱 실패 시 원본 표시
+    }
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hour = pad(date.getHours());
+    const minute = pad(date.getMinutes());
+    const second = pad(date.getSeconds());
+
+    return `${year}/${month}/${day} ${hour}:${minute}:${second}`;
+}
+
+function logResetStatus() {
+    console.log('=== 체크리스트 초기화 상태 ===');
+
+    // 전역 초기화 상태
+    const globalResetKey = localStorage.getItem(LAST_RESET_KEY);
+    console.log(`전역 초기화: ${formatResetTime(globalResetKey)}`);
+
+    console.log('\n항목별 초기화:');
+    state.todos.forEach((todo, index) => {
+        const itemKey = `todoApp_itemLastReset_${todo.id}`;
+        const lastReset = localStorage.getItem(itemKey);
+        const resetType = todo.itemResetDatetime ? 'datetime'
+            : todo.itemResetSchedule ? 'schedule'
+                : todo.itemResetTime ? 'time'
+                    : 'global';
+
+        console.log(`  [${index + 1}] "${todo.text}" (${resetType}): ${formatResetTime(lastReset)}`);
+    });
+
+    console.log('=============================\n');
+}
+
+/* ===================================================
    Init
 =================================================== */
 function init() {
@@ -1807,6 +2107,9 @@ function init() {
     if (window.FirebaseSync?.init()) {
         window.FirebaseSync.startSync(applyRemoteData);
     }
+
+    // 디버깅: 초기화 상태 출력
+    logResetStatus();
 }
 
 document.addEventListener('DOMContentLoaded', init);

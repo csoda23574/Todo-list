@@ -1,7 +1,7 @@
 {
     "appId": "com.personal.todolist",
     "appName": "Todo List",
-    "webDir": "www",
+    "webDir": "src",
     "server": {
         "androidScheme": "https"
     },

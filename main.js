@@ -2,7 +2,7 @@
 
 const {
     app, BrowserWindow, ipcMain,
-    Tray, Menu, nativeImage, shell,
+    Tray, Menu, nativeImage, shell, Notification,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -19,7 +19,7 @@ let tray = null;
 let isQuitting = false;
 
 // ─── Paths ──────────────────────────────────────────────────────────────────
-const ICON_PATH = path.join(__dirname, 'assets', '헤르타.ico');
+const ICON_PATH = path.join(__dirname, 'src', 'assets', '헤르타.ico');
 const WIN_STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
 const FIRST_RUN_FLAG = path.join(app.getPath('userData'), '.autolaunch-set');
 const APP_SETTINGS_FILE = path.join(app.getPath('userData'), 'app-settings.json');
@@ -102,7 +102,29 @@ function createWindow() {
         center: !saved.x,
     });
 
-    mainWindow.loadFile('index.html');
+    mainWindow.loadFile('src/index.html');
+
+    // Enable DevTools in development mode
+    if (!app.isPackaged) {
+        mainWindow.webContents.openDevTools();
+    }
+
+    // Register F12 shortcut for DevTools
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if (input.key === 'F12') {
+            mainWindow.webContents.toggleDevTools();
+        }
+    });
+
+    // Right-click context menu (dev tools)
+    mainWindow.webContents.on('context-menu', (e, params) => {
+        const contextMenu = Menu.buildFromTemplate([
+            { label: '개발자 도구', click: () => mainWindow.webContents.toggleDevTools() },
+            { type: 'separator' },
+            { label: '새로고침', role: 'reload' },
+        ]);
+        contextMenu.popup();
+    });
 
     // Sync maximize state to renderer
     mainWindow.on('maximize', () => mainWindow.webContents.send('window:maximize-change', true));
@@ -217,6 +239,39 @@ ipcMain.handle('app:setAlwaysOnTop', (_, enabled) => {
     persistSettings({ alwaysOnTop: !!enabled });
 });
 
+// ─── IPC: Notifications ──────────────────────────────────────────────────────
+ipcMain.handle('app:showNotification', (_, title, body) => {
+    if (!Notification.isSupported()) return;
+
+    try {
+        const iconExists = fs.existsSync(ICON_PATH);
+        const notificationOptions = {
+            title: title,
+            body: body,
+            silent: false,
+            urgency: 'normal',
+        };
+
+        if (iconExists) {
+            notificationOptions.icon = ICON_PATH;
+        }
+
+        const notification = new Notification(notificationOptions);
+
+        notification.on('click', () => {
+            if (mainWindow) {
+                if (mainWindow.isMinimized()) mainWindow.restore();
+                if (!mainWindow.isVisible()) mainWindow.show();
+                mainWindow.focus();
+            }
+        });
+
+        notification.show();
+    } catch (err) {
+        console.error('[Notification Error]', err);
+    }
+});
+
 // ─── Second Instance → Focus Existing Window ─────────────────────────────────
 app.on('second-instance', () => {
     if (mainWindow) showWindow();
@@ -224,6 +279,8 @@ app.on('second-instance', () => {
 
 // ─── App Lifecycle ───────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+    console.log('[Main] App ready, isPackaged:', app.isPackaged);
+    console.log('[Main] Notification supported:', Notification.isSupported());
     // Windows taskbar grouping & notifications
     app.setAppUserModelId('com.personal.todolist');
 

@@ -25,4 +25,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getAppSettings: () => ipcRenderer.invoke('app:getSettings'),
     setAutoLaunch: (value) => ipcRenderer.invoke('app:setAutoLaunch', value),
     setAlwaysOnTop: (value) => ipcRenderer.invoke('app:setAlwaysOnTop', value),
+
+    // ── Notifications ────────────────────────────────────────────────────────
+    showNotification: (title, body) => ipcRenderer.invoke('app:showNotification', title, body),
 });

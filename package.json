@@ -12,13 +12,13 @@
         "pack": "npm run clean && npm run build-icon && electron-builder --dir --win",
         "dist": "npm run clean && npm run build-icon && electron-builder --win",
         "dist:portable": "npm run clean && npm run build-icon && electron-builder --win portable",
-        "sync-www": "node scripts/sync-www.js",
-        "android:sync": "npm run sync-www && npx cap sync android",
-        "android:open": "npm run sync-www && npx cap sync android && npx cap open android",
-        "android:apk": "npm run sync-www && npx cap sync android && cd android && gradlew.bat assembleDebug"
+        "android:sync": "npx cap sync android",
+        "android:open": "npx cap sync android && npx cap open android",
+        "android:apk": "npx cap sync android && cd android && gradlew.bat assembleDebug"
     },
     "dependencies": {
-        "@capacitor/core": "^6.2.0"
+        "@capacitor/core": "^6.2.0",
+        "@capacitor/local-notifications": "^6.0.0"
     },
     "devDependencies": {
         "@capacitor/android": "^6.2.0",
@@ -36,7 +36,7 @@
             "output": "todo-dist"
         },
         "win": {
-            "icon": "assets/헤르타.ico",
+            "icon": "src/assets/헤르타.ico",
             "target": [
                 {
                     "target": "nsis",
