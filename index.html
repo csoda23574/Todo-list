@@ -14,8 +14,6 @@
 
 <body>
     <div class="app-container">
-        <!-- Background overlay -->
-        <div class="bg-overlay" id="bgOverlay"></div>
         <!-- Electron custom titlebar (hidden in browser mode) -->
         <div class="titlebar" id="titlebar">
             <div class="titlebar-drag"></div>
@@ -98,69 +96,74 @@
             </div>
         </header>
 
-        <!-- Stats bar -->
-        <div class="stats-bar">
-            <div class="stat-item">
-                <span class="stat-number" id="totalCount">0</span>
-                <span class="stat-label">전체</span>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
-                <span class="stat-number" id="doneCount">0</span>
-                <span class="stat-label">완료</span>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
-                <span class="stat-number" id="pendingCount">0</span>
-                <span class="stat-label">미완료</span>
-            </div>
-            <div class="stat-progress-wrap">
-                <div class="stat-progress-bar">
-                    <div class="stat-progress-fill" id="progressFill"></div>
+        <!-- Content area (background starts here) -->
+        <div class="app-body">
+            <div class="bg-overlay" id="bgOverlay"></div>
+
+            <!-- Stats bar -->
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <span class="stat-number" id="totalCount">0</span>
+                    <span class="stat-label">전체</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-number" id="doneCount">0</span>
+                    <span class="stat-label">완료</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-number" id="pendingCount">0</span>
+                    <span class="stat-label">미완료</span>
+                </div>
+                <div class="stat-progress-wrap">
+                    <div class="stat-progress-bar">
+                        <div class="stat-progress-fill" id="progressFill"></div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Category Tabs -->
-        <div class="category-tabs-bar" id="categoryTabsBar">
-            <!-- Rendered by JS -->
-        </div>
+            <!-- Category Tabs -->
+            <div class="category-tabs-bar" id="categoryTabsBar">
+                <!-- Rendered by JS -->
+            </div>
 
-        <!-- Filter tabs -->
-        <div class="filter-tabs">
-            <button class="filter-tab active" data-filter="all">전체</button>
-            <button class="filter-tab" data-filter="pending">미완료</button>
-            <button class="filter-tab" data-filter="done">완료</button>
-        </div>
+            <!-- Filter tabs -->
+            <div class="filter-tabs">
+                <button class="filter-tab active" data-filter="all">전체</button>
+                <button class="filter-tab" data-filter="pending">미완료</button>
+                <button class="filter-tab" data-filter="done">완료</button>
+            </div>
 
-        <!-- Todo List -->
-        <div class="todo-list-wrapper">
-            <ul class="todo-list" id="todoList">
-                <!-- Items rendered by JS -->
-            </ul>
-            <div class="empty-state" id="emptyState">
-                <div class="empty-icon">
-                    <svg viewBox="0 0 80 80" fill="none">
-                        <circle cx="40" cy="40" r="38" stroke="currentColor" stroke-width="2" stroke-dasharray="6 4"
-                            opacity="0.3" />
-                        <path d="M28 40h24M40 28v24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
-                            opacity="0.4" />
+            <!-- Todo List -->
+            <div class="todo-list-wrapper">
+                <ul class="todo-list" id="todoList">
+                    <!-- Items rendered by JS -->
+                </ul>
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 80 80" fill="none">
+                            <circle cx="40" cy="40" r="38" stroke="currentColor" stroke-width="2" stroke-dasharray="6 4"
+                                opacity="0.3" />
+                            <path d="M28 40h24M40 28v24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                                opacity="0.4" />
+                        </svg>
+                    </div>
+                    <p class="empty-title">할 일이 없습니다</p>
+                    <p class="empty-sub">아래 + 버튼을 눌러 새 항목을 추가하세요</p>
+                </div>
+            </div>
+
+            <!-- Add button -->
+            <div class="add-btn-wrap">
+                <button class="add-fab" id="addBtn" title="항목 추가" aria-label="새 항목 추가">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
-                </div>
-                <p class="empty-title">할 일이 없습니다</p>
-                <p class="empty-sub">아래 + 버튼을 눌러 새 항목을 추가하세요</p>
+                </button>
             </div>
-        </div>
-
-        <!-- Add button -->
-        <div class="add-btn-wrap">
-            <button class="add-fab" id="addBtn" title="항목 추가" aria-label="새 항목 추가">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-            </button>
-        </div>
+        </div><!-- /.app-body -->
     </div>
 
     <!-- Add / Edit Modal -->
@@ -195,12 +198,49 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="taskResetTime">개별 초기화 시간 <span class="form-label-sub">(비우면 전역 설정
-                            사용)</span></label>
-                    <div class="task-reset-wrap">
-                        <input type="time" id="taskResetTime" class="form-input time-input" />
-                        <button type="button" class="btn-text-danger task-reset-clear" id="taskResetClear">초기화
-                            없음</button>
+                    <label class="form-label">개별 초기화</label>
+                    <select id="taskResetType" class="form-input select-input">
+                        <option value="none">없음</option>
+                        <option value="time">매일</option>
+                        <option value="weekly">매주 요일</option>
+                        <option value="monthly">매월 날짜</option>
+                        <option value="yearly">매년 날짜</option>
+                        <option value="datetime">날짜 지정 (1회)</option>
+                    </select>
+                    <!-- 매일 -->
+                    <div class="task-reset-input-row" id="taskResetTimeRow" style="display:none">
+                        <input type="time" id="taskResetTime" class="form-input time-input" style="width:100%" />
+                    </div>
+                    <!-- 매주 요일 -->
+                    <div class="task-reset-input-row" id="taskResetWeeklyRow" style="display:none">
+                        <div class="weekday-toggle-wrap">
+                            <button type="button" class="weekday-btn" data-day="0">일</button>
+                            <button type="button" class="weekday-btn" data-day="1">월</button>
+                            <button type="button" class="weekday-btn" data-day="2">화</button>
+                            <button type="button" class="weekday-btn" data-day="3">수</button>
+                            <button type="button" class="weekday-btn" data-day="4">목</button>
+                            <button type="button" class="weekday-btn" data-day="5">금</button>
+                            <button type="button" class="weekday-btn" data-day="6">토</button>
+                        </div>
+                        <input type="time" id="taskResetWeeklyTime" class="form-input time-input"
+                            style="width:100%;margin-top:6px" />
+                    </div>
+                    <!-- 매월 날짜 -->
+                    <div class="task-reset-input-row" id="taskResetMonthlyRow" style="display:none">
+                        <div class="day-number-grid" id="monthDayGrid"></div>
+                        <input type="time" id="taskResetMonthlyTime" class="form-input time-input"
+                            style="width:100%;margin-top:6px" />
+                    </div>
+                    <!-- 매년 날짜 -->
+                    <div class="task-reset-input-row" id="taskResetYearlyRow" style="display:none">
+                        <div id="yearlyDateList"></div>
+                        <button type="button" class="btn-add-entry" id="addYearlyDateBtn">+ 날짜 추가</button>
+                        <input type="time" id="taskResetYearlyTime" class="form-input time-input"
+                            style="width:100%;margin-top:6px" />
+                    </div>
+                    <!-- 날짜 지정 (1회) -->
+                    <div class="task-reset-input-row" id="taskResetDatetimeRow" style="display:none">
+                        <input type="datetime-local" id="taskResetDatetime" class="form-input" style="width:100%" />
                     </div>
                 </div>
             </div>
@@ -274,8 +314,10 @@
                             </div>
                             <select id="resetRepeat" class="form-input select-input">
                                 <option value="daily">매일</option>
-                                <option value="weekly">매주</option>
                                 <option value="weekday">평일만</option>
+                                <option value="weekly">매주</option>
+                                <option value="monthly">매월</option>
+                                <option value="yearly">매년</option>
                             </select>
                         </div>
                         <div class="reset-next-info" id="resetNextInfo"></div>

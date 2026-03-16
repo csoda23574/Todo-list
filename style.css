@@ -106,7 +106,6 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: var(--space-md);
     transition: background-color var(--transition-slow), color var(--transition-slow);
     position: relative;
     overflow: hidden;
@@ -119,7 +118,6 @@ body {
     position: absolute;
     inset: 0;
     z-index: 0;
-    border-radius: inherit;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
@@ -133,21 +131,32 @@ body {
 }
 
 /* ===================================================
+   App Body (content below header — bg anchored here)
+=================================================== */
+.app-body {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ===================================================
    App Container
 =================================================== */
 .app-container {
     position: relative;
     z-index: 1;
     width: 100%;
-    max-width: 540px;
-    height: calc(100vh - 2 * var(--space-md));
-    max-height: calc(100vh - 2 * var(--space-md));
+    max-width: 100%;
+    height: 100vh;
+    max-height: 100vh;
     background: var(--color-surface);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-xl);
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -508,7 +517,7 @@ body {
 .category-tab {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 0;
     padding: 5px 10px;
     font-size: 12px;
     font-weight: 500;
@@ -545,8 +554,10 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 14px;
+    width: 0;
     height: 14px;
+    margin-left: 0;
+    overflow: hidden;
     padding: 0;
     background: transparent;
     border: none;
@@ -554,17 +565,20 @@ body {
     cursor: pointer;
     border-radius: 50%;
     opacity: 0;
-    transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+    transition: width var(--transition-fast), margin-left var(--transition-fast), opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
     flex-shrink: 0;
 }
 
 .category-tab-del svg {
     width: 10px;
     height: 10px;
+    flex-shrink: 0;
 }
 
 .category-tab:hover .category-tab-del,
 .category-tab.active .category-tab-del {
+    width: 14px;
+    margin-left: 4px;
     opacity: 1;
 }
 
@@ -609,7 +623,7 @@ body {
     background: transparent;
     border: none;
     outline: none;
-    width: 80px;
+    min-width: 24px;
     padding: 0;
 }
 
@@ -882,6 +896,121 @@ body {
     color: var(--color-text-muted);
 }
 
+/* 요일 토글 버튼 */
+.weekday-toggle-wrap {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.weekday-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.weekday-btn.active {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
+.weekday-btn:hover:not(.active) {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    border-color: var(--color-accent);
+}
+
+/* 매월 날짜 그리드 */
+.day-number-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+}
+
+.day-number-btn {
+    height: 30px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.day-number-btn.active {
+    background: var(--color-accent);
+    color: white;
+    border-color: var(--color-accent);
+}
+
+.day-number-btn:hover:not(.active) {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    border-color: var(--color-accent);
+}
+
+/* 매년 날짜 행 */
+.yearly-date-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.yearly-month-sel,
+.yearly-day-sel {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 13px;
+}
+
+.yearly-remove-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: color-mix(in srgb, var(--color-danger, #ef4444) 12%, transparent);
+    color: var(--color-danger, #ef4444);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.yearly-remove-btn:hover {
+    background: var(--color-danger, #ef4444);
+    color: white;
+}
+
+/* 날짜 추가 버튼 */
+.btn-add-entry {
+    font-size: 12px;
+    color: var(--color-accent);
+    background: transparent;
+    border: 1px dashed var(--color-accent);
+    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 4px;
+    transition: all var(--transition-fast);
+}
+
+.btn-add-entry:hover {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
 /* Actions */
 .todo-actions {
     display: flex;
@@ -1148,6 +1277,10 @@ body {
 
 .task-reset-wrap .form-input {
     flex: 1;
+}
+
+.task-reset-input-row {
+    margin-top: 6px;
 }
 
 .btn-text-danger {
@@ -1428,6 +1561,11 @@ body {
     padding: 8px 12px;
     cursor: pointer;
     color-scheme: light;
+}
+
+input[type="datetime-local"].time-input {
+    width: 190px;
+    text-align: left;
 }
 
 [data-theme="dark"] .time-input {

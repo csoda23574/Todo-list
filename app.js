@@ -159,9 +159,21 @@ const DOM = {
     get clearAllBtn() { return document.getElementById('clearAllBtn'); },
     get headerTitle() { return document.getElementById('headerTitle'); },
     get appTitleInput() { return document.getElementById('appTitleInput'); },
-    // Task reset time
+    // Task reset
+    get taskResetType() { return document.getElementById('taskResetType'); },
     get taskResetTime() { return document.getElementById('taskResetTime'); },
-    get taskResetClear() { return document.getElementById('taskResetClear'); },
+    get taskResetDatetime() { return document.getElementById('taskResetDatetime'); },
+    get taskResetTimeRow() { return document.getElementById('taskResetTimeRow'); },
+    get taskResetDatetimeRow() { return document.getElementById('taskResetDatetimeRow'); },
+    get taskResetWeeklyRow() { return document.getElementById('taskResetWeeklyRow'); },
+    get taskResetMonthlyRow() { return document.getElementById('taskResetMonthlyRow'); },
+    get taskResetYearlyRow() { return document.getElementById('taskResetYearlyRow'); },
+    get taskResetWeeklyTime() { return document.getElementById('taskResetWeeklyTime'); },
+    get taskResetMonthlyTime() { return document.getElementById('taskResetMonthlyTime'); },
+    get taskResetYearlyTime() { return document.getElementById('taskResetYearlyTime'); },
+    get monthDayGrid() { return document.getElementById('monthDayGrid'); },
+    get yearlyDateList() { return document.getElementById('yearlyDateList'); },
+    get addYearlyDateBtn() { return document.getElementById('addYearlyDateBtn'); },
     // Confirm Modal
     get confirmModal() { return document.getElementById('confirmModal'); },
     get confirmCancel() { return document.getElementById('confirmCancel'); },
@@ -192,6 +204,31 @@ function showToast(message, type = 'info') {
 /* ===================================================
    Header Date
 =================================================== */
+function formatItemDatetime(dt) {
+    if (!dt) return '';
+    return new Date(dt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
+function formatScheduleBadge(s) {
+    if (!s) return '';
+    const time = s.time || '';
+    if (s.type === 'weekly') {
+        const days = (s.weekdays || []).map(d => WEEKDAY_NAMES[d]).join('·');
+        return `🔄 매주 ${days} ${time}`;
+    }
+    if (s.type === 'monthly') {
+        const days = (s.days || []).join('·');
+        return `🔄 매월 ${days}일 ${time}`;
+    }
+    if (s.type === 'yearly') {
+        const dates = (s.dates || []).map(d => `${d.month}/${d.day}`).join('·');
+        return `🔄 매년 ${dates} ${time}`;
+    }
+    return '';
+}
+
 function updateHeaderDate() {
     const now = new Date();
     const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -257,7 +294,9 @@ function createTodoElement(todo) {
       ${todo.note ? `<div class="todo-note">${escapeHtml(todo.note)}</div>` : ''}
       <div class="todo-meta">
         <span class="todo-priority-badge ${todo.priority || 'medium'}">${priorityLabels[todo.priority] || '보통'}</span>
-        ${todo.itemResetTime ? `<span class="todo-reset-badge">⏰ ${todo.itemResetTime}</span>` : ''}
+        ${todo.itemResetTime ? `<span class="todo-reset-badge">⏰ ${todo.itemResetTime} 매일</span>` : ''}
+        ${todo.itemResetDatetime ? `<span class="todo-reset-badge">📅 ${formatItemDatetime(todo.itemResetDatetime)}</span>` : ''}
+        ${todo.itemResetSchedule ? `<span class="todo-reset-badge">${escapeHtml(formatScheduleBadge(todo.itemResetSchedule))}</span>` : ''}
       </div>
     </div>
     <div class="todo-actions">
@@ -327,7 +366,7 @@ function escapeHtml(str) {
 /* ===================================================
    CRUD Operations
 =================================================== */
-function addTodo(text, note, priority, itemResetTime) {
+function addTodo(text, note, priority, itemResetTime, itemResetDatetime, itemResetSchedule) {
     const todo = {
         id: generateId(),
         text: text.trim(),
@@ -336,6 +375,8 @@ function addTodo(text, note, priority, itemResetTime) {
         done: false,
         createdAt: new Date().toISOString(),
         itemResetTime: itemResetTime || null,
+        itemResetDatetime: itemResetDatetime || null,
+        itemResetSchedule: itemResetSchedule || null,
         categoryId: state.currentCategoryId,
     };
     state.todos.unshift(todo);
@@ -344,7 +385,7 @@ function addTodo(text, note, priority, itemResetTime) {
     showToast('새 할 일이 추가되었습니다', 'success');
 }
 
-function editTodo(id, text, note, priority, itemResetTime) {
+function editTodo(id, text, note, priority, itemResetTime, itemResetDatetime, itemResetSchedule) {
     const idx = state.todos.findIndex(t => t.id === id);
     if (idx === -1) return;
     state.todos[idx] = {
@@ -353,6 +394,8 @@ function editTodo(id, text, note, priority, itemResetTime) {
         note: note.trim(),
         priority: priority || 'medium',
         itemResetTime: itemResetTime || null,
+        itemResetDatetime: itemResetDatetime || null,
+        itemResetSchedule: itemResetSchedule || null,
     };
     saveTodos();
     renderTodos();
@@ -447,7 +490,15 @@ function openAddModal() {
     DOM.taskInput.value = '';
     DOM.taskNote.value = '';
     DOM.taskResetTime.value = '';
+    DOM.taskResetDatetime.value = '';
+    DOM.taskResetWeeklyTime.value = '';
+    DOM.taskResetMonthlyTime.value = '';
+    DOM.taskResetYearlyTime.value = '';
+    document.querySelectorAll('.weekday-btn').forEach(b => b.classList.remove('active'));
+    if (DOM.monthDayGrid) DOM.monthDayGrid.querySelectorAll('.day-number-btn').forEach(b => b.classList.remove('active'));
+    DOM.yearlyDateList.innerHTML = '';
     setSelectedPriority('medium');
+    updateTaskResetTypeUI('none');
     openModal(DOM.taskModal);
     setTimeout(() => DOM.taskInput.focus(), 50);
 }
@@ -459,8 +510,44 @@ function openEditModal(id) {
     DOM.modalTitle.textContent = '할 일 수정';
     DOM.taskInput.value = todo.text;
     DOM.taskNote.value = todo.note || '';
-    DOM.taskResetTime.value = todo.itemResetTime || '';
     setSelectedPriority(todo.priority || 'medium');
+    // reset all fields first
+    DOM.taskResetTime.value = '';
+    DOM.taskResetDatetime.value = '';
+    DOM.taskResetWeeklyTime.value = '';
+    DOM.taskResetMonthlyTime.value = '';
+    DOM.taskResetYearlyTime.value = '';
+    document.querySelectorAll('.weekday-btn').forEach(b => b.classList.remove('active'));
+    if (DOM.monthDayGrid) DOM.monthDayGrid.querySelectorAll('.day-number-btn').forEach(b => b.classList.remove('active'));
+    DOM.yearlyDateList.innerHTML = '';
+
+    const s = todo.itemResetSchedule;
+    if (s) {
+        updateTaskResetTypeUI(s.type);
+        if (s.type === 'weekly') {
+            DOM.taskResetWeeklyTime.value = s.time || '';
+            document.querySelectorAll('.weekday-btn').forEach(b => {
+                b.classList.toggle('active', (s.weekdays || []).includes(parseInt(b.dataset.day, 10)));
+            });
+        } else if (s.type === 'monthly') {
+            initMonthDayGrid();
+            DOM.taskResetMonthlyTime.value = s.time || '';
+            DOM.monthDayGrid.querySelectorAll('.day-number-btn').forEach(b => {
+                b.classList.toggle('active', (s.days || []).includes(parseInt(b.dataset.day, 10)));
+            });
+        } else if (s.type === 'yearly') {
+            DOM.taskResetYearlyTime.value = s.time || '';
+            (s.dates || []).forEach(d => addYearlyDateEntry(d.month, d.day));
+        }
+    } else if (todo.itemResetDatetime) {
+        DOM.taskResetDatetime.value = todo.itemResetDatetime;
+        updateTaskResetTypeUI('datetime');
+    } else if (todo.itemResetTime) {
+        DOM.taskResetTime.value = todo.itemResetTime;
+        updateTaskResetTypeUI('time');
+    } else {
+        updateTaskResetTypeUI('none');
+    }
     openModal(DOM.taskModal);
     setTimeout(() => DOM.taskInput.focus(), 50);
 }
@@ -478,12 +565,27 @@ function handleModalSave() {
 
     const note = DOM.taskNote.value;
     const priority = getSelectedPriority();
-    const itemResetTime = DOM.taskResetTime.value || null;
+    const resetType = DOM.taskResetType.value;
+    const itemResetTime = resetType === 'time' ? (DOM.taskResetTime.value || null) : null;
+    const itemResetDatetime = resetType === 'datetime' ? (DOM.taskResetDatetime.value || null) : null;
+    let itemResetSchedule = null;
+    if (resetType === 'weekly') {
+        const weekdays = Array.from(document.querySelectorAll('.weekday-btn.active'))
+            .map(b => parseInt(b.dataset.day, 10));
+        itemResetSchedule = { type: 'weekly', weekdays, time: DOM.taskResetWeeklyTime.value || '00:00' };
+    } else if (resetType === 'monthly') {
+        const days = Array.from(DOM.monthDayGrid.querySelectorAll('.day-number-btn.active'))
+            .map(b => parseInt(b.dataset.day, 10));
+        itemResetSchedule = { type: 'monthly', days, time: DOM.taskResetMonthlyTime.value || '00:00' };
+    } else if (resetType === 'yearly') {
+        const dates = getYearlyDatesFromDOM();
+        itemResetSchedule = { type: 'yearly', dates, time: DOM.taskResetYearlyTime.value || '00:00' };
+    }
 
     if (state.editingId) {
-        editTodo(state.editingId, text, note, priority, itemResetTime);
+        editTodo(state.editingId, text, note, priority, itemResetTime, itemResetDatetime, itemResetSchedule);
     } else {
-        addTodo(text, note, priority, itemResetTime);
+        addTodo(text, note, priority, itemResetTime, itemResetDatetime, itemResetSchedule);
     }
 
     closeModal(DOM.taskModal);
@@ -502,6 +604,15 @@ function openConfirmModal(id) {
     const subEl = DOM.confirmModal?.querySelector('.confirm-sub');
     if (titleEl) titleEl.textContent = '항목을 삭제하시겠습니까?';
     if (subEl) subEl.textContent = '이 작업은 되돌릴 수 없습니다.';
+    openModal(DOM.confirmModal);
+}
+
+function openConfirmCategoryModal(id, name) {
+    _pendingConfirmAction = () => deleteCategory(id);
+    const titleEl = DOM.confirmModal?.querySelector('.confirm-title');
+    const subEl = DOM.confirmModal?.querySelector('.confirm-sub');
+    if (titleEl) titleEl.textContent = `'${name}' 탭을 삭제하시겠습니까?`;
+    if (subEl) subEl.textContent = '탭 안의 모든 할 일도 함께 삭제됩니다.';
     openModal(DOM.confirmModal);
 }
 
@@ -849,19 +960,106 @@ function getNextResetDate(timeStr, repeat) {
     }
 
     if (repeat === 'weekly') {
-        // Find next occurrence of same day-of-week
         const startDay = (new Date()).getDay();
         while (target.getDay() !== startDay) {
             target.setDate(target.getDate() + 1);
         }
+    } else if (repeat === 'monthly') {
+        // 다음 달, 같은 날짜
+        target.setMonth(target.getMonth() + 1);
+    } else if (repeat === 'yearly') {
+        // 내년, 같은 월일
+        target.setFullYear(target.getFullYear() + 1);
     } else if (repeat === 'weekday') {
-        // Skip to next weekday
         while (target.getDay() === 0 || target.getDay() === 6) {
             target.setDate(target.getDate() + 1);
         }
+    } else if (repeat && repeat.startsWith('every')) {
+        // everyN: 마지막 실행일에서 N일 후
+        const n = parseInt(repeat.slice(5), 10);
+        const lastKey = localStorage.getItem('todoApp_lastReset');
+        if (lastKey) {
+            // 마지막 리셋 날짜를 파싱해 N일 후를 계산
+            const parts = lastKey.split('-');
+            if (parts.length >= 3) {
+                const lastDate = new Date(Number(parts[0]), Number(parts[1]), Number(parts[2]));
+                lastDate.setHours(hours, minutes, 0, 0);
+                const nextDate = new Date(lastDate);
+                nextDate.setDate(nextDate.getDate() + n);
+                if (nextDate > now) return nextDate;
+            }
+        }
+        // 마지막 리셋 기록 없으면 다음 N일 후
+        target.setDate(target.getDate() + n - 1);
     }
 
     return target;
+}
+
+function initMonthDayGrid() {
+    const grid = DOM.monthDayGrid;
+    if (!grid || grid.dataset.initialized) return;
+    grid.dataset.initialized = '1';
+    for (let i = 1; i <= 31; i++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'day-number-btn';
+        btn.dataset.day = i;
+        btn.textContent = i;
+        btn.addEventListener('click', () => btn.classList.toggle('active'));
+        grid.appendChild(btn);
+    }
+}
+
+function addYearlyDateEntry(month = 1, day = 1) {
+    const list = DOM.yearlyDateList;
+    const row = document.createElement('div');
+    row.className = 'yearly-date-row';
+    const monthSel = document.createElement('select');
+    monthSel.className = 'form-input yearly-month-sel';
+    for (let m = 1; m <= 12; m++) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = `${m}월`;
+        if (m === month) opt.selected = true;
+        monthSel.appendChild(opt);
+    }
+    const daySel = document.createElement('select');
+    daySel.className = 'form-input yearly-day-sel';
+    for (let d = 1; d <= 31; d++) {
+        const opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = `${d}일`;
+        if (d === day) opt.selected = true;
+        daySel.appendChild(opt);
+    }
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'yearly-remove-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => row.remove());
+    row.appendChild(monthSel);
+    row.appendChild(daySel);
+    row.appendChild(removeBtn);
+    list.appendChild(row);
+}
+
+function getYearlyDatesFromDOM() {
+    return Array.from(DOM.yearlyDateList.querySelectorAll('.yearly-date-row')).map(row => ({
+        month: parseInt(row.querySelector('.yearly-month-sel').value, 10),
+        day: parseInt(row.querySelector('.yearly-day-sel').value, 10),
+    }));
+}
+
+function updateTaskResetTypeUI(type) {
+    DOM.taskResetType.value = type;
+    DOM.taskResetTimeRow.style.display = type === 'time' ? '' : 'none';
+    DOM.taskResetWeeklyRow.style.display = type === 'weekly' ? '' : 'none';
+    DOM.taskResetMonthlyRow.style.display = type === 'monthly' ? '' : 'none';
+    DOM.taskResetYearlyRow.style.display = type === 'yearly' ? '' : 'none';
+    DOM.taskResetDatetimeRow.style.display = type === 'datetime' ? '' : 'none';
+    if (type === 'monthly') initMonthDayGrid();
+    if (type === 'yearly' && DOM.yearlyDateList.children.length === 0) addYearlyDateEntry();
 }
 
 function updateResetNextInfo() {
@@ -872,6 +1070,10 @@ function updateResetNextInfo() {
     const time = DOM.resetTime.value || '00:00';
     const repeat = DOM.resetRepeat.value || 'daily';
     const next = getNextResetDate(time, repeat);
+    if (!next) {
+        DOM.resetNextInfo.textContent = '지정된 일시가 이미 지났습니다';
+        return;
+    }
     const opts = { weekday: 'short', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     DOM.resetNextInfo.textContent = `다음 초기화: ${next.toLocaleDateString('ko-KR', opts)}`;
 }
@@ -886,7 +1088,7 @@ function scheduleResetTimer() {
 
     const LAST_RESET_KEY = 'todoApp_lastReset';
 
-    // 중복 방지용 키 생성 (weekly/daily/weekday 고려)
+    // 중복 방지용 키 생성 (weekly/daily/weekday/everyN 고려)
     function buildResetKey(now, h, m) {
         const repeat = state.settings.resetRepeat;
         if (repeat === 'weekly') {
@@ -896,6 +1098,12 @@ function scheduleResetTimer() {
             const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
             const weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
             return `${d.getUTCFullYear()}-W${weekNum}-${h}-${m}`;
+        }
+        if (repeat === 'monthly') {
+            return `${now.getFullYear()}-M${now.getMonth()}-${h}-${m}`;
+        }
+        if (repeat === 'yearly') {
+            return `${now.getFullYear()}-Y-${h}-${m}`;
         }
         return `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
     }
@@ -910,9 +1118,31 @@ function scheduleResetTimer() {
     function doGlobalReset(now, h, m) {
         if (isWeekdayBlocked(now)) return;
 
-        const resetKey = buildResetKey(now, h, m);
-        if (localStorage.getItem(LAST_RESET_KEY) === resetKey) return;
-        localStorage.setItem(LAST_RESET_KEY, resetKey);
+        const repeat = state.settings.resetRepeat;
+
+        if (repeat && repeat.startsWith('every')) {
+            // everyN: 마지막 리셋 날짜 기준으로 N일 경과 여부를 직접 비교
+            const n = parseInt(repeat.slice(5), 10);
+            const lastKey = localStorage.getItem(LAST_RESET_KEY);
+            if (lastKey) {
+                const parts = lastKey.split('-');
+                if (parts.length >= 3) {
+                    const lastDate = new Date(Number(parts[0]), Number(parts[1]), Number(parts[2]));
+                    lastDate.setHours(h, m, 0, 0);
+                    const nextDate = new Date(lastDate);
+                    nextDate.setDate(nextDate.getDate() + n);
+                    if (now < nextDate) return; // 아직 N일 미경과
+                }
+            }
+            // N일 이상 경과 → 오늘 날짜를 키로 저장
+            const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
+            if (localStorage.getItem(LAST_RESET_KEY) === todayKey) return; // 오늘 이미 실행
+            localStorage.setItem(LAST_RESET_KEY, todayKey);
+        } else {
+            const resetKey = buildResetKey(now, h, m);
+            if (localStorage.getItem(LAST_RESET_KEY) === resetKey) return;
+            localStorage.setItem(LAST_RESET_KEY, resetKey);
+        }
 
         state.todos = state.todos.map(t => t.itemResetTime ? t : { ...t, done: false });
         saveTodos();
@@ -926,7 +1156,7 @@ function scheduleResetTimer() {
 
         let anyChanged = false;
         state.todos = state.todos.map(t => {
-            if (!t.itemResetTime) return t;
+            if (!t.itemResetTime || t.itemResetDatetime || t.itemResetSchedule) return t;
             const [th, tm] = t.itemResetTime.split(':').map(Number);
             if (th !== hh || tm !== mm) return t;
 
@@ -947,14 +1177,76 @@ function scheduleResetTimer() {
         }
     }
 
+    // 날짜 지정 1회 초기화
+    function doItemDatetimeResets(now) {
+        let anyChanged = false;
+        state.todos = state.todos.map(t => {
+            if (!t.itemResetDatetime) return t;
+            const itemKey = `todoApp_itemLastReset_${t.id}`;
+            if (localStorage.getItem(itemKey) === t.itemResetDatetime) return t; // 이미 실행
+            const targetDate = new Date(t.itemResetDatetime);
+            if (now < targetDate) return t; // 아직 시각 안 될
+            localStorage.setItem(itemKey, t.itemResetDatetime);
+            anyChanged = true;
+            return { ...t, done: false };
+        });
+        if (anyChanged) {
+            saveTodos();
+            renderTodos();
+            showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
+        }
+    }
+
+    // 주간/월간/연간 스케줄 초기화
+    function doItemScheduleResets(now, catchUp = false) {
+        const hh = now.getHours();
+        const mm = now.getMinutes();
+        let anyChanged = false;
+        state.todos = state.todos.map(t => {
+            if (!t.itemResetSchedule) return t;
+            const s = t.itemResetSchedule;
+            const [sh, sm] = (s.time || '00:00').split(':').map(Number);
+            if (catchUp) {
+                if (hh * 60 + mm < sh * 60 + sm) return t;
+            } else {
+                if (hh !== sh || mm !== sm) return t;
+            }
+            let matched = false;
+            if (s.type === 'weekly') matched = (s.weekdays || []).includes(now.getDay());
+            else if (s.type === 'monthly') matched = (s.days || []).includes(now.getDate());
+            else if (s.type === 'yearly') matched = (s.dates || []).some(d => d.month === (now.getMonth() + 1) && d.day === now.getDate());
+            if (!matched) return t;
+            const itemKey = `todoApp_itemLastReset_${t.id}`;
+            const occKey = `${s.type}-${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+            if (localStorage.getItem(itemKey) === occKey) return t;
+            localStorage.setItem(itemKey, occKey);
+            anyChanged = true;
+            return { ...t, done: false };
+        });
+        if (anyChanged) {
+            saveTodos();
+            renderTodos();
+            showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
+        }
+    }
+
     // ① 앱 시작 시 catch-up: 오늘 초기화 시각이 이미 지났으면 즉시 실행
     (function catchUpReset() {
         const now = new Date();
         const nowMins = now.getHours() * 60 + now.getMinutes();
+        const repeat = state.settings.resetRepeat;
 
         // 전역 catch-up
         const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
-        if (nowMins >= h * 60 + m) doGlobalReset(now, h, m);
+
+        // everyN은 doGlobalReset 내부에서 날짜 비교를 처리하므로 항상 호출
+        // calendar도 doGlobalReset 내부에서 datetime 체크
+        // daily/weekly/weekday/monthly/yearly는 설정 시각이 지난 경우에만 호출
+        if (repeat && (repeat.startsWith('every') || repeat === 'calendar')) {
+            doGlobalReset(now, h, m);
+        } else if (nowMins >= h * 60 + m) {
+            doGlobalReset(now, h, m);
+        }
 
         // 개별 항목 catch-up
         const uniqueTimes = [...new Set(
@@ -964,22 +1256,38 @@ function scheduleResetTimer() {
             const [th, tm] = timeStr.split(':').map(Number);
             if (nowMins >= th * 60 + tm) doItemResets(now, th, tm);
         });
+        // 날짜 지정 한 시 초기화
+        doItemDatetimeResets(now);
+        // 주간/월간/연간 스케줄 catch-up
+        doItemScheduleResets(now, true);
     })();
 
-    // ② 실시간 정각 체크: 1초 인터벌로 hh:mm:00 정확히 일치할 때만 실행
+    // ② 실시간 정각 체크: 1초 인터벌로 hh:mm이 일치할 때 실행 (중복은 buildResetKey로 방지)
     resetTimerInterval = setInterval(() => {
         const now = new Date();
         const hh = now.getHours();
         const mm = now.getMinutes();
-        const ss = now.getSeconds();
-        if (ss !== 0) return;
 
         // 전역 초기화
         const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
-        if (hh === h && mm === m) doGlobalReset(now, h, m);
+        const repeat = state.settings.resetRepeat;
+        if (repeat === 'calendar') {
+            // 캘린더: 지정 일시의 분(minute)이 일치할 때만 호출
+            const cd = state.settings.resetCalendarDate;
+            if (cd) {
+                const calDate = new Date(cd);
+                if (hh === calDate.getHours() && mm === calDate.getMinutes()) {
+                    doGlobalReset(now, h, m);
+                }
+            }
+        } else if (hh === h && mm === m) {
+            doGlobalReset(now, h, m);
+        }
 
         // 개별 초기화
         doItemResets(now, hh, mm);
+        doItemDatetimeResets(now);
+        doItemScheduleResets(now, false);
     }, 1000);
 }
 
@@ -1169,7 +1477,7 @@ function renderCategoryTabs() {
             delBtn.innerHTML = `<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg>`;
             delBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                deleteCategory(cat.id);
+                openConfirmCategoryModal(cat.id, cat.name);
             });
             tab.appendChild(delBtn);
         }
@@ -1199,6 +1507,19 @@ function renderCategoryTabs() {
     container.appendChild(addBtn);
 }
 
+function autoSizeInput(input) {
+    const measure = () => {
+        const sizer = document.createElement('span');
+        sizer.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;font-size:12px;font-weight:500;font-family:inherit;white-space:pre';
+        sizer.textContent = input.value || input.placeholder || '';
+        document.body.appendChild(sizer);
+        input.style.width = Math.max(24, sizer.offsetWidth + 4) + 'px';
+        sizer.remove();
+    };
+    measure();
+    input.addEventListener('input', measure);
+}
+
 function startCategoryAdd(container, addBtn) {
     // 이미 입력 중이면 무시
     if (container.querySelector('.category-tab-new')) return;
@@ -1211,6 +1532,7 @@ function startCategoryAdd(container, addBtn) {
     input.className = 'category-tab-rename-input';
     input.placeholder = '탭 이름';
     input.maxLength = 20;
+    autoSizeInput(input);
 
     inputTab.appendChild(input);
     container.insertBefore(inputTab, addBtn);
@@ -1257,6 +1579,7 @@ function startCategoryRename(tabEl, id, currentName) {
     input.className = 'category-tab-rename-input';
     input.value = currentName;
     input.maxLength = 20;
+    autoSizeInput(input);
 
     nameSpan.replaceWith(input);
     setTimeout(() => { input.focus(); input.select(); }, 50);
@@ -1333,8 +1656,14 @@ function bindEvents() {
             handleModalSave();
         }
     });
-    DOM.taskResetClear.addEventListener('click', () => {
-        DOM.taskResetTime.value = '';
+    DOM.taskResetType.addEventListener('change', () => {
+        updateTaskResetTypeUI(DOM.taskResetType.value);
+    });
+    DOM.addYearlyDateBtn.addEventListener('click', () => addYearlyDateEntry());
+
+    // 요일 토글 버튼 클릭 이벤트
+    document.querySelectorAll('.weekday-btn').forEach(btn => {
+        btn.addEventListener('click', () => btn.classList.toggle('active'));
     });
 
     // Priority selector
