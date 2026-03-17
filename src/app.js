@@ -39,6 +39,7 @@ let state = {
 
 let resetTimerInterval = null;
 let remoteSyncInProgress = false;
+let remoteSyncTimer = null;
 
 /* ===================================================
    Platform Detection & Notification Helpers
@@ -130,22 +131,46 @@ function loadFromStorage(key, fallback) {
 function saveTodos() {
     console.log('[saveTodos] 호출됨 - remoteSyncInProgress:', remoteSyncInProgress);
     saveToStorage(STORAGE_KEYS.TODOS, state.todos);
+
+    // 초기화 상태도 수집 (디바이스 간 동기화용)
+    const resetHistory = {
+        globalReset: localStorage.getItem(LAST_RESET_KEY),
+        itemResets: {}
+    };
+
+    // 각 항목의 초기화 상태 수집
+    state.todos.forEach(todo => {
+        const itemKey = `todoApp_itemLastReset_${todo.id}`;
+        const lastReset = localStorage.getItem(itemKey);
+        if (lastReset) {
+            resetHistory.itemResets[todo.id] = lastReset;
+        }
+    });
+
     // Firebase 동기화
     if (window.FirebaseSync?.isReady()) {
         window.FirebaseSync.push({
             todos: state.todos,
             categories: state.categories,
+            resetHistory: resetHistory,
             settings: (() => {
                 const { bgImage, bgFileName, ...rest } = state.settings;
                 return rest;
             })(),
         });
     }
-    // 동기화 완료 후 플래그 해제 (1초 후 - Firebase push 디바운스 800ms 고려)
-    setTimeout(() => {
-        remoteSyncInProgress = false;
-        console.log('[saveTodos] remoteSyncInProgress 해제');
-    }, 1200);
+    // 동기화 완료 후 플래그 해제 (3초 후 - 충분한 시간 확보)
+    // 기존 타이머가 있으면 취소하고 새로 설정
+    if (remoteSyncInProgress) {
+        if (remoteSyncTimer) {
+            clearTimeout(remoteSyncTimer);
+        }
+        remoteSyncTimer = setTimeout(() => {
+            remoteSyncInProgress = false;
+            remoteSyncTimer = null;
+            console.log('[saveTodos] remoteSyncInProgress 해제');
+        }, 3000);
+    }
 }
 
 function saveSettings() {
@@ -157,11 +182,26 @@ function saveSettings() {
     } else {
         localStorage.removeItem(STORAGE_KEYS.BG_IMAGE);
     }
+
+    // 초기화 상태도 수집 (디바이스 간 동기화용)
+    const resetHistory = {
+        globalReset: localStorage.getItem(LAST_RESET_KEY),
+        itemResets: {}
+    };
+    state.todos.forEach(todo => {
+        const itemKey = `todoApp_itemLastReset_${todo.id}`;
+        const lastReset = localStorage.getItem(itemKey);
+        if (lastReset) {
+            resetHistory.itemResets[todo.id] = lastReset;
+        }
+    });
+
     // Firebase 동기화
     if (window.FirebaseSync?.isReady()) {
         window.FirebaseSync.push({
             todos: state.todos,
             categories: state.categories,
+            resetHistory: resetHistory,
             settings: rest,
         });
     }
@@ -430,6 +470,10 @@ function createTodoElement(todo) {
 
 function renderTodos() {
     const filtered = getFilteredTodos();
+    console.log('[renderTodos] 호출됨 - 필터된 항목 수:', filtered.length);
+    console.log('[renderTodos] 첫 3개 항목의 done 상태:',
+        filtered.slice(0, 3).map(t => ({ text: t.text, done: t.done })));
+
     DOM.todoList.innerHTML = '';
 
     if (filtered.length === 0) {
@@ -1486,11 +1530,26 @@ function initializeResetSystem() {
 function saveCategories() {
     saveToStorage(STORAGE_KEYS.CATEGORIES, state.categories);
     saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, state.currentCategoryId);
+
+    // 초기화 상태도 수집 (디바이스 간 동기화용)
+    const resetHistory = {
+        globalReset: localStorage.getItem(LAST_RESET_KEY),
+        itemResets: {}
+    };
+    state.todos.forEach(todo => {
+        const itemKey = `todoApp_itemLastReset_${todo.id}`;
+        const lastReset = localStorage.getItem(itemKey);
+        if (lastReset) {
+            resetHistory.itemResets[todo.id] = lastReset;
+        }
+    });
+
     // Firebase 동기화
     if (window.FirebaseSync?.isReady()) {
         window.FirebaseSync.push({
             todos: state.todos,
             categories: state.categories,
+            resetHistory: resetHistory,
             settings: (() => {
                 const { bgImage, bgFileName, ...rest } = state.settings;
                 return rest;
@@ -1524,55 +1583,101 @@ function manualRefresh() {
     }, 1000);
 }
 
+// Firebase 첫 연결 여부 추적
+let isFirstSync = true;
+
 function applyRemoteData(cloudData) {
-    console.log('[applyRemoteData] 호출됨 - remoteSyncInProgress:', remoteSyncInProgress);
+    console.log('[applyRemoteData] 호출됨 - remoteSyncInProgress:', remoteSyncInProgress, '/ isFirstSync:', isFirstSync);
+    console.log('[applyRemoteData] cloudData._writeId:', cloudData._writeId);
 
     if (remoteSyncInProgress) {
         console.log('[applyRemoteData] 로컬 작업 진행 중 - 원격 데이터 무시');
         return;
     }
 
-    remoteSyncInProgress = true;
-    try {
-        let changed = false;
+    // 로컬 작업과 충돌하지 않도록 remoteSyncInProgress를 설정하지 않음
+    let changed = false;
+    let todosChanged = false;
 
-        if (cloudData.todos &&
-            JSON.stringify(cloudData.todos) !== JSON.stringify(state.todos)) {
-            console.log('[applyRemoteData] todos 데이터 불일치 - 원격 데이터로 업데이트');
-            state.todos = cloudData.todos;
-            saveToStorage(STORAGE_KEYS.TODOS, state.todos);
-            changed = true;
-        }
+    if (cloudData.todos &&
+        JSON.stringify(cloudData.todos) !== JSON.stringify(state.todos)) {
+        console.log('[applyRemoteData] todos 데이터 불일치 - 원격 데이터로 업데이트');
+        console.log('[applyRemoteData] 로컬 todos 개수:', state.todos.length, '/ 완료 항목:', state.todos.filter(t => t.done).length);
+        console.log('[applyRemoteData] 원격 todos 개수:', cloudData.todos.length, '/ 완료 항목:', cloudData.todos.filter(t => t.done).length);
 
-        if (cloudData.categories?.length &&
-            JSON.stringify(cloudData.categories) !== JSON.stringify(state.categories)) {
-            state.categories = cloudData.categories;
-            saveToStorage(STORAGE_KEYS.CATEGORIES, state.categories);
-            // currentCategoryId 유효성 확인
-            if (!state.categories.find(c => c.id === state.currentCategoryId)) {
-                state.currentCategoryId = state.categories[0].id;
-                saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, state.currentCategoryId);
+        // 경고: 원격 데이터가 state.todos를 덮어씁니다!
+        state.todos = cloudData.todos;
+        saveToStorage(STORAGE_KEYS.TODOS, state.todos);
+        changed = true;
+        todosChanged = true;
+
+        console.log('[applyRemoteData] state.todos 업데이트 완료');
+    } else {
+        console.log('[applyRemoteData] todos 데이터 일치 - 업데이트 건너뜀');
+    }
+
+    // 초기화 상태 동기화 (디바이스 간 초기화 기록 공유)
+    let resetHistoryChanged = false;
+    if (cloudData.resetHistory) {
+        console.log('[applyRemoteData] 초기화 상태 동기화');
+
+        // 전역 초기화 상태
+        if (cloudData.resetHistory.globalReset) {
+            const currentGlobal = localStorage.getItem(LAST_RESET_KEY);
+            if (currentGlobal !== cloudData.resetHistory.globalReset) {
+                localStorage.setItem(LAST_RESET_KEY, cloudData.resetHistory.globalReset);
+                console.log('[applyRemoteData] 전역 초기화 상태 업데이트:', cloudData.resetHistory.globalReset);
+                resetHistoryChanged = true;
             }
-            changed = true;
         }
 
-        if (cloudData.settings) {
-            // bgImage·bgFileName은 로컬 디바이스 전용 — 덮어쓰지 않음
-            const { bgImage, bgFileName } = state.settings;
-            state.settings = { ...state.settings, ...cloudData.settings, bgImage, bgFileName };
-            const { bgImage: _b, bgFileName: _f, ...rest } = state.settings;
-            saveToStorage(STORAGE_KEYS.SETTINGS, rest);
-            applyAppTitle();
-            changed = true;
+        // 개별 항목 초기화 상태
+        if (cloudData.resetHistory.itemResets) {
+            Object.entries(cloudData.resetHistory.itemResets).forEach(([itemId, resetValue]) => {
+                const itemKey = `todoApp_itemLastReset_${itemId}`;
+                const currentValue = localStorage.getItem(itemKey);
+                if (currentValue !== resetValue) {
+                    localStorage.setItem(itemKey, resetValue);
+                    console.log(`[applyRemoteData] 항목 ${itemId} 초기화 상태 업데이트:`, resetValue);
+                    resetHistoryChanged = true;
+                }
+            });
         }
+    }
 
-        if (changed) {
-            renderCategoryTabs();
-            renderTodos();
-            applyBackground();
+    if (cloudData.categories?.length &&
+        JSON.stringify(cloudData.categories) !== JSON.stringify(state.categories)) {
+        state.categories = cloudData.categories;
+        saveToStorage(STORAGE_KEYS.CATEGORIES, state.categories);
+        // currentCategoryId 유효성 확인
+        if (!state.categories.find(c => c.id === state.currentCategoryId)) {
+            state.currentCategoryId = state.categories[0].id;
+            saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, state.currentCategoryId);
         }
-    } finally {
-        remoteSyncInProgress = false;
+        changed = true;
+    }
+
+    if (cloudData.settings) {
+        // bgImage·bgFileName은 로컬 디바이스 전용 — 덮어쓰지 않음
+        const { bgImage, bgFileName } = state.settings;
+        state.settings = { ...state.settings, ...cloudData.settings, bgImage, bgFileName };
+        const { bgImage: _b, bgFileName: _f, ...rest } = state.settings;
+        saveToStorage(STORAGE_KEYS.SETTINGS, rest);
+        applyAppTitle();
+        changed = true;
+    }
+
+    // 첫 동기화 또는 todos/resetHistory 변경 시 초기화 시스템 재시작
+    if (isFirstSync || todosChanged || resetHistoryChanged) {
+        console.log('[applyRemoteData] 초기화 시스템 재시작 (첫 동기화:', isFirstSync, '/ todos 변경:', todosChanged, '/ reset 변경:', resetHistoryChanged, ')');
+        scheduleResetTimer();
+        isFirstSync = false;
+    }
+
+    if (changed) {
+        renderCategoryTabs();
+        renderTodos();
+        applyBackground();
     }
 }
 
@@ -2098,7 +2203,7 @@ function init() {
     renderCategoryTabs();
     renderTodos();
     applyBackground();
-    scheduleResetTimer();
+    // scheduleResetTimer() 제거 - Firebase 데이터 수신 후 시작
 
     // Update date+time every second
     setInterval(updateHeaderDate, 1000);
@@ -2106,6 +2211,10 @@ function init() {
     // Firebase 클라우드 동기화 시작
     if (window.FirebaseSync?.init()) {
         window.FirebaseSync.startSync(applyRemoteData);
+    } else {
+        // Firebase 없을 경우에만 바로 시작
+        console.log('[Init] Firebase 없음 - 로컬 초기화 시스템 시작');
+        scheduleResetTimer();
     }
 
     // 디버깅: 초기화 상태 출력
