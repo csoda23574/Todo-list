@@ -145,6 +145,11 @@ jobs:
           name: android-build
           path: dist-android
 
+      - name: 기존 릴리즈 삭제 (재빌드 시 중복 파일 방지)
+        run: gh release delete "${{ github.ref_name }}" --yes --repo ${{ github.repository }} 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: GitHub Release 생성 및 파일 업로드
         uses: softprops/action-gh-release@v2
         with:
