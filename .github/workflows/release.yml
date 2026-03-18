@@ -21,7 +21,7 @@ jobs:
       - name: Node.js 설정
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: 의존성 설치
@@ -31,9 +31,7 @@ jobs:
         run: node scripts/generate-icon.js
 
       - name: Linux 빌드 (AppImage)
-        run: npx electron-builder --linux
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --linux --publish=never
 
       - name: 빌드 결과물 업로드
         uses: actions/upload-artifact@v4
@@ -53,7 +51,7 @@ jobs:
       - name: Node.js 설정
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: 의존성 설치
@@ -63,9 +61,7 @@ jobs:
         run: node scripts/generate-icon.js
 
       - name: Windows 빌드 (NSIS + Portable)
-        run: npx electron-builder --win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish=never
 
       - name: 빌드 결과물 업로드
         uses: actions/upload-artifact@v4
