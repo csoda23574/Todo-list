@@ -12,7 +12,7 @@ const fs = require('fs');
 const Jimp = require('jimp');
 
 const ASSETS_DIR = path.join(__dirname, '..', 'assets');
-const SIZE = 256;
+const SIZE = 512; // 512px — AppImage Linux 아이콘 권장 크기
 
 // ─── Palette ─────────────────────────────────────────────────────────────────
 const CA = { r: 108, g: 99, b: 255 }; // #6C63FF — accent start
@@ -121,16 +121,20 @@ async function main() {
         }
     }
 
-    // ── Draw white checkmark ──────────────────────────────────────────────────
-    // Short arm: left (55,132) → mid-bottom (102,178)
-    // Long arm:  mid-bottom (102,178) → top-right (200,82)
-    thickLine(img, 55, 132, 102, 178, 24, WHITE);
-    thickLine(img, 102, 178, 200, 82, 24, WHITE);
+    // ── Draw white checkmark — coordinates scaled for SIZE × SIZE ————————————
+    // Reference points at 256px; scale to actual SIZE
+    const S = SIZE / 256;
+    thickLine(img, 55 * S, 132 * S, 102 * S, 178 * S, 24 * S, WHITE);
+    thickLine(img, 102 * S, 178 * S, 200 * S, 82 * S, 24 * S, WHITE);
 
-    // ── Save 256×256 PNG ─────────────────────────────────────────────────────
-    const png256 = await img.getBufferAsync('image/png');
-    fs.writeFileSync(path.join(ASSETS_DIR, 'icon.png'), png256);
-    console.log('  ✓ assets/icon.png      (256×256)');
+    // ── Save SIZE×SIZE PNG ──────────────────────────────────────────────────
+    const pngFull = await img.getBufferAsync('image/png');
+    fs.writeFileSync(path.join(ASSETS_DIR, 'icon.png'), pngFull);
+    console.log(`  ✓ assets/icon.png      (${SIZE}×${SIZE})`);
+
+    // ── Resize to 256×256 for ICO embedding (Windows max) ─────────────────────
+    const img256 = img.clone().resize(256, 256, Jimp.RESIZE_BICUBIC);
+    const png256 = await img256.getBufferAsync('image/png');
 
     // ── Resize to 16×16 ──────────────────────────────────────────────────────
     const img16 = img.clone().resize(16, 16, Jimp.RESIZE_BICUBIC);

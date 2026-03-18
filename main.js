@@ -20,7 +20,9 @@ let isQuitting = false;
 
 // ─── Paths ──────────────────────────────────────────────────────────────────
 const IS_LINUX = process.platform === 'linux';
-const ICON_PATH = path.join(__dirname, 'src', 'assets', IS_LINUX ? '헤르타.png' : '헤르타.ico');
+const ICON_PATH = IS_LINUX
+    ? path.join(__dirname, 'assets', 'icon.png')
+    : path.join(__dirname, 'src', 'assets', '헤르타.ico');
 const WIN_STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
 const FIRST_RUN_FLAG = path.join(app.getPath('userData'), '.autolaunch-set');
 const APP_SETTINGS_FILE = path.join(app.getPath('userData'), 'app-settings.json');

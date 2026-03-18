@@ -1,6 +1,6 @@
 {
     "name": "todo-app",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Todo List Desktop App — Personal Edition",
     "main": "main.js",
     "author": "Personal",
@@ -57,7 +57,7 @@
             "requestedExecutionLevel": "asInvoker"
         },
         "linux": {
-            "icon": "src/assets/헤르타.png",
+            "icon": "assets/icon.png",
             "target": [
                 {
                     "target": "AppImage",
