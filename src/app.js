@@ -1599,32 +1599,46 @@ function applyRemoteData(cloudData) {
     let changed = false;
     let todosChanged = false;
 
-    if (cloudData.todos &&
-        JSON.stringify(cloudData.todos) !== JSON.stringify(state.todos)) {
-        console.log('[applyRemoteData] todos 데이터 불일치 - 원격 데이터로 업데이트');
-        console.log('[applyRemoteData] 로컬 todos 개수:', state.todos.length, '/ 완료 항목:', state.todos.filter(t => t.done).length);
-        console.log('[applyRemoteData] 원격 todos 개수:', cloudData.todos.length, '/ 완료 항목:', cloudData.todos.filter(t => t.done).length);
+    if (cloudData.todos) {
+        // 첫 동기화 시에는 무조건 Firebase 데이터를 신뢰 (localStorage는 오래되었을 수 있음)
+        if (isFirstSync) {
+            console.log('[applyRemoteData] 첫 동기화 - 원격 데이터로 무조건 업데이트');
+            console.log('[applyRemoteData] 로컬 todos 개수:', state.todos.length, '/ 완료 항목:', state.todos.filter(t => t.done).length);
+            console.log('[applyRemoteData] 원격 todos 개수:', cloudData.todos.length, '/ 완료 항목:', cloudData.todos.filter(t => t.done).length);
 
-        // 경고: 원격 데이터가 state.todos를 덮어씁니다!
-        state.todos = cloudData.todos;
-        saveToStorage(STORAGE_KEYS.TODOS, state.todos);
-        changed = true;
-        todosChanged = true;
+            state.todos = cloudData.todos;
+            saveToStorage(STORAGE_KEYS.TODOS, state.todos);
+            changed = true;
+            todosChanged = true;
 
-        console.log('[applyRemoteData] state.todos 업데이트 완료');
-    } else {
-        console.log('[applyRemoteData] todos 데이터 일치 - 업데이트 건너뜀');
+            console.log('[applyRemoteData] state.todos 업데이트 완료');
+        } else if (JSON.stringify(cloudData.todos) !== JSON.stringify(state.todos)) {
+            console.log('[applyRemoteData] todos 데이터 불일치 - 원격 데이터로 업데이트');
+            console.log('[applyRemoteData] 로컬 todos 개수:', state.todos.length, '/ 완료 항목:', state.todos.filter(t => t.done).length);
+            console.log('[applyRemoteData] 원격 todos 개수:', cloudData.todos.length, '/ 완료 항목:', cloudData.todos.filter(t => t.done).length);
+
+            // 원격 데이터가 state.todos를 덮어씁니다
+            state.todos = cloudData.todos;
+            saveToStorage(STORAGE_KEYS.TODOS, state.todos);
+            changed = true;
+            todosChanged = true;
+
+            console.log('[applyRemoteData] state.todos 업데이트 완료');
+        } else {
+            console.log('[applyRemoteData] todos 데이터 일치 - 업데이트 건너뜀');
+        }
     }
 
     // 초기화 상태 동기화 (디바이스 간 초기화 기록 공유)
     let resetHistoryChanged = false;
     if (cloudData.resetHistory) {
-        console.log('[applyRemoteData] 초기화 상태 동기화');
+        console.log('[applyRemoteData] 초기화 상태 동기화' + (isFirstSync ? ' (첫 동기화)' : ''));
 
         // 전역 초기화 상태
         if (cloudData.resetHistory.globalReset) {
             const currentGlobal = localStorage.getItem(LAST_RESET_KEY);
-            if (currentGlobal !== cloudData.resetHistory.globalReset) {
+            // 첫 동기화 시에는 무조건 업데이트
+            if (isFirstSync || currentGlobal !== cloudData.resetHistory.globalReset) {
                 localStorage.setItem(LAST_RESET_KEY, cloudData.resetHistory.globalReset);
                 console.log('[applyRemoteData] 전역 초기화 상태 업데이트:', cloudData.resetHistory.globalReset);
                 resetHistoryChanged = true;
@@ -1636,7 +1650,8 @@ function applyRemoteData(cloudData) {
             Object.entries(cloudData.resetHistory.itemResets).forEach(([itemId, resetValue]) => {
                 const itemKey = `todoApp_itemLastReset_${itemId}`;
                 const currentValue = localStorage.getItem(itemKey);
-                if (currentValue !== resetValue) {
+                // 첫 동기화 시에는 무조건 업데이트
+                if (isFirstSync || currentValue !== resetValue) {
                     localStorage.setItem(itemKey, resetValue);
                     console.log(`[applyRemoteData] 항목 ${itemId} 초기화 상태 업데이트:`, resetValue);
                     resetHistoryChanged = true;
