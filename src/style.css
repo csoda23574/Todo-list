@@ -8,6 +8,70 @@
     --color-surface-solid: #ffffff;
     --color-surface-elevated: rgba(255, 255, 255, 0.95);
     --color-border: rgba(0, 0, 0, 0.08);
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+    transition: opacity var(--transition-slow);
+}
+.login-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+.login-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-2xl) var(--space-xl);
+    background: var(--color-surface-elevated);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    width: 320px;
+    text-align: center;
+}
+.login-icon {
+    width: 72px;
+    height: 72px;
+    color: var(--color-accent);
+}
+.login-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+.login-sub {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+.btn-google {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 10px var(--space-lg);
+    width: 100%;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-solid);
+    color: var(--color-text-primary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+.btn-google:hover {
+    background: var(--color-accent-light);
+    box-shadow: var(--shadow-sm);
+}
+.login-notice {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
     --color-border-focus: #6c63ff;
     --color-text-primary: #1a1a2e;
     --color-text-secondary: #6b7280;
@@ -2233,4 +2297,72 @@ input[type="datetime-local"].time-input {
 /* ── Resize handle padding so content isn't hidden under titlebar ──────── */
 .electron-mode .app-header {
     padding-top: calc(var(--space-lg) + 4px);
+}
+/* ===================================================
+   Login Overlay
+=================================================== */
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+    transition: opacity var(--transition-slow);
+}
+.login-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+.login-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-2xl) var(--space-xl);
+    background: var(--color-surface-elevated);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    width: 320px;
+    text-align: center;
+}
+.login-icon {
+    width: 72px;
+    height: 72px;
+    color: var(--color-accent);
+}
+.login-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+.login-sub {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+}
+.btn-google {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 10px var(--space-lg);
+    width: 100%;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-solid);
+    color: var(--color-text-primary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+.btn-google:hover {
+    background: var(--color-accent-light);
+    box-shadow: var(--shadow-sm);
+}
+.login-notice {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
 }

@@ -317,6 +317,14 @@ const DOM = {
     get filterTabs() { return document.querySelectorAll('.filter-tab'); },
     // Toast container
     get toastContainer() { return document.getElementById('toastContainer'); },
+    // Auth / Login
+    get loginOverlay() { return document.getElementById('loginOverlay'); },
+    get googleLoginBtn() { return document.getElementById('googleLoginBtn'); },
+    get userAvatarBtn() { return document.getElementById('userAvatarBtn'); },
+    get userAvatarImg() { return document.getElementById('userAvatarImg'); },
+    get accountName() { return document.getElementById('accountName'); },
+    get accountEmail() { return document.getElementById('accountEmail'); },
+    get logoutBtn() { return document.getElementById('logoutBtn'); },
 };
 
 /* ===================================================
@@ -2096,6 +2104,24 @@ function bindEvents() {
     DOM.filterTabs.forEach(tab => {
         tab.addEventListener('click', () => setFilter(tab.dataset.filter));
     });
+
+    // Google 로그인 버튼 (로그인 오버레이)
+    DOM.googleLoginBtn?.addEventListener('click', async () => {
+        try {
+            await window.FirebaseSync?.signInWithGoogle();
+        } catch (err) {
+            showToast('로그인에 실패했습니다: ' + err.message, 'error');
+        }
+    });
+
+    // 아바타 버튼 → 설정 모달 열기
+    DOM.userAvatarBtn?.addEventListener('click', openSettingsModal);
+
+    // 로그아웃 버튼 (설정 모달 내)
+    DOM.logoutBtn?.addEventListener('click', async () => {
+        await window.FirebaseSync?.signOut();
+        closeModal(DOM.settingsModal);
+    });
 }
 
 /* ===================================================
@@ -2223,12 +2249,46 @@ function init() {
     // Update date+time every second
     setInterval(updateHeaderDate, 1000);
 
-    // Firebase 클라우드 동기화 시작
+    // Firebase 클라우드 동기화 — Google Auth 기반
     if (window.FirebaseSync?.init()) {
-        window.FirebaseSync.startSync(applyRemoteData);
+        // 로그인 오버레이를 초기에 표시 (Auth 상태 확인 전)
+        DOM.loginOverlay?.classList.remove('hidden');
+        DOM.userAvatarBtn?.classList.add('hidden');
+
+        window.FirebaseSync.listenAuth(
+            // onSignIn: 로그인 성공 시
+            (user) => {
+                DOM.loginOverlay?.classList.add('hidden');
+
+                // 아바타 설정
+                const avatarImg = DOM.userAvatarImg;
+                if (avatarImg) {
+                    avatarImg.src = user.photoURL || '';
+                    avatarImg.alt = user.displayName || user.email || '';
+                    avatarImg.onerror = () => { avatarImg.src = ''; };
+                }
+                DOM.userAvatarBtn?.classList.remove('hidden');
+
+                // 계정 정보 (설정 모달 내)
+                if (DOM.accountName) DOM.accountName.textContent = user.displayName || '';
+                if (DOM.accountEmail) DOM.accountEmail.textContent = user.email || '';
+
+                // 동기화 시작
+                window.FirebaseSync.startSync(applyRemoteData);
+            },
+            // onSignOut: 로그아웃 시
+            () => {
+                DOM.loginOverlay?.classList.remove('hidden');
+                DOM.userAvatarBtn?.classList.add('hidden');
+                if (DOM.accountName) DOM.accountName.textContent = '';
+                if (DOM.accountEmail) DOM.accountEmail.textContent = '';
+                scheduleResetTimer();
+            }
+        );
     } else {
-        // Firebase 없을 경우에만 바로 시작
+        // Firebase 없을 경우 로그인 화면 없이 바로 시작
         console.log('[Init] Firebase 없음 - 로컬 초기화 시스템 시작');
+        DOM.loginOverlay?.classList.add('hidden');
         scheduleResetTimer();
     }
 
