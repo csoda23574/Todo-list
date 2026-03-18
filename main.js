@@ -19,7 +19,8 @@ let tray = null;
 let isQuitting = false;
 
 // ─── Paths ──────────────────────────────────────────────────────────────────
-const ICON_PATH = path.join(__dirname, 'src', 'assets', '헤르타.ico');
+const IS_LINUX = process.platform === 'linux';
+const ICON_PATH = path.join(__dirname, 'src', 'assets', IS_LINUX ? '헤르타.png' : '헤르타.ico');
 const WIN_STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
 const FIRST_RUN_FLAG = path.join(app.getPath('userData'), '.autolaunch-set');
 const APP_SETTINGS_FILE = path.join(app.getPath('userData'), 'app-settings.json');
@@ -131,16 +132,17 @@ function createWindow() {
     mainWindow.on('unmaximize', () => mainWindow.webContents.send('window:maximize-change', false));
 
     // Save position/size on move or resize
-    mainWindow.on('moved', saveWindowState);
-    mainWindow.on('resized', saveWindowState);
+    // 'moved'/'resized' are Windows-only; 'move'/'resize' work cross-platform
+    mainWindow.on('move', saveWindowState);
+    mainWindow.on('resize', saveWindowState);
 
     // Hide to tray instead of quitting
     mainWindow.on('close', (e) => {
         if (!isQuitting) {
             e.preventDefault();
             mainWindow.hide();
-            // Show balloon hint on first hide
-            if (tray && !global.trayHintShown) {
+            // Show balloon hint on first hide (Windows only)
+            if (tray && !global.trayHintShown && process.platform === 'win32') {
                 global.trayHintShown = true;
                 tray.displayBalloon({
                     title: 'Todo List',

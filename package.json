@@ -8,13 +8,15 @@
     "scripts": {
         "start": "electron .",
         "build-icon": "node scripts/generate-icon.js",
-        "clean": "if exist todo-dist (rmdir /s /q todo-dist)",
-        "pack": "npm run clean && npm run build-icon && electron-builder --dir --win",
-        "dist": "npm run clean && npm run build-icon && electron-builder --win",
+        "clean": "node -e \"const fs=require('fs');if(fs.existsSync('todo-dist')){fs.rmSync('todo-dist',{recursive:true,force:true});}\"",
+        "pack": "npm run clean && npm run build-icon && electron-builder --dir",
+        "dist": "npm run clean && npm run build-icon && electron-builder",
+        "dist:win": "npm run clean && npm run build-icon && electron-builder --win",
+        "dist:linux": "npm run clean && npm run build-icon && electron-builder --linux",
         "dist:portable": "npm run clean && npm run build-icon && electron-builder --win portable",
         "android:sync": "npx cap sync android",
         "android:open": "npx cap sync android && npx cap open android",
-        "android:apk": "npx cap sync android && cd android && gradlew.bat assembleDebug"
+        "android:apk": "npx cap sync android && cd android && ./gradlew assembleDebug"
     },
     "dependencies": {
         "@capacitor/core": "^6.2.0",
@@ -52,6 +54,18 @@
                 }
             ],
             "requestedExecutionLevel": "asInvoker"
+        },
+        "linux": {
+            "icon": "src/assets/헤르타.png",
+            "target": [
+                {
+                    "target": "AppImage",
+                    "arch": [
+                        "x64"
+                    ]
+                }
+            ],
+            "category": "Utility"
         },
         "nsis": {
             "oneClick": true,
