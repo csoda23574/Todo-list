@@ -28,6 +28,11 @@ function setSyncStatus(status) {
     if (dot) dot.dataset.status = status;
 }
 
+// ─── 환경 감지 ──────────────────────────────────────────────────────────────
+function isCapacitorNative() {
+    return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() === true;
+}
+
 // ─── 사용자 문서 경로 ─────────────────────────────────────────────────────────
 function userDocRef() {
     if (!db || !currentUser) return null;
@@ -68,6 +73,14 @@ window.FirebaseSync = {
      */
     listenAuth(onSignIn, onSignOut) {
         if (!auth) return;
+
+        // 모바일 redirect 로그인 후 복귀 시 결과 처리
+        if (isCapacitorNative()) {
+            auth.getRedirectResult().catch((e) => {
+                console.warn('[Auth] Redirect 결과 오류:', e);
+            });
+        }
+
         auth.onAuthStateChanged((user) => {
             if (user) {
                 currentUser = user;
@@ -82,12 +95,17 @@ window.FirebaseSync = {
         });
     },
 
-    /** Google 팝업 로그인 */
+    /** Google 로그인 — 데스크탑: 팝업 / 모바일: 리다이렉트 */
     async signInWithGoogle() {
         if (!auth) return;
         const provider = new firebase.auth.GoogleAuthProvider();
         try {
-            await auth.signInWithPopup(provider);
+            if (isCapacitorNative()) {
+                // 모바일 WebView는 팝업 불가 → 리다이렉트 방식
+                await auth.signInWithRedirect(provider);
+            } else {
+                await auth.signInWithPopup(provider);
+            }
         } catch (e) {
             console.warn('[Auth] Google 로그인 오류:', e);
             throw e;
