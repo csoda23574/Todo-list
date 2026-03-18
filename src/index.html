@@ -572,10 +572,10 @@
         </div>
     </div>
 
-    <!-- Firebase SDK (compat) -->
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <!-- Firebase SDK (compat) — 로컬 번들 (CDN 의존성 제거, 오프라인/패키징 환경 호환) -->
+    <script src="lib/firebase-app-compat.js"></script>
+    <script src="lib/firebase-auth-compat.js"></script>
+    <script src="lib/firebase-firestore-compat.js"></script>
     <!-- Capacitor (for mobile) -->
     <script type="module">
         import { Capacitor } from 'https://cdn.jsdelivr.net/npm/@capacitor/core@6.2.0/dist/index.js';
