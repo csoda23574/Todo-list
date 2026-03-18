@@ -33,6 +33,7 @@
         "appId": "com.personal.todolist",
         "productName": "Todo List",
         "copyright": "Personal Use Only",
+        "publish": null,
         "asar": true,
         "directories": {
             "output": "todo-dist"

@@ -8,6 +8,10 @@ on:
   # 수동 실행도 가능하게
   workflow_dispatch:
 
+# 빌드 잡은 read-only, 릴리즈 잡만 write 권한
+permissions:
+  contents: write
+
 jobs:
   # ─── Linux 빌드 ────────────────────────────────────────────────────────────
   build-linux:
