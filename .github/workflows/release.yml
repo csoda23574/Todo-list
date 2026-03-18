@@ -12,6 +12,10 @@ on:
 permissions:
   contents: write
 
+# Actions 런타임을 Node.js 24로 강제 (20 deprecated 경고 해소)
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ─── Linux 빌드 ────────────────────────────────────────────────────────────
   build-linux:
