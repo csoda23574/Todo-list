@@ -137,10 +137,10 @@ window.FirebaseSync = {
             const writeId = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
             lastWriteId = writeId;
             ref.set({
-                    ...payload,
-                    _writeId: writeId,
-                    _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                })
+                ...payload,
+                _writeId: writeId,
+                _updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            })
                 .then(() => setSyncStatus('connected'))
                 .catch((e) => {
                     console.warn('[Sync] 쓰기 오류:', e);
