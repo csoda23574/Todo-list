@@ -28,4 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // ── Notifications ────────────────────────────────────────────────────────
     showNotification: (title, body) => ipcRenderer.invoke('app:showNotification', title, body),
+
+    // ── Platform ───────────────────────────────────────────────
+    getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
 });

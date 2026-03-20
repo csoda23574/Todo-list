@@ -63,7 +63,7 @@ function startLocalServer() {
                         "script-src 'self' https://cdn.jsdelivr.net",
                         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
                         "font-src 'self' https://fonts.gstatic.com",
-                        "img-src 'self' data: blob:",
+                        "img-src 'self' data: blob: https://lh3.googleusercontent.com",
                         "connect-src https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://securetoken.googleapis.com https://todo-list-2695f.firebaseapp.com",
                         "object-src 'none'",
                         "base-uri 'self'",
@@ -421,6 +421,9 @@ ipcMain.handle('app:showNotification', (_, title, body) => {
         console.error('[Notification Error]', err);
     }
 });
+
+// ─── IPC: Platform ───────────────────────────────────────────────────────────
+ipcMain.handle('app:getPlatform', () => process.platform);
 
 // ─── Second Instance → Focus Existing Window ─────────────────────────────────
 app.on('second-instance', () => {

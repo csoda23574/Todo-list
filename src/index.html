@@ -8,7 +8,7 @@
                    script-src 'self' https://cdn.jsdelivr.net;
                    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
                    font-src 'self' https://fonts.gstatic.com;
-                   img-src 'self' data: blob:;
+                   img-src 'self' data: blob: https://lh3.googleusercontent.com;
                    connect-src https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://securetoken.googleapis.com https://todo-list-2695f.firebaseapp.com;
                    object-src 'none';
                    base-uri 'self';" />
@@ -220,11 +220,11 @@
                         <option value="datetime">날짜 지정 (1회)</option>
                     </select>
                     <!-- 매일 -->
-                    <div class="task-reset-input-row" id="taskResetTimeRow" style="display:none">
+                    <div class="task-reset-input-row hidden" id="taskResetTimeRow">
                         <input type="time" id="taskResetTime" class="form-input time-input" style="width:100%" />
                     </div>
                     <!-- 매주 요일 -->
-                    <div class="task-reset-input-row" id="taskResetWeeklyRow" style="display:none">
+                    <div class="task-reset-input-row hidden" id="taskResetWeeklyRow">
                         <div class="weekday-toggle-wrap">
                             <button type="button" class="weekday-btn" data-day="0">일</button>
                             <button type="button" class="weekday-btn" data-day="1">월</button>
@@ -238,20 +238,20 @@
                             style="width:100%;margin-top:6px" />
                     </div>
                     <!-- 매월 날짜 -->
-                    <div class="task-reset-input-row" id="taskResetMonthlyRow" style="display:none">
+                    <div class="task-reset-input-row hidden" id="taskResetMonthlyRow">
                         <div class="day-number-grid" id="monthDayGrid"></div>
                         <input type="time" id="taskResetMonthlyTime" class="form-input time-input"
                             style="width:100%;margin-top:6px" />
                     </div>
                     <!-- 매년 날짜 -->
-                    <div class="task-reset-input-row" id="taskResetYearlyRow" style="display:none">
+                    <div class="task-reset-input-row hidden" id="taskResetYearlyRow">
                         <div id="yearlyDateList"></div>
                         <button type="button" class="btn-add-entry" id="addYearlyDateBtn">+ 날짜 추가</button>
                         <input type="time" id="taskResetYearlyTime" class="form-input time-input"
                             style="width:100%;margin-top:6px" />
                     </div>
                     <!-- 날짜 지정 (1회) -->
-                    <div class="task-reset-input-row" id="taskResetDatetimeRow" style="display:none">
+                    <div class="task-reset-input-row hidden" id="taskResetDatetimeRow">
                         <input type="datetime-local" id="taskResetDatetime" class="form-input" style="width:100%" />
                     </div>
                 </div>
@@ -386,7 +386,7 @@
                     </div>
                 </div>
 
-                <!-- Windows App Settings (Electron only) -->
+                <!-- App Settings (Electron only) -->
                 <div class="settings-section" id="electronSettingsSection" style="display:none">
                     <div class="settings-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
@@ -395,12 +395,12 @@
                             <line x1="8" y1="21" x2="16" y2="21" />
                             <line x1="12" y1="17" x2="12" y2="21" />
                         </svg>
-                        Windows 앱 설정
+                        <span id="electronSettingsTitle">앛 설정</span>
                     </div>
                     <div class="settings-row">
                         <div class="settings-row-label">
                             <span>시작 시 자동 실행</span>
-                            <span class="settings-row-sub">Windows 로그인 시 자동으로 앱을 시작합니다</span>
+                            <span class="settings-row-sub" id="autoLaunchSubLabel">로그인 시 자동으로 앱을 시작합니다</span>
                         </div>
                         <label class="toggle-switch">
                             <input type="checkbox" id="autoLaunchEnabled" />

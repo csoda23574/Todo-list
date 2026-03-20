@@ -250,6 +250,16 @@ function _populateSettingsForm() {
     const electronSection = document.getElementById('electronSettingsSection');
     if (electronSection && window.electronAPI) {
         electronSection.style.display = '';
+        // 플랫폼에 따라 설정 섹션 레이블 교체
+        window.electronAPI.getPlatform().then(platform => {
+            const osName = platform === 'linux' ? 'Linux'
+                : platform === 'darwin' ? 'macOS'
+                    : 'Windows';
+            const titleEl = document.getElementById('electronSettingsTitle');
+            const subEl = document.getElementById('autoLaunchSubLabel');
+            if (titleEl) titleEl.textContent = `${osName} 앛 설정`;
+            if (subEl) subEl.textContent = `${osName} 로그인 시 자동으로 앱을 시작합니다`;
+        }).catch(() => { });
         window.electronAPI.getAppSettings().then(s => {
             const autoEl = document.getElementById('autoLaunchEnabled');
             const topEl = document.getElementById('alwaysOnTopEnabled');
