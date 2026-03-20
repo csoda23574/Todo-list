@@ -176,3 +176,7 @@ window.FirebaseSync = {
     },
 };
 
+// 외부 스크립트에 의한 속성 추가/수정 방지
+// (완전한 보호는 CSP 적용으로 제공됨)
+Object.freeze(window.FirebaseSync);
+

@@ -56,7 +56,21 @@ function startLocalServer() {
             const ext = path.extname(filePath).toLowerCase();
             try {
                 const data = fs.readFileSync(filePath);
-                res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+                res.writeHead(200, {
+                    'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+                    'Content-Security-Policy': [
+                        "default-src 'self'",
+                        "script-src 'self' https://cdn.jsdelivr.net",
+                        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+                        "font-src 'self' https://fonts.gstatic.com",
+                        "img-src 'self' data: blob:",
+                        "connect-src https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://securetoken.googleapis.com https://todo-list-2695f.firebaseapp.com",
+                        "object-src 'none'",
+                        "base-uri 'self'",
+                    ].join('; '),
+                    'X-Content-Type-Options': 'nosniff',
+                    'X-Frame-Options': 'DENY',
+                });
                 res.end(data);
             } catch {
                 res.writeHead(404); res.end('Not found');
@@ -106,7 +120,13 @@ const APP_SETTINGS_FILE = path.join(app.getPath('userData'), 'app-settings.json'
 // ─── Persistent App Settings (alwaysOnTop etc.) ──────────────────────────────
 function loadPersistedSettings() {
     try {
-        return JSON.parse(fs.readFileSync(APP_SETTINGS_FILE, 'utf8'));
+        const raw = JSON.parse(fs.readFileSync(APP_SETTINGS_FILE, 'utf8'));
+        if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
+        // 허용 속성만 명시적으로 추출 (prototype pollution 및 임의 속성 주입 방지)
+        return {
+            alwaysOnTop: raw.alwaysOnTop === true,
+            autoLaunch: raw.autoLaunch === true,
+        };
     } catch {
         return {};
     }
@@ -139,7 +159,16 @@ function ensureAutoLaunchOnFirstRun() {
 // ─── Window State Persistence ────────────────────────────────────────────────
 function loadWindowState() {
     try {
-        return JSON.parse(fs.readFileSync(WIN_STATE_FILE, 'utf8'));
+        const raw = JSON.parse(fs.readFileSync(WIN_STATE_FILE, 'utf8'));
+        if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
+        // 허용 속성만 명시적으로 추출 (prototype pollution 및 임의 속성 주입 방지)
+        return {
+            width: Number.isInteger(raw.width) ? Math.max(420, Math.min(raw.width, 7680)) : undefined,
+            height: Number.isInteger(raw.height) ? Math.max(500, Math.min(raw.height, 4320)) : undefined,
+            x: Number.isInteger(raw.x) ? raw.x : undefined,
+            y: Number.isInteger(raw.y) ? raw.y : undefined,
+            maximized: raw.maximized === true,
+        };
     } catch {
         return {};
     }
@@ -214,24 +243,32 @@ function createWindow(port) {
     // Enable DevTools in development mode
     if (!app.isPackaged) {
         mainWindow.webContents.openDevTools();
+        // 렌더러 콘솔 출력을 메인 프로세스 터미널에도 표시 (개발용)
+        mainWindow.webContents.on('console-message', (_e, level, msg, line, src) => {
+            const labels = ['LOG', 'WARN', 'ERROR', 'DEBUG'];
+            console.log(`[Renderer][${labels[level] ?? level}] ${msg}  (${src}:${line})`);
+        });
     }
 
     // Register F12 shortcut for DevTools
+    // Register F12 shortcut for DevTools (개발 환경 전용)
     mainWindow.webContents.on('before-input-event', (event, input) => {
-        if (input.key === 'F12') {
+        if (input.key === 'F12' && !app.isPackaged) {
             mainWindow.webContents.toggleDevTools();
         }
     });
 
-    // Right-click context menu (dev tools)
-    mainWindow.webContents.on('context-menu', (e, params) => {
-        const contextMenu = Menu.buildFromTemplate([
-            { label: '개발자 도구', click: () => mainWindow.webContents.toggleDevTools() },
-            { type: 'separator' },
-            { label: '새로고침', role: 'reload' },
-        ]);
-        contextMenu.popup();
-    });
+    // Right-click context menu (개발 환경 전용)
+    if (!app.isPackaged) {
+        mainWindow.webContents.on('context-menu', () => {
+            const contextMenu = Menu.buildFromTemplate([
+                { label: '개발자 도구', click: () => mainWindow.webContents.toggleDevTools() },
+                { type: 'separator' },
+                { label: '새로고침', role: 'reload' },
+            ]);
+            contextMenu.popup();
+        });
+    }
 
     // Sync maximize state to renderer
     mainWindow.on('maximize', () => mainWindow.webContents.send('window:maximize-change', true));
@@ -351,11 +388,16 @@ ipcMain.handle('app:setAlwaysOnTop', (_, enabled) => {
 ipcMain.handle('app:showNotification', (_, title, body) => {
     if (!Notification.isSupported()) return;
 
+    // 입력값 검증: 타입 강제 변환, 길이 제한, 제어 문자 제거
+    const safeTitle = String(title ?? '').replace(/[\x00-\x1F\x7F]/g, '').slice(0, 100);
+    const safeBody = String(body ?? '').replace(/[\x00-\x1F\x7F]/g, '').slice(0, 300);
+    if (!safeTitle) return;
+
     try {
         const iconExists = fs.existsSync(ICON_PATH);
         const notificationOptions = {
-            title: title,
-            body: body,
+            title: safeTitle,
+            body: safeBody,
             silent: false,
             urgency: 'normal',
         };
