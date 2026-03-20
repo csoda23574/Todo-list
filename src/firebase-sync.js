@@ -74,12 +74,7 @@ window.FirebaseSync = {
     listenAuth(onSignIn, onSignOut) {
         if (!auth) return;
 
-        // 모바일 redirect 로그인 후 복귀 시 결과 처리
-        if (isCapacitorNative()) {
-            auth.getRedirectResult().catch((e) => {
-                console.warn('[Auth] Redirect 결과 오류:', e);
-            });
-        }
+        // (signInWithRedirect 미사용 — getRedirectResult 불필요)
 
         auth.onAuthStateChanged((user) => {
             if (user) {
@@ -95,15 +90,20 @@ window.FirebaseSync = {
         });
     },
 
-    /** Google 로그인 — 데스크탑: 팝업 / 모바일: 리다이렉트 */
+    /** Google 로그인 — 모바일: 네이티브 플러그인 / 데스크탑: 팝업 */
     async signInWithGoogle() {
         if (!auth) return;
-        const provider = new firebase.auth.GoogleAuthProvider();
         try {
             if (isCapacitorNative()) {
-                // 모바일 WebView는 팝업 불가 → 리다이렉트 방식
-                await auth.signInWithRedirect(provider);
+                const { FirebaseAuthentication } = window.Capacitor.Plugins;
+                if (!FirebaseAuthentication) throw new Error('FirebaseAuthentication 플러그인 없음');
+                const result = await FirebaseAuthentication.signInWithGoogle();
+                const idToken = result.credential?.idToken;
+                if (!idToken) throw new Error('idToken을 받지 못했습니다.');
+                const credential = firebase.auth.GoogleAuthProvider.credential(idToken);
+                await auth.signInWithCredential(credential);
             } else {
+                const provider = new firebase.auth.GoogleAuthProvider();
                 await auth.signInWithPopup(provider);
             }
         } catch (e) {
@@ -116,6 +116,13 @@ window.FirebaseSync = {
     async signOut() {
         if (!auth) return;
         this.stop();
+        // 네이티브 Google Sign-In 세션도 해제해야 다음 로그인 시 계정 선택 창이 표시됨
+        if (isCapacitorNative()) {
+            const { FirebaseAuthentication } = window.Capacitor?.Plugins ?? {};
+            if (FirebaseAuthentication) {
+                await FirebaseAuthentication.signOut().catch(() => { });
+            }
+        }
         await auth.signOut();
     },
 

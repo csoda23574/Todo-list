@@ -19,6 +19,7 @@ export function applyAppTitle() {
 /* ─────────────────────────── 헤더 날짜/시계 ───────────────────────────── */
 
 export function updateHeaderDate() {
+    if (!DOM.headerDate) return;
     const now = new Date();
     const dateStr = now.toLocaleDateString('ko-KR', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -35,6 +36,7 @@ export function updateHeaderDate() {
  * @param {Array} [catTodos] — 이미 필터된 카테고리 배열 (없으면 내부에서 계산)
  */
 export function updateStats(catTodos) {
+    if (!DOM.totalCount || !DOM.progressFill) return;
     const todos = catTodos ?? _catTodos();
     const total = todos.length;
     const done = todos.filter(t => t.done).length;
@@ -135,6 +137,7 @@ export function renderTodos() {
     const fragment = document.createDocumentFragment();
     filtered.forEach(todo => fragment.appendChild(createTodoElement(todo)));
 
+    if (!DOM.todoList || !DOM.emptyState) return;
     DOM.todoList.innerHTML = '';
     DOM.emptyState.classList.toggle('visible', filtered.length === 0);
     if (filtered.length > 0) DOM.todoList.appendChild(fragment);
@@ -151,6 +154,7 @@ const BG_DATA_URL_RE = /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+=*
 export function applyBackground() {
     const { bgImage, bgOpacity, bgBlur } = state.settings;
     const overlay = DOM.bgOverlay;
+    if (!overlay) return;
     const container = document.querySelector('.app-container');
 
     if (bgImage && BG_DATA_URL_RE.test(bgImage)) {

@@ -16,9 +16,11 @@
         "dist:portable": "npm run clean && npm run build-icon && electron-builder --win portable",
         "android:sync": "npx cap sync android",
         "android:open": "npx cap sync android && npx cap open android",
-        "android:apk": "npx cap sync android && cd android && ./gradlew assembleDebug"
+        "android:apk": "npx cap sync android && cd android && ./gradlew assembleDebug",
+        "version": "sed -i \"s/versionName \\\".*\\\"/versionName \\\"$npm_package_version\\\"/\" android/app/build.gradle && git add android/app/build.gradle"
     },
     "dependencies": {
+        "@capacitor-firebase/authentication": "^6.3.1",
         "@capacitor/core": "^6.2.0",
         "@capacitor/local-notifications": "^6.0.0"
     },

@@ -9,7 +9,8 @@
                    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
                    font-src 'self' https://fonts.gstatic.com;
                    img-src 'self' data: blob: https://lh3.googleusercontent.com;
-                   connect-src https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://securetoken.googleapis.com https://todo-list-2695f.firebaseapp.com;
+                   connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://securetoken.googleapis.com https://todo-list-2695f.firebaseapp.com https://cdn.jsdelivr.net;
+                   frame-src https://todo-list-2695f.firebaseapp.com;
                    object-src 'none';
                    base-uri 'self';" />
     <title>Todo List</title>
@@ -453,7 +454,7 @@
                             <span id="accountName">로그인되지 않음</span>
                             <span class="settings-row-sub" id="accountEmail"></span>
                         </div>
-                        <button class="btn btn-ghost" id="logoutBtn" style="display:none">로그아웃</button>
+                        <button class="btn btn-ghost hidden" id="logoutBtn">로그아웃</button>
                     </div>
                 </div>
 
@@ -488,8 +489,8 @@
     <!-- Toast -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- Login Overlay -->
-    <div class="login-overlay" id="loginOverlay">
+    <!-- Login Overlay (hidden until auth state resolves) -->
+    <div class="login-overlay hidden" id="loginOverlay">
         <div class="login-card">
             <div class="login-icon">
                 <svg viewBox="0 0 80 80" fill="none">

@@ -112,6 +112,13 @@ jobs:
       - name: Android Debug APK 빌드
         run: cd android && ./gradlew assembleDebug --no-daemon
 
+      - name: APK 파일명 변경 (Todo.List-버전.apk)
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          APK_SRC=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -1)
+          mv "$APK_SRC" "android/app/build/outputs/apk/debug/Todo.List-${VERSION}.apk"
+
       - name: 빌드 결과물 업로드
         uses: actions/upload-artifact@v4
         with:

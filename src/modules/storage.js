@@ -7,6 +7,7 @@
 
 import { STORAGE_KEYS, LAST_RESET_KEY } from './config.js';
 import { state } from './state.js';
+import { emit } from './bus.js';
 
 /* ─────────────────────── LocalStorage 기본 헬퍼 ───────────────────────── */
 
@@ -92,6 +93,29 @@ export function saveSettings() {
     }
 
     pushToFirebase();
+}
+
+/* ───────────── 계정 전환 시 로컬 상태 초기화 ──────────────────────────── */
+
+/**
+ * 로그아웃 또는 계정 전환 시 호출.
+ * 이전 계정 데이터가 새 계정 화면에 남아있는 문제를 방지합니다.
+ */
+export function clearUserData() {
+    // 메모리 상태 초기화
+    state.todos = [];
+    state.categories = [{ id: 'default', name: '기본' }];
+    state.currentCategoryId = 'default';
+    state.isFirstSync = true;  // 다음 로그인 때 원격 데이터를 강제 적용
+    state.remoteSyncInProgress = false;
+
+    // localStorage 초기화 (이전 계정 데이터가 다음 세션에 노출되지 않도록)
+    localStorage.removeItem(STORAGE_KEYS.TODOS);
+    localStorage.removeItem(STORAGE_KEYS.CATEGORIES);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_CATEGORY);
+
+    // UI 갱신
+    emit('categories:changed');
 }
 
 /* ────────────────────────── 상태 초기화 (앱 시작) ─────────────────────── */

@@ -77,7 +77,9 @@ export function showToast(message, type = 'info') {
     dot.className = 'toast-dot';
     toast.appendChild(dot);
     toast.appendChild(document.createTextNode(message));
-    DOM.toastContainer.appendChild(toast);
+    const container = DOM.toastContainer;
+    if (!container) return;
+    container.appendChild(toast);
 
     setTimeout(() => {
         toast.classList.add('leaving');

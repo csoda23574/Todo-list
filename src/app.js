@@ -5,7 +5,7 @@
  * 각 도메인 로직은 src/modules/ 의 개별 모듈로 분리되어 있습니다.
  */
 
-import { loadState } from './modules/storage.js';
+import { loadState, clearUserData } from './modules/storage.js';
 import {
     applyAppTitle, updateHeaderDate, renderTodos,
     applyBackground
@@ -45,8 +45,7 @@ function init() {
     // Firebase 클라우드 동기화 — Google Auth 기반
     if (!window.FirebaseSync?.init()) return;
 
-    // 인증 상태 확인 전 로그인 오버레이 표시
-    DOM.loginOverlay?.classList.remove('hidden');
+    // 인증 상태가 확인되기 전까지 로그인 오버레이를 숨겨둠 (이미 로그인된 경우 깜빡임 방지)
     DOM.userAvatarBtn?.classList.add('hidden');
 
     window.FirebaseSync.listenAuth(
@@ -61,6 +60,7 @@ function init() {
                 avatarImg.onerror = () => { avatarImg.src = ''; };
             }
             DOM.userAvatarBtn?.classList.remove('hidden');
+            DOM.logoutBtn?.classList.remove('hidden');
 
             if (DOM.accountName) DOM.accountName.textContent = user.displayName ?? '';
             if (DOM.accountEmail) DOM.accountEmail.textContent = user.email ?? '';
@@ -69,11 +69,12 @@ function init() {
             window.FirebaseSync.startSync(applyRemoteData);
         },
         // onSignOut: 로그아웃 또는 초기 미로그인 상태
-        // scheduleResetTimer()는 applyRemoteData() 첫 동기화 시에 실행됩니다
         () => {
+            clearUserData();  // 이전 계정 데이터 초기화 (todos, categories 메모리+localStorage)
             DOM.loginOverlay?.classList.remove('hidden');
             DOM.userAvatarBtn?.classList.add('hidden');
-            if (DOM.accountName) DOM.accountName.textContent = '';
+            DOM.logoutBtn?.classList.add('hidden');
+            if (DOM.accountName) DOM.accountName.textContent = '로그인되지 않음';
             if (DOM.accountEmail) DOM.accountEmail.textContent = '';
         }
     );

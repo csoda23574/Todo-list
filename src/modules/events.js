@@ -51,6 +51,7 @@ import { updateBgPreview } from './renderer.js';
 /* ──────────────────── 할 일 목록 이벤트 위임 ───────────────────────────── */
 
 function bindTodoListEvents() {
+    if (!DOM.todoList) return;
     DOM.todoList.addEventListener('change', e => {
         const checkbox = e.target.closest('.todo-checkbox');
         if (!checkbox) return;
@@ -196,12 +197,12 @@ function bindSettingsModalEvents() {
 
     DOM.bgOpacity?.addEventListener('input', () => {
         tempSettings.bgOpacity = parseInt(DOM.bgOpacity.value, 10);
-        DOM.bgOpacityValue.textContent = `${tempSettings.bgOpacity}%`;
+        if (DOM.bgOpacityValue) DOM.bgOpacityValue.textContent = `${tempSettings.bgOpacity}%`;
     });
 
     DOM.bgBlur?.addEventListener('input', () => {
         tempSettings.bgBlur = parseInt(DOM.bgBlur.value, 10);
-        DOM.bgBlurValue.textContent = `${tempSettings.bgBlur}px`;
+        if (DOM.bgBlurValue) DOM.bgBlurValue.textContent = `${tempSettings.bgBlur}px`;
     });
 }
 
