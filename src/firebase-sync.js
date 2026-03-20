@@ -182,6 +182,7 @@ window.FirebaseSync = {
     stop() {
         if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
         if (writeTimer) { clearTimeout(writeTimer); writeTimer = null; }
+        lastWriteId = null;  // 재로그인 시 이전 write echo 오판 방지
         setSyncStatus('offline');
     },
 };
