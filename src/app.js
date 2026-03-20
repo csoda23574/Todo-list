@@ -2276,13 +2276,14 @@ function init() {
                 // 동기화 시작
                 window.FirebaseSync.startSync(applyRemoteData);
             },
-            // onSignOut: 로그아웃 시
+            // onSignOut: 로그아웃 시 (초기 미로그인 상태 포함)
+            // scheduleResetTimer()는 호출하지 않음 — Firebase 모드에서는 로그인 후
+            // applyRemoteData()가 first sync 시 타이머를 시작함
             () => {
                 DOM.loginOverlay?.classList.remove('hidden');
                 DOM.userAvatarBtn?.classList.add('hidden');
                 if (DOM.accountName) DOM.accountName.textContent = '';
                 if (DOM.accountEmail) DOM.accountEmail.textContent = '';
-                scheduleResetTimer();
             }
         );
     } else {

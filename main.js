@@ -6,6 +6,82 @@ const {
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+
+// ─── Local File Server (Firebase Auth requires http:// origin, not file://) ───
+// file:// 프로토콜에서는 Firebase signInWithPopup의 결과가
+// window.opener.postMessage로 전달되지 않아 로그인이 먹통이 됨.
+// localhost HTTP 서버로 서빙하면 일반 브라우저와 동일하게 동작함.
+const MIME_TYPES = {
+    '.html': 'text/html; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'application/javascript; charset=utf-8',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.ico': 'image/x-icon',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+};
+
+let localServer = null;
+let localServerPort = 0;
+
+// localStorage가 세션 간 유지되도록 포트를 고정
+const PORT_FILE = path.join(app.getPath('userData'), '.server-port');
+
+function getSavedPort() {
+    try {
+        const p = parseInt(fs.readFileSync(PORT_FILE, 'utf8'), 10);
+        if (p > 1024 && p < 65535) return p;
+    } catch { /* no saved port */ }
+    return 27427; // 기본 포트
+}
+
+function startLocalServer() {
+    return new Promise((resolve, reject) => {
+        const serveDir = path.join(__dirname, 'src');
+        localServer = http.createServer((req, res) => {
+            const reqPath = decodeURIComponent(req.url.split('?')[0].split('#')[0]);
+            const filePath = path.normalize(path.join(serveDir, reqPath === '/' ? 'index.html' : reqPath));
+
+            // 경로 탐색 공격 방지
+            const rel = path.relative(serveDir, filePath);
+            if (rel.startsWith('..') || path.isAbsolute(rel)) {
+                res.writeHead(403); res.end('Forbidden'); return;
+            }
+
+            const ext = path.extname(filePath).toLowerCase();
+            try {
+                const data = fs.readFileSync(filePath);
+                res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+                res.end(data);
+            } catch {
+                res.writeHead(404); res.end('Not found');
+            }
+        });
+
+        const preferred = getSavedPort();
+        localServer.listen(preferred, 'localhost', () => {
+            localServerPort = preferred;
+            try { fs.writeFileSync(PORT_FILE, String(preferred)); } catch { /* ignore */ }
+            console.log('[Main] Local server on http://localhost:' + localServerPort);
+            resolve(localServerPort);
+        });
+
+        localServer.once('error', () => {
+            // 포트 충돌 시 임의 포트로 대체 (localStorage는 리셋되지만 Firebase 로그인 후 복원)
+            localServer.listen(0, 'localhost', () => {
+                localServerPort = localServer.address().port;
+                console.warn('[Main] Preferred port in use, using random port:', localServerPort);
+                resolve(localServerPort);
+            });
+            localServer.once('error', reject);
+        });
+    });
+}
 
 // ─── Single Instance Lock ────────────────────────────────────────────────────
 if (!app.requestSingleInstanceLock()) {
@@ -80,7 +156,7 @@ function saveWindowState() {
 }
 
 // ─── Create Main Window ──────────────────────────────────────────────────────
-function createWindow() {
+function createWindow(port) {
     const saved = loadWindowState();
     const iconExists = fs.existsSync(ICON_PATH);
 
@@ -105,7 +181,7 @@ function createWindow() {
         center: !saved.x,
     });
 
-    mainWindow.loadFile('src/index.html');
+    mainWindow.loadURL(`http://localhost:${port}/index.html`);
 
     // Firebase Auth signInWithPopup이 여는 팝업창 허용
     // 차단 시 Google 로그인 버튼이 완전히 먹통이 됨
@@ -310,7 +386,7 @@ app.on('second-instance', () => {
 });
 
 // ─── App Lifecycle ───────────────────────────────────────────────────────────
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     console.log('[Main] App ready, isPackaged:', app.isPackaged);
     console.log('[Main] Notification supported:', Notification.isSupported());
     // Windows taskbar grouping & notifications
@@ -322,7 +398,9 @@ app.whenReady().then(() => {
     // Register auto-start on Windows (first run only)
     ensureAutoLaunchOnFirstRun();
 
-    createWindow();
+    // 로컬 파일 서버 시작 후 윈도우 생성 (Firebase Auth를 위해 localhost origin 필요)
+    const port = await startLocalServer();
+    createWindow(port);
     createTray();
 });
 
@@ -336,4 +414,5 @@ app.on('activate', showWindow);
 app.on('before-quit', () => {
     isQuitting = true;
     saveWindowState();
+    localServer?.close();
 });
