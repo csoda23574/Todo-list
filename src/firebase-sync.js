@@ -56,7 +56,9 @@ window.FirebaseSync = {
             auth = firebase.auth();
 
             // 오프라인 캐시(IndexedDB) 활성화
-            db.enablePersistence({ synchronizeTabs: false }).catch(() => { });
+            db.enablePersistence({ synchronizeTabs: false }).catch(() => {
+                // 멀티탭 환경 또는 시크릿 모드에서는 persistence가 비활성화됨 — 무시
+            });
 
             setSyncStatus('offline');
             return true;
@@ -104,6 +106,7 @@ window.FirebaseSync = {
                 await auth.signInWithCredential(credential);
             } else {
                 const provider = new firebase.auth.GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: 'select_account' });
                 await auth.signInWithPopup(provider);
             }
         } catch (e) {

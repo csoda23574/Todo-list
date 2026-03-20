@@ -61,7 +61,6 @@ function pushToFirebase() {
 /* ─────────────────────────── 저장 함수들 ──────────────────────────────── */
 
 export function saveTodos() {
-    console.log('[saveTodos] 저장 시작 — remoteSyncInProgress:', state.remoteSyncInProgress);
     saveToStorage(STORAGE_KEYS.TODOS, state.todos);
     pushToFirebase();
 
@@ -71,7 +70,6 @@ export function saveTodos() {
         state.remoteSyncTimer = setTimeout(() => {
             state.remoteSyncInProgress = false;
             state.remoteSyncTimer = null;
-            console.log('[saveTodos] remoteSyncInProgress 해제');
         }, 3000);
     }
 }
@@ -102,20 +100,46 @@ export function saveSettings() {
  * 이전 계정 데이터가 새 계정 화면에 남아있는 문제를 방지합니다.
  */
 export function clearUserData() {
+    // 타이머 정리 (이전 계정의 초기화 인터벌이 새 계정에서 실행되지 않도록)
+    if (state.resetTimerInterval) {
+        clearInterval(state.resetTimerInterval);
+        state.resetTimerInterval = null;
+    }
+    if (state.remoteSyncTimer) {
+        clearTimeout(state.remoteSyncTimer);
+        state.remoteSyncTimer = null;
+    }
+
     // 메모리 상태 초기화
     state.todos = [];
     state.categories = [{ id: 'default', name: '기본' }];
     state.currentCategoryId = 'default';
     state.isFirstSync = true;  // 다음 로그인 때 원격 데이터를 강제 적용
     state.remoteSyncInProgress = false;
+    state.settings = {
+        resetEnabled: false,
+        resetTime: '00:00',
+        resetRepeat: 'daily',
+        bgOpacity: 50,
+        bgBlur: 0,
+        bgImage: null,
+        bgFileName: '',
+        appTitle: 'My Tasks',
+    };
 
     // localStorage 초기화 (이전 계정 데이터가 다음 세션에 노출되지 않도록)
-    localStorage.removeItem(STORAGE_KEYS.TODOS);
-    localStorage.removeItem(STORAGE_KEYS.CATEGORIES);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_CATEGORY);
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('todoApp_')) keysToRemove.push(key);
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    localStorage.removeItem(LAST_RESET_KEY);
 
     // UI 갱신
     emit('categories:changed');
+    emit('title:changed');
+    emit('bg:changed');
 }
 
 /* ────────────────────────── 상태 초기화 (앱 시작) ─────────────────────── */

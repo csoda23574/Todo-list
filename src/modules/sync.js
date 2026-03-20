@@ -15,13 +15,7 @@ import { DOM } from './dom.js';
 /* ──────────────────────── 원격 데이터 적용 ─────────────────────────────── */
 
 export function applyRemoteData(cloudData) {
-    console.log('[applyRemoteData] remoteSyncInProgress:', state.remoteSyncInProgress,
-        '/ isFirstSync:', state.isFirstSync);
-
-    if (state.remoteSyncInProgress) {
-        console.log('[applyRemoteData] 로컬 작업 진행 중 — 원격 데이터 무시');
-        return;
-    }
+    if (state.remoteSyncInProgress) return;
 
     let changed = false;
     let todosChanged = false;
@@ -34,7 +28,6 @@ export function applyRemoteData(cloudData) {
         const isDiff = localJson !== remoteJson;
 
         if (state.isFirstSync || isDiff) {
-            console.log(`[applyRemoteData] todos 업데이트 (로컬 ${state.todos.length}개 → 원격 ${cloudData.todos.length}개)`);
             state.todos = cloudData.todos;
             saveToStorage(STORAGE_KEYS.TODOS, state.todos);
             changed = true;
@@ -90,7 +83,6 @@ export function applyRemoteData(cloudData) {
 
     // ── 초기화 시스템 재시작 조건 ──
     if (state.isFirstSync || todosChanged || resetHistoryChanged) {
-        console.log('[applyRemoteData] 초기화 시스템 재시작');
         emit('reset:reschedule');
         state.isFirstSync = false;
     }

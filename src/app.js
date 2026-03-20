@@ -48,9 +48,16 @@ function init() {
     // 인증 상태가 확인되기 전까지 로그인 오버레이를 숨겨둠 (이미 로그인된 경우 깜빡임 방지)
     DOM.userAvatarBtn?.classList.add('hidden');
 
+    let _lastSignedInUid = null;
+
     window.FirebaseSync.listenAuth(
         // onSignIn: 로그인 성공 시
         user => {
+            // 계정이 전환된 경우(명시적 로그아웃 없이 UID가 바뀐 경우) 이전 데이터 초기화
+            if (_lastSignedInUid && _lastSignedInUid !== user.uid) {
+                clearUserData();
+            }
+            _lastSignedInUid = user.uid;
             DOM.loginOverlay?.classList.add('hidden');
 
             const avatarImg = DOM.userAvatarImg;
@@ -70,6 +77,7 @@ function init() {
         },
         // onSignOut: 로그아웃 또는 초기 미로그인 상태
         () => {
+            _lastSignedInUid = null;
             clearUserData();  // 이전 계정 데이터 초기화 (todos, categories 메모리+localStorage)
             DOM.loginOverlay?.classList.remove('hidden');
             DOM.userAvatarBtn?.classList.add('hidden');
