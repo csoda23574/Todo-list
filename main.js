@@ -107,6 +107,34 @@ function createWindow() {
 
     mainWindow.loadFile('src/index.html');
 
+    // Firebase Auth signInWithPopup이 여는 팝업창 허용
+    // 차단 시 Google 로그인 버튼이 완전히 먹통이 됨
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        const allowed = [
+            'https://accounts.google.com/',
+            'https://todo-list-2695f.firebaseapp.com/',
+        ];
+        if (allowed.some(prefix => url.startsWith(prefix))) {
+            return {
+                action: 'allow',
+                overrideBrowserWindowOptions: {
+                    width: 500,
+                    height: 680,
+                    webPreferences: {
+                        contextIsolation: true,
+                        nodeIntegration: false,
+                        sandbox: true,
+                    },
+                },
+            };
+        }
+        // 그 외 외부 링크는 기본 브라우저에서 열기
+        if (url.startsWith('https://') || url.startsWith('http://')) {
+            shell.openExternal(url);
+        }
+        return { action: 'deny' };
+    });
+
     // Enable DevTools in development mode
     if (!app.isPackaged) {
         mainWindow.webContents.openDevTools();
