@@ -52,19 +52,19 @@ export function editTodo(id, text, note, priority, itemResetTime, itemResetDatet
 
 /* ──────────────────────────── 삭제 ────────────────────────────────────── */
 
+const removeTodoState = (id) => {
+    state.todos = state.todos.filter(t => t.id !== id);
+    saveTodos();
+    emit('todos:changed');
+};
+
 export function deleteTodo(id) {
     const el = document.querySelector(`[data-id="${id}"]`);
     if (el) {
         el.classList.add('removing');
-        el.addEventListener('animationend', () => {
-            state.todos = state.todos.filter(t => t.id !== id);
-            saveTodos();
-            emit('todos:changed');
-        }, { once: true });
+        el.addEventListener('animationend', () => removeTodoState(id), { once: true });
     } else {
-        state.todos = state.todos.filter(t => t.id !== id);
-        saveTodos();
-        emit('todos:changed');
+        removeTodoState(id);
     }
     showToast('항목이 삭제되었습니다', 'error');
 }

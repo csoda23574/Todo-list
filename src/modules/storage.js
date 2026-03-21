@@ -8,6 +8,7 @@
 import { STORAGE_KEYS, LAST_RESET_KEY } from './config.js';
 import { state } from './state.js';
 import { emit } from './bus.js';
+import { saveToIDB, loadFromIDB, removeFromIDB } from './idb.js';
 
 /* ─────────────────────── LocalStorage 기본 헬퍼 ───────────────────────── */
 
@@ -87,10 +88,13 @@ export function saveSettings() {
     saveToStorage(STORAGE_KEYS.SETTINGS, rest);
 
     if (bgImage) {
-        saveToStorage(STORAGE_KEYS.BG_IMAGE, bgImage);
+        saveToIDB(STORAGE_KEYS.BG_IMAGE, bgImage);
     } else {
-        localStorage.removeItem(STORAGE_KEYS.BG_IMAGE);
+        removeFromIDB(STORAGE_KEYS.BG_IMAGE);
     }
+
+    // Migration clean-up for older versions
+    localStorage.removeItem(STORAGE_KEYS.BG_IMAGE);
 
     pushToFirebase();
 }
@@ -154,7 +158,26 @@ export function loadState() {
 
     const savedSettings = loadFromStorage(STORAGE_KEYS.SETTINGS, {});
     state.settings = { ...state.settings, ...savedSettings };
-    state.settings.bgImage = loadFromStorage(STORAGE_KEYS.BG_IMAGE, null);
+    
+    // Set an initial null state so the UI doesn't break
+    state.settings.bgImage = null;
+
+    // Load IDB asynchronously to prevent blocking the main thread
+    loadFromIDB(STORAGE_KEYS.BG_IMAGE).then(idbImage => {
+        if (idbImage) {
+            state.settings.bgImage = idbImage;
+            emit('bg:changed');
+        } else {
+            // Migration: Check if it exists in LocalStorage and migrate it to IDB
+            const legacyImage = loadFromStorage(STORAGE_KEYS.BG_IMAGE, null);
+            if (legacyImage) {
+                state.settings.bgImage = legacyImage;
+                emit('bg:changed');
+                saveToIDB(STORAGE_KEYS.BG_IMAGE, legacyImage);
+                localStorage.removeItem(STORAGE_KEYS.BG_IMAGE);
+            }
+        }
+    });
 
     const savedCategories = loadFromStorage(STORAGE_KEYS.CATEGORIES, null);
     if (savedCategories?.length) state.categories = savedCategories;

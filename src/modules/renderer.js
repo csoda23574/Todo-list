@@ -39,7 +39,12 @@ export function updateStats(catTodos) {
     if (!DOM.totalCount || !DOM.progressFill) return;
     const todos = catTodos ?? _catTodos();
     const total = todos.length;
-    const done = todos.filter(t => t.done).length;
+
+    // 임시 배열 생성(.filter) 없이 직접 카운트하여 메모리 낭비 방지
+    let done = 0;
+    for (let i = 0; i < total; i++) {
+        if (todos[i].done) done++;
+    }
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
     DOM.totalCount.textContent = total;
@@ -135,7 +140,10 @@ export function renderTodos() {
     console.log('[renderTodos] 항목 수:', filtered.length);
 
     const fragment = document.createDocumentFragment();
-    filtered.forEach(todo => fragment.appendChild(createTodoElement(todo)));
+    // 콜백 함수 할당 오버헤드 방지
+    for (let i = 0; i < filtered.length; i++) {
+        fragment.appendChild(createTodoElement(filtered[i]));
+    }
 
     if (!DOM.todoList || !DOM.emptyState) return;
     DOM.todoList.innerHTML = '';

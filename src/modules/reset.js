@@ -13,6 +13,41 @@ import { DOM } from './dom.js';
 
 /* ─────────────────────── 다음 초기화 날짜 계산 ──────────────────────────── */
 
+const getLastResetDate = (hours, minutes) => {
+    const lastKey = localStorage.getItem('todoApp_lastReset');
+    if (!lastKey) return null;
+    
+    const parts = lastKey.split('-');
+    if (parts.length < 3) return null;
+    
+    const lastDate = new Date(+parts[0], +parts[1], +parts[2]);
+    lastDate.setHours(hours, minutes, 0, 0);
+    return lastDate;
+};
+
+const resetStrategies = {
+    weekly: (target, now) => {
+        const result = new Date(target);
+        while (result.getDay() !== now.getDay()) result.setDate(result.getDate() + 1);
+        return result;
+    },
+    monthly: (target) => {
+        const result = new Date(target);
+        result.setMonth(result.getMonth() + 1);
+        return result;
+    },
+    yearly: (target) => {
+        const result = new Date(target);
+        result.setFullYear(result.getFullYear() + 1);
+        return result;
+    },
+    weekday: (target) => {
+        const result = new Date(target);
+        while (result.getDay() === 0 || result.getDay() === 6) result.setDate(result.getDate() + 1);
+        return result;
+    }
+};
+
 export function getNextResetDate(timeStr, repeat) {
     const now = new Date();
     const [hours, minutes] = timeStr.split(':').map(Number);
@@ -20,36 +55,24 @@ export function getNextResetDate(timeStr, repeat) {
     target.setHours(hours, minutes, 0, 0);
     if (target <= now) target.setDate(target.getDate() + 1);
 
-    switch (repeat) {
-        case 'weekly':
-            while (target.getDay() !== now.getDay()) target.setDate(target.getDate() + 1);
-            break;
-        case 'monthly':
-            target.setMonth(target.getMonth() + 1);
-            break;
-        case 'yearly':
-            target.setFullYear(target.getFullYear() + 1);
-            break;
-        case 'weekday':
-            while (target.getDay() === 0 || target.getDay() === 6) target.setDate(target.getDate() + 1);
-            break;
-        default:
-            if (repeat?.startsWith('every')) {
-                const n = parseInt(repeat.slice(5), 10);
-                const lastKey = localStorage.getItem('todoApp_lastReset');
-                if (lastKey) {
-                    const parts = lastKey.split('-');
-                    if (parts.length >= 3) {
-                        const lastDate = new Date(+parts[0], +parts[1], +parts[2]);
-                        lastDate.setHours(hours, minutes, 0, 0);
-                        const nextDate = new Date(lastDate);
-                        nextDate.setDate(nextDate.getDate() + n);
-                        if (nextDate > now) return nextDate;
-                    }
-                }
-                target.setDate(target.getDate() + n - 1);
-            }
+    if (resetStrategies[repeat]) {
+        return resetStrategies[repeat](target, now);
     }
+
+    if (repeat?.startsWith('every')) {
+        const n = parseInt(repeat.slice(5), 10);
+        const lastDate = getLastResetDate(hours, minutes);
+        
+        if (lastDate) {
+            const nextDate = new Date(lastDate);
+            nextDate.setDate(nextDate.getDate() + n);
+            if (nextDate > now) return nextDate;
+        }
+        const fallback = new Date(target);
+        fallback.setDate(fallback.getDate() + n - 1);
+        return fallback;
+    }
+
     return target;
 }
 
@@ -304,16 +327,18 @@ export function doItemScheduleResets(now, catchUp = false) {
     if (changedItems.length > 0) _onResetOccurred('[스케줄 초기화]', changedItems);
 }
 
+const scheduleMatchers = {
+    weekly: (s, now) => (s.weekdays || []).includes(now.getDay()),
+    monthly: (s, now) => (s.days || []).includes(now.getDate()),
+    yearly: (s, now) => (s.dates || []).some(
+        d => d.month === (now.getMonth() + 1) && d.day === now.getDate()
+    )
+};
+
 /** 스케줄 타입에 따라 today와 매칭되는지 확인합니다. */
 function _matchesSchedule(s, now) {
-    if (s.type === 'weekly') return (s.weekdays || []).includes(now.getDay());
-    if (s.type === 'monthly') return (s.days || []).includes(now.getDate());
-    if (s.type === 'yearly') {
-        return (s.dates || []).some(
-            d => d.month === (now.getMonth() + 1) && d.day === now.getDate()
-        );
-    }
-    return false;
+    const matcher = scheduleMatchers[s.type];
+    return matcher ? matcher(s, now) : false;
 }
 
 /** 초기화 발생 공통 후처리 */
@@ -338,56 +363,62 @@ export function scheduleResetTimer() {
 
 /* ──────────────────── 초기화 시스템 시작 ───────────────────────────────── */
 
-export function initializeResetSystem() {
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-
-    // Catch-up: 전역 초기화
-    if (state.settings.resetEnabled) {
-        const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
-        const repeat = state.settings.resetRepeat;
-        if (repeat?.startsWith('every') || repeat === 'calendar') {
-            doGlobalReset(now, h, m);
-        } else if (nowMins >= h * 60 + m) {
-            doGlobalReset(now, h, m);
-        }
+const catchUpGlobalReset = (now, nowMins) => {
+    if (!state.settings.resetEnabled) return;
+    
+    const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
+    const repeat = state.settings.resetRepeat;
+    
+    if (repeat?.startsWith('every') || repeat === 'calendar' || nowMins >= h * 60 + m) {
+        doGlobalReset(now, h, m);
     }
+};
 
-    // Catch-up: 개별 항목 시간 초기화 (중간 배열 없이 Set 직접 구성)
+const catchUpItemResets = (now, nowMins) => {
     const uniqueTimes = new Set();
     state.todos.forEach(t => { if (t.itemResetTime) uniqueTimes.add(t.itemResetTime); });
+    
     uniqueTimes.forEach(timeStr => {
         const [th, tm] = timeStr.split(':').map(Number);
         if (nowMins >= th * 60 + tm) doItemResets(now, th, tm);
     });
+};
 
+const handleTimerTick = () => {
+    const t = new Date();
+    const hh = t.getHours();
+    const mm = t.getMinutes();
+
+    if (state.settings.resetEnabled) {
+        const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
+        const repeat = state.settings.resetRepeat;
+        
+        if (repeat === 'calendar') {
+            const cd = state.settings.resetCalendarDate;
+            if (cd) {
+                const calDate = new Date(cd);
+                if (hh === calDate.getHours() && mm === calDate.getMinutes()) {
+                    doGlobalReset(t, h, m);
+                }
+            }
+        } else if (hh === h && mm === m) {
+            doGlobalReset(t, h, m);
+        }
+    }
+
+    doItemResets(t, hh, mm);
+    doItemDatetimeResets(t);
+    doItemScheduleResets(t, false);
+};
+
+export function initializeResetSystem() {
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+
+    catchUpGlobalReset(now, nowMins);
+    catchUpItemResets(now, nowMins);
     doItemDatetimeResets(now);
     doItemScheduleResets(now, true);
 
-    // 1초 간격 타이머
-    state.resetTimerInterval = setInterval(() => {
-        const t = new Date();
-        const hh = t.getHours();
-        const mm = t.getMinutes();
-
-        if (state.settings.resetEnabled) {
-            const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
-            const repeat = state.settings.resetRepeat;
-            if (repeat === 'calendar') {
-                const cd = state.settings.resetCalendarDate;
-                if (cd) {
-                    const calDate = new Date(cd);
-                    if (hh === calDate.getHours() && mm === calDate.getMinutes()) {
-                        doGlobalReset(t, h, m);
-                    }
-                }
-            } else if (hh === h && mm === m) {
-                doGlobalReset(t, h, m);
-            }
-        }
-
-        doItemResets(t, hh, mm);
-        doItemDatetimeResets(t);
-        doItemScheduleResets(t, false);
-    }, 1000);
+    state.resetTimerInterval = setInterval(handleTimerTick, 1000);
 }

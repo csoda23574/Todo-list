@@ -11,10 +11,9 @@ export function isElectron() {
     return typeof window !== 'undefined' && !!window.electronAPI;
 }
 
-export function isCapacitor() {
+export function isCapacitorNative() {
     return typeof window !== 'undefined'
-        && window.CapacitorCore
-        && window.CapacitorCore.Capacitor.isNativePlatform();
+        && window.Capacitor?.isNativePlatform?.() === true;
 }
 
 /* ──────────────────────────── 시스템 알림 ──────────────────────────────── */
@@ -26,8 +25,10 @@ export async function showSystemNotification(title, body) {
             return;
         }
 
-        if (isCapacitor()) {
-            const { LocalNotifications } = window.CapacitorCore;
+        if (isCapacitorNative()) {
+            const { LocalNotifications } = window.Capacitor?.Plugins ?? {};
+            if (!LocalNotifications) return;
+
             const permission = await LocalNotifications.checkPermissions();
             if (permission.display !== 'granted') {
                 const result = await LocalNotifications.requestPermissions();

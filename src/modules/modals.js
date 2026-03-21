@@ -10,6 +10,7 @@ import { DOM } from './dom.js';
 import { showToast } from './utils.js';
 import { loadFromStorage, saveSettings } from './storage.js';
 import { STORAGE_KEYS } from './config.js';
+import { loadFromIDB } from './idb.js';
 import { updateBgPreview } from './renderer.js';
 import { emit } from './bus.js'; // renderer·reset 직접 의존 제거 — DIP
 import { updateResetNextInfo, initMonthDayGrid, addYearlyDateEntry, getYearlyDatesFromDOM, updateTaskResetTypeUI } from './reset.js';
@@ -218,11 +219,17 @@ export function applyCropResult(cropped, fileName) {
 
 /* ──────────────────────── 설정 모달 열기 ───────────────────────────────── */
 
-export function openSettingsModal() {
+export async function openSettingsModal() {
     // 최신 설정을 로컬스토리지에서 재로드
     const saved = loadFromStorage(STORAGE_KEYS.SETTINGS, {});
     state.settings = { ...state.settings, ...saved };
-    state.settings.bgImage = loadFromStorage(STORAGE_KEYS.BG_IMAGE, null);
+    
+    // Check IDB for background image, fallback to localStorage if migrating
+    let bgImage = await loadFromIDB(STORAGE_KEYS.BG_IMAGE);
+    if (!bgImage) {
+        bgImage = loadFromStorage(STORAGE_KEYS.BG_IMAGE, null);
+    }
+    state.settings.bgImage = bgImage;
 
     tempSettings = { ...state.settings };
     tempBgImage = state.settings.bgImage;
@@ -232,41 +239,51 @@ export function openSettingsModal() {
     openModal(DOM.settingsModal);
 }
 
+function _updateElectronSettingsSection() {
+    const electronSection = document.getElementById('electronSettingsSection');
+    if (!electronSection || !window.electronAPI) return;
+
+    electronSection.style.display = '';
+    
+    window.electronAPI.getPlatform().then(platform => {
+        const osName = platform === 'linux' ? 'Linux'
+            : platform === 'darwin' ? 'macOS'
+            : 'Windows';
+        
+        const titleEl = document.getElementById('electronSettingsTitle');
+        const subEl = document.getElementById('autoLaunchSubLabel');
+        if (titleEl) titleEl.textContent = `${osName} 앛 설정`;
+        if (subEl) subEl.textContent = `${osName} 로그인 시 자동으로 앱을 시작합니다`;
+    }).catch(() => { });
+
+    window.electronAPI.getAppSettings().then(s => {
+        const autoEl = document.getElementById('autoLaunchEnabled');
+        const topEl = document.getElementById('alwaysOnTopEnabled');
+        if (autoEl) autoEl.checked = s.autoLaunch;
+        if (topEl) topEl.checked = s.alwaysOnTop;
+    }).catch(() => { });
+}
+
 function _populateSettingsForm() {
     DOM.resetEnabled.checked = tempSettings.resetEnabled;
     DOM.resetTime.value = tempSettings.resetTime || '00:00';
     DOM.resetRepeat.value = tempSettings.resetRepeat || 'daily';
+    
     DOM.bgOpacity.value = tempSettings.bgOpacity;
     DOM.bgOpacityValue.textContent = `${tempSettings.bgOpacity}%`;
+    
     DOM.bgBlur.value = tempSettings.bgBlur;
     DOM.bgBlurValue.textContent = `${tempSettings.bgBlur}px`;
+    
     DOM.resetSubGroup.classList.toggle('hidden', !tempSettings.resetEnabled);
+    
+    if (DOM.appTitleInput) {
+        DOM.appTitleInput.value = tempSettings.appTitle || 'My Tasks';
+    }
+
     updateResetNextInfo();
     updateBgPreview(tempBgImage, tempSettings.bgFileName);
-
-    if (DOM.appTitleInput) DOM.appTitleInput.value = tempSettings.appTitle || 'My Tasks';
-
-    // Electron 전용 설정 섹션
-    const electronSection = document.getElementById('electronSettingsSection');
-    if (electronSection && window.electronAPI) {
-        electronSection.style.display = '';
-        // 플랫폼에 따라 설정 섹션 레이블 교체
-        window.electronAPI.getPlatform().then(platform => {
-            const osName = platform === 'linux' ? 'Linux'
-                : platform === 'darwin' ? 'macOS'
-                    : 'Windows';
-            const titleEl = document.getElementById('electronSettingsTitle');
-            const subEl = document.getElementById('autoLaunchSubLabel');
-            if (titleEl) titleEl.textContent = `${osName} 앛 설정`;
-            if (subEl) subEl.textContent = `${osName} 로그인 시 자동으로 앱을 시작합니다`;
-        }).catch(() => { });
-        window.electronAPI.getAppSettings().then(s => {
-            const autoEl = document.getElementById('autoLaunchEnabled');
-            const topEl = document.getElementById('alwaysOnTopEnabled');
-            if (autoEl) autoEl.checked = s.autoLaunch;
-            if (topEl) topEl.checked = s.alwaysOnTop;
-        }).catch(() => { });
-    }
+    _updateElectronSettingsSection();
 }
 
 /* ─────────────────────── 설정 모달 저장 ────────────────────────────────── */

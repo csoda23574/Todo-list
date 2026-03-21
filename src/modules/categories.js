@@ -36,10 +36,20 @@ export function deleteCategory(id) {
     const cat = state.categories.find(c => c.id === id);
     const catName = cat?.name ?? '';
     const removedCat = { ...cat };
-    const removedTodos = state.todos.filter(t => (t.categoryId || 'default') === id);
 
-    // 카테고리 및 해당 할 일 제거
-    state.todos = state.todos.filter(t => (t.categoryId || 'default') !== id);
+    // 할 일 분리 (불필요한 배열 순회 최소화 - 단일 순회로 처리)
+    const keptTodos = [];
+    const removedTodos = [];
+    for (let i = 0; i < state.todos.length; i++) {
+        const t = state.todos[i];
+        if ((t.categoryId || 'default') === id) {
+            removedTodos.push(t);
+        } else {
+            keptTodos.push(t);
+        }
+    }
+
+    state.todos = keptTodos;
     state.categories = state.categories.filter(c => c.id !== id);
     saveTodos();
     saveCategories();
@@ -71,47 +81,35 @@ export function switchCategory(id) {
 
 /* ────────────────────── 카테고리 탭 렌더링 ─────────────────────────────── */
 
-/**
- * 카테고리 탭을 렌더링합니다.
- * data-id 속성을 통해 events.js의 위임 처리기가 클릭 이벤트를 선별합니다.
- */
-export function renderCategoryTabs() {
-    const container = document.getElementById('categoryTabsBar');
-    if (!container) return;
-    container.innerHTML = '';
+const createCategoryTab = (cat, isActive) => {
+    const tab = document.createElement('div');
+    tab.className = `category-tab${isActive ? ' active' : ''}`;
+    tab.dataset.id = cat.id;
 
-    state.categories.forEach(cat => {
-        const isActive = cat.id === state.currentCategoryId;
-        const tab = document.createElement('div');
-        tab.className = `category-tab${isActive ? ' active' : ''}`;
-        tab.dataset.id = cat.id;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'category-tab-name';
+    nameSpan.textContent = cat.name;
+    nameSpan.title = '활성 탭 클릭하여 이름 변경';
+    tab.appendChild(nameSpan);
 
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'category-tab-name';
-        nameSpan.textContent = cat.name;
-        nameSpan.title = '활성 탭 클릭하여 이름 변경';
-        tab.appendChild(nameSpan);
+    if (cat.id !== 'default') {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'category-tab-del';
+        delBtn.title = '탭 삭제';
+        delBtn.dataset.deleteCategoryId = cat.id;
+        delBtn.dataset.deleteCategoryName = cat.name;
+        delBtn.innerHTML = `
+            <svg viewBox="0 0 10 10" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round">
+              <line x1="2" y1="2" x2="8" y2="8"/>
+              <line x1="8" y1="2" x2="2" y2="8"/>
+            </svg>`;
+        tab.appendChild(delBtn);
+    }
+    return tab;
+};
 
-        if (cat.id !== 'default') {
-            const delBtn = document.createElement('button');
-            delBtn.className = 'category-tab-del';
-            delBtn.title = '탭 삭제';
-            // events.js의 위임 처리기가 이 data 속성을 읽습니다
-            delBtn.dataset.deleteCategoryId = cat.id;
-            delBtn.dataset.deleteCategoryName = cat.name;
-            delBtn.innerHTML = `
-                <svg viewBox="0 0 10 10" fill="none" stroke="currentColor"
-                     stroke-width="1.8" stroke-linecap="round">
-                  <line x1="2" y1="2" x2="8" y2="8"/>
-                  <line x1="8" y1="2" x2="2" y2="8"/>
-                </svg>`;
-            tab.appendChild(delBtn);
-        }
-
-        container.appendChild(tab);
-    });
-
-    // 탭 추가(+) 버튼
+const createAddTabButton = () => {
     const addBtn = document.createElement('button');
     addBtn.className = 'category-tab-add';
     addBtn.title = '새 탭 추가';
@@ -121,7 +119,27 @@ export function renderCategoryTabs() {
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>`;
-    container.appendChild(addBtn);
+    return addBtn;
+};
+
+/**
+ * 카테고리 탭을 렌더링합니다.
+ * data-id 속성을 통해 events.js의 위임 처리기가 클릭 이벤트를 선별합니다.
+ */
+export function renderCategoryTabs() {
+    const container = document.getElementById('categoryTabsBar');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    // map -> forEach 체이닝 제거 및 DocumentFragment 사용으로 DOM 리플로우 최소화
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < state.categories.length; i++) {
+        const cat = state.categories[i];
+        fragment.appendChild(createCategoryTab(cat, cat.id === state.currentCategoryId));
+    }
+    fragment.appendChild(createAddTabButton());
+    container.appendChild(fragment);
 }
 
 /* ──────────────────── 인라인 입력 UI 헬퍼 ─────────────────────────────── */
