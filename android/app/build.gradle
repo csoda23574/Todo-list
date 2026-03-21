@@ -25,7 +25,9 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            outputFileName = "app-${variant.versionName}.apk"
+            if (variant.buildType.name == 'release') {
+                outputFileName = "app-${variant.versionName}.apk"
+            }
         }
     }
 }

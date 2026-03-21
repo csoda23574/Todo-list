@@ -21,6 +21,7 @@ let currentUser = null;
 let unsubscribeSnapshot = null;
 let writeTimer = null;
 let lastWriteId = null;
+let networkSyncReceived = false;
 
 // ─── 동기화 상태 표시 ────────────────────────────────────────────────────────
 function setSyncStatus(status) {
@@ -146,6 +147,8 @@ window.FirebaseSync = {
                 if (!data) return;
                 // 내 자신의 쓰기 반사(echo)는 무시
                 if (data._writeId && data._writeId === lastWriteId) return;
+                // 오프라인 캐시 여부를 함께 전달 — push 시점 제어에 사용
+                if (!doc.metadata.fromCache) networkSyncReceived = true;
                 onRemoteData(data);
             },
             (err) => {
@@ -179,10 +182,14 @@ window.FirebaseSync = {
 
     isReady() { return db !== null && currentUser !== null; },
 
+    /** 네트워크(캐시 아님) 스냅샷을 한 번이라도 수신했는지 여부 */
+    isNetworkSyncReady() { return networkSyncReceived; },
+
     stop() {
         if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
         if (writeTimer) { clearTimeout(writeTimer); writeTimer = null; }
         lastWriteId = null;  // 재로그인 시 이전 write echo 오판 방지
+        networkSyncReceived = false;  // 재로그인 시 newtork sync 대기 상태로 초기화
         setSyncStatus('offline');
     },
 };

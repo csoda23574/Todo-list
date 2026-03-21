@@ -53,9 +53,11 @@ function buildSyncPayload() {
 }
 
 function pushToFirebase() {
-    if (window.FirebaseSync?.isReady()) {
-        window.FirebaseSync.push(buildSyncPayload());
-    }
+    if (!window.FirebaseSync?.isReady()) return;
+    // 오프라인 캐시만 수신한 상태에서는 push 금지 — 네트워크 동기화 이전에
+    // 낡은 로컬 데이터로 Firestore를 덮어쓰는 경쟁 조건을 방지합니다.
+    if (!window.FirebaseSync?.isNetworkSyncReady()) return;
+    window.FirebaseSync.push(buildSyncPayload());
 }
 
 /* ─────────────────────────── 저장 함수들 ──────────────────────────────── */
