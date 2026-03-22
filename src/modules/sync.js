@@ -6,8 +6,8 @@
  */
 
 import { state } from './state.js';
-import { STORAGE_KEYS, LAST_RESET_KEY } from './config.js';
-import { saveToStorage } from './storage.js';
+import { STORAGE_KEYS, getGlobalResetKey, getItemResetKey } from './config.js';
+import { saveToStorage, updatePreviousState } from './storage.js';
 import { emit } from './bus.js'; // renderer·categories·reset 직접 의존 제거 — DIP
 import { logResetStatus } from './debug.js';
 import { DOM } from './dom.js';
@@ -16,6 +16,7 @@ import { DOM } from './dom.js';
 
 export function applyRemoteData(cloudData) {
     if (state.remoteSyncInProgress) return;
+    state.remoteSyncInProgress = true; // DOM/Storage 로컬 갱신 중 역방향 Push(에코) 방지 락
 
     let changed = false;
     let todosChanged = false;
@@ -36,20 +37,22 @@ export function applyRemoteData(cloudData) {
     }
 
     // ── resetHistory ──
-    if (cloudData.resetHistory) {
-        const rh = cloudData.resetHistory;
+    if (cloudData.settingsDoc) {
+        const { settings, resetHistory } = cloudData.settingsDoc;
 
-        if (rh.globalReset) {
-            const current = localStorage.getItem(LAST_RESET_KEY);
+        // 리셋 내역 병합
+        if (resetHistory && resetHistory.globalReset) {
+            const resetKey = getGlobalResetKey(state.uid);
+            const current = localStorage.getItem(resetKey);
             if (state.isFirstSync || current !== rh.globalReset) {
-                localStorage.setItem(LAST_RESET_KEY, rh.globalReset);
+                localStorage.setItem(resetKey, rh.globalReset);
                 resetHistoryChanged = true;
             }
         }
 
-        if (rh.itemResets) {
+        if (resetHistory && resetHistory.itemResets) {
             Object.entries(rh.itemResets).forEach(([itemId, val]) => {
-                const key = `todoApp_itemLastReset_${itemId}`;
+                const key = getItemResetKey(state.uid, itemId);
                 const current = localStorage.getItem(key);
                 if (state.isFirstSync || current !== val) {
                     localStorage.setItem(key, val);
@@ -57,8 +60,22 @@ export function applyRemoteData(cloudData) {
                 }
             });
         }
-    }
 
+        // 설정 병합
+        if (settings) {
+            const localStr = JSON.stringify({ ...state.settings, bgImage: null, bgFileName: null });
+            const remoteStr = JSON.stringify({ ...settings, bgImage: null, bgFileName: null });
+
+            if (state.isFirstSync || localStr !== remoteStr) {
+                const { bgImage, bgFileName } = state.settings;
+                state.settings = { ...state.settings, ...settings, bgImage, bgFileName };
+                const { bgImage: _b, bgFileName: _f, ...rest } = state.settings;
+                saveToStorage(STORAGE_KEYS.SETTINGS, rest);
+                emit('title:changed');
+                changed = true;
+            }
+        }
+    }
     // ── categories ──
     if (cloudData.categories?.length &&
         JSON.stringify(cloudData.categories) !== JSON.stringify(state.categories)) {
@@ -71,16 +88,6 @@ export function applyRemoteData(cloudData) {
         changed = true;
     }
 
-    // ── settings (bgImage/bgFileName은 로컬 디바이스 전용) ──
-    if (cloudData.settings) {
-        const { bgImage, bgFileName } = state.settings;
-        state.settings = { ...state.settings, ...cloudData.settings, bgImage, bgFileName };
-        const { bgImage: _b, bgFileName: _f, ...rest } = state.settings;
-        saveToStorage(STORAGE_KEYS.SETTINGS, rest);
-        emit('title:changed');
-        changed = true;
-    }
-
     // ── 초기화 시스템 재시작 조건 ──
     if (state.isFirstSync || todosChanged || resetHistoryChanged) {
         emit('reset:reschedule');
@@ -88,9 +95,14 @@ export function applyRemoteData(cloudData) {
     }
 
     if (changed) {
+        updatePreviousState();      // Diff 캐시 강제 갱신 -> 수신한 데이터를 재전송(Echo)하는 것 완벽 방지
         emit('categories:changed'); // renderCategoryTabs + renderTodos 모두 처리
         emit('bg:changed');
     }
+
+    setTimeout(() => {
+        state.remoteSyncInProgress = false; // 동기적인 렌더링 완료 후 락 해제
+    }, 100);
 }
 
 /* ──────────────────────── 수동 새로고침 ────────────────────────────────── */

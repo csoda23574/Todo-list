@@ -5,7 +5,7 @@
  */
 
 import { state } from './state.js';
-import { LAST_RESET_KEY } from './config.js';
+import { getGlobalResetKey, getItemResetKey } from './config.js';
 import { saveTodos } from './storage.js';
 import { emit } from './bus.js'; // renderer 직접 의존 제거 — DIP
 import { showToast, showSystemNotification } from './utils.js';
@@ -14,12 +14,12 @@ import { DOM } from './dom.js';
 /* ─────────────────────── 다음 초기화 날짜 계산 ──────────────────────────── */
 
 const getLastResetDate = (hours, minutes) => {
-    const lastKey = localStorage.getItem('todoApp_lastReset');
+    const lastKey = localStorage.getItem(getGlobalResetKey(state.uid));
     if (!lastKey) return null;
-    
+
     const parts = lastKey.split('-');
     if (parts.length < 3) return null;
-    
+
     const lastDate = new Date(+parts[0], +parts[1], +parts[2]);
     lastDate.setHours(hours, minutes, 0, 0);
     return lastDate;
@@ -62,7 +62,7 @@ export function getNextResetDate(timeStr, repeat) {
     if (repeat?.startsWith('every')) {
         const n = parseInt(repeat.slice(5), 10);
         const lastDate = getLastResetDate(hours, minutes);
-        
+
         if (lastDate) {
             const nextDate = new Date(lastDate);
             nextDate.setDate(nextDate.getDate() + n);
@@ -214,7 +214,8 @@ export function doGlobalReset(now, h, m) {
 
     if (repeat?.startsWith('every')) {
         const n = parseInt(repeat.slice(5), 10);
-        const lastKey = localStorage.getItem(LAST_RESET_KEY);
+        const rKey = getGlobalResetKey(state.uid);
+        const lastKey = localStorage.getItem(rKey);
         if (lastKey) {
             const parts = lastKey.split('-');
             if (parts.length >= 3) {
@@ -226,12 +227,13 @@ export function doGlobalReset(now, h, m) {
             }
         }
         const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
-        if (localStorage.getItem(LAST_RESET_KEY) === todayKey) return;
-        localStorage.setItem(LAST_RESET_KEY, todayKey);
+        if (localStorage.getItem(rKey) === todayKey) return;
+        localStorage.setItem(rKey, todayKey);
     } else {
         const resetKey = buildResetKey(now, h, m);
-        if (localStorage.getItem(LAST_RESET_KEY) === resetKey) return;
-        localStorage.setItem(LAST_RESET_KEY, resetKey);
+        const rKey = getGlobalResetKey(state.uid);
+        if (localStorage.getItem(rKey) === resetKey) return;
+        localStorage.setItem(rKey, resetKey);
     }
 
     const targetItems = state.todos.filter(t => !t.itemResetTime);
@@ -264,7 +266,7 @@ export function doItemResets(now, hh, mm) {
         const [th, tm] = t.itemResetTime.split(':').map(Number);
         if (th !== hh || tm !== mm) return t;
 
-        const itemKey = `todoApp_itemLastReset_${t.id}`;
+        const itemKey = getItemResetKey(state.uid, t.id);
         if (localStorage.getItem(itemKey) === resetKey) return t;
         localStorage.setItem(itemKey, resetKey);
 
@@ -282,7 +284,7 @@ export function doItemDatetimeResets(now) {
     const changedItems = [];
     state.todos = state.todos.map(t => {
         if (!t.itemResetDatetime) return t;
-        const itemKey = `todoApp_itemLastReset_${t.id}`;
+        const itemKey = getItemResetKey(state.uid, t.id);
         if (localStorage.getItem(itemKey) === t.itemResetDatetime) return t;
         if (now < new Date(t.itemResetDatetime)) return t;
 
@@ -315,7 +317,7 @@ export function doItemScheduleResets(now, catchUp = false) {
         const matched = _matchesSchedule(s, now);
         if (!matched) return t;
 
-        const itemKey = `todoApp_itemLastReset_${t.id}`;
+        const itemKey = getItemResetKey(state.uid, t.id);
         const occKey = `${s.type}-${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
         if (localStorage.getItem(itemKey) === occKey) return t;
         localStorage.setItem(itemKey, occKey);
@@ -365,10 +367,10 @@ export function scheduleResetTimer() {
 
 const catchUpGlobalReset = (now, nowMins) => {
     if (!state.settings.resetEnabled) return;
-    
+
     const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
     const repeat = state.settings.resetRepeat;
-    
+
     if (repeat?.startsWith('every') || repeat === 'calendar' || nowMins >= h * 60 + m) {
         doGlobalReset(now, h, m);
     }
@@ -377,7 +379,7 @@ const catchUpGlobalReset = (now, nowMins) => {
 const catchUpItemResets = (now, nowMins) => {
     const uniqueTimes = new Set();
     state.todos.forEach(t => { if (t.itemResetTime) uniqueTimes.add(t.itemResetTime); });
-    
+
     uniqueTimes.forEach(timeStr => {
         const [th, tm] = timeStr.split(':').map(Number);
         if (nowMins >= th * 60 + tm) doItemResets(now, th, tm);
@@ -392,7 +394,7 @@ const handleTimerTick = () => {
     if (state.settings.resetEnabled) {
         const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
         const repeat = state.settings.resetRepeat;
-        
+
         if (repeat === 'calendar') {
             const cd = state.settings.resetCalendarDate;
             if (cd) {

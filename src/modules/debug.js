@@ -3,7 +3,7 @@
  */
 
 import { state } from './state.js';
-import { LAST_RESET_KEY } from './config.js';
+import { getGlobalResetKey, getItemResetKey } from './config.js';
 
 /* ──────────────────── 리셋 키 → Date 변환 ─────────────────────────────── */
 
@@ -33,11 +33,11 @@ function formatResetTime(resetKey) {
 
 export function logResetStatus() {
     console.log('=== 체크리스트 초기화 상태 ===');
-    console.log(`전역 초기화: ${formatResetTime(localStorage.getItem(LAST_RESET_KEY))}`);
+    console.log(`전역 초기화: ${formatResetTime(localStorage.getItem(getGlobalResetKey(state.uid)))}`);
     console.log('\n항목별 초기화:');
 
     state.todos.forEach((todo, index) => {
-        const lastReset = localStorage.getItem(`todoApp_itemLastReset_${todo.id}`);
+        const lastReset = localStorage.getItem(getItemResetKey(state.uid, todo.id));
         const resetType = todo.itemResetDatetime ? 'datetime'
             : todo.itemResetSchedule ? 'schedule'
                 : todo.itemResetTime ? 'time'

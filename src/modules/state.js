@@ -6,6 +6,7 @@
  */
 
 export const state = {
+    uid: 'guest',           // 로그인 사용자 격리용 UID
     // 할 일 목록
     todos: [],
 

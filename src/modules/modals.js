@@ -9,7 +9,7 @@ import { state } from './state.js';
 import { DOM } from './dom.js';
 import { showToast } from './utils.js';
 import { loadFromStorage, saveSettings } from './storage.js';
-import { STORAGE_KEYS } from './config.js';
+import { STORAGE_KEYS, getStorageKey } from './config.js';
 import { loadFromIDB } from './idb.js';
 import { updateBgPreview } from './renderer.js';
 import { emit } from './bus.js'; // renderer·reset 직접 의존 제거 — DIP
@@ -223,9 +223,10 @@ export async function openSettingsModal() {
     // 최신 설정을 로컬스토리지에서 재로드
     const saved = loadFromStorage(STORAGE_KEYS.SETTINGS, {});
     state.settings = { ...state.settings, ...saved };
-    
+
     // Check IDB for background image, fallback to localStorage if migrating
-    let bgImage = await loadFromIDB(STORAGE_KEYS.BG_IMAGE);
+    const idbKey = getStorageKey(state.uid, STORAGE_KEYS.BG_IMAGE);
+    let bgImage = await loadFromIDB(idbKey);
     if (!bgImage) {
         bgImage = loadFromStorage(STORAGE_KEYS.BG_IMAGE, null);
     }
@@ -244,12 +245,12 @@ function _updateElectronSettingsSection() {
     if (!electronSection || !window.electronAPI) return;
 
     electronSection.style.display = '';
-    
+
     window.electronAPI.getPlatform().then(platform => {
         const osName = platform === 'linux' ? 'Linux'
             : platform === 'darwin' ? 'macOS'
-            : 'Windows';
-        
+                : 'Windows';
+
         const titleEl = document.getElementById('electronSettingsTitle');
         const subEl = document.getElementById('autoLaunchSubLabel');
         if (titleEl) titleEl.textContent = `${osName} 앛 설정`;
@@ -268,15 +269,15 @@ function _populateSettingsForm() {
     DOM.resetEnabled.checked = tempSettings.resetEnabled;
     DOM.resetTime.value = tempSettings.resetTime || '00:00';
     DOM.resetRepeat.value = tempSettings.resetRepeat || 'daily';
-    
+
     DOM.bgOpacity.value = tempSettings.bgOpacity;
     DOM.bgOpacityValue.textContent = `${tempSettings.bgOpacity}%`;
-    
+
     DOM.bgBlur.value = tempSettings.bgBlur;
     DOM.bgBlurValue.textContent = `${tempSettings.bgBlur}px`;
-    
+
     DOM.resetSubGroup.classList.toggle('hidden', !tempSettings.resetEnabled);
-    
+
     if (DOM.appTitleInput) {
         DOM.appTitleInput.value = tempSettings.appTitle || 'My Tasks';
     }
