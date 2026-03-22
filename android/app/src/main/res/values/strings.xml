@@ -4,4 +4,6 @@
     <string name="title_activity_main">Todo List</string>
     <string name="package_name">com.personal.todolist</string>
     <string name="custom_url_scheme">com.personal.todolist</string>
+    <string name="default_web_client_id">848702298682-o7skclj8vvu91ivjo6ptsispc7sncg8i.apps.googleusercontent.com</string>
+    <string name="server_client_id">848702298682-o7skclj8vvu91ivjo6ptsispc7sncg8i.apps.googleusercontent.com</string>
 </resources>
