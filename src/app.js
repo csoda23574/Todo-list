@@ -5,6 +5,7 @@
  * 각 도메인 로직은 src/modules/ 의 개별 모듈로 분리되어 있습니다.
  */
 
+import { state } from './modules/state.js';
 import { loadState, clearUserData } from './modules/storage.js';
 import {
     applyAppTitle, updateHeaderDate, renderTodos,
@@ -53,11 +54,20 @@ function init() {
     window.FirebaseSync.listenAuth(
         // onSignIn: 로그인 성공 시
         user => {
-            // 계정이 전환된 경우(명시적 로그아웃 없이 UID가 바뀐 경우) 이전 데이터 초기화
-            if (_lastSignedInUid && _lastSignedInUid !== user.uid) {
-                clearUserData();
-            }
+            const uidChanged = state.uid !== user.uid;
+            state.uid = user.uid;
             _lastSignedInUid = user.uid;
+
+            // 앱 시작 시(게스트->유저) 또는 계정 스위칭 시 UID 전용 데이터 로드
+            if (uidChanged) {
+                clearUserData();
+                loadState();
+                renderCategoryTabs();
+                renderTodos();
+                applyBackground();
+                applyAppTitle();
+                scheduleResetTimer();
+            }
             DOM.loginOverlay?.classList.add('hidden');
 
             const avatarImg = DOM.userAvatarImg;
@@ -77,8 +87,21 @@ function init() {
         },
         // onSignOut: 로그아웃 또는 초기 미로그인 상태
         () => {
+            const wasLoggedIn = state.uid !== 'guest';
+            state.uid = 'guest';
             _lastSignedInUid = null;
-            clearUserData();  // 이전 계정 데이터 초기화 (todos, categories 메모리+localStorage)
+
+            // 로그아웃 시 공용(Guest) 오프라인 모드 데이터 로드
+            if (wasLoggedIn) {
+                clearUserData();
+                loadState();
+                renderCategoryTabs();
+                renderTodos();
+                applyBackground();
+                applyAppTitle();
+                scheduleResetTimer();
+            }
+
             DOM.loginOverlay?.classList.remove('hidden');
             DOM.userAvatarBtn?.classList.add('hidden');
             DOM.logoutBtn?.classList.add('hidden');
