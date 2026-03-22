@@ -1,6 +1,6 @@
 {
     "name": "todo-app",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "Todo List Desktop App — Personal Edition",
     "main": "main.js",
     "author": "Personal",
