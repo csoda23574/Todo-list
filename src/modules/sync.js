@@ -15,7 +15,6 @@ import { DOM } from './dom.js';
 /* ──────────────────────── 원격 데이터 적용 ─────────────────────────────── */
 
 export function applyRemoteData(cloudData) {
-    if (state.remoteSyncInProgress) return;
     state.remoteSyncInProgress = true; // DOM/Storage 로컬 갱신 중 역방향 Push(에코) 방지 락
 
     let changed = false;
@@ -91,9 +90,17 @@ export function applyRemoteData(cloudData) {
     }
 
     // ── 초기화 시스템 재시작 조건 ──
-    if (state.isFirstSync || todosChanged || resetHistoryChanged) {
+    const isNetworkReady = window.FirebaseSync?.isNetworkSyncReady?.() ?? true;
+
+    if (state.isFirstSync) {
+        // 불완전한 상태(settings 미수신)에서 초기화 로직이 도는 것을 막기 위해 모든 컬렉션 네트워크 수신 완료 대기
+        if (isNetworkReady) {
+            emit('reset:reschedule');
+            state.isFirstSync = false;
+        }
+    } else if (todosChanged || resetHistoryChanged) {
+        // 이후 동기화에서는 변경 시마다 재스케줄링
         emit('reset:reschedule');
-        state.isFirstSync = false;
     }
 
     if (changed) {
@@ -102,9 +109,10 @@ export function applyRemoteData(cloudData) {
         emit('bg:changed');
     }
 
-    setTimeout(() => {
+    if (state.remoteSyncTimer) clearTimeout(state.remoteSyncTimer);
+    state.remoteSyncTimer = setTimeout(() => {
         state.remoteSyncInProgress = false; // 동기적인 렌더링 완료 후 락 해제
-    }, 100);
+    }, 500);
 }
 
 /* ──────────────────────── 수동 새로고침 ────────────────────────────────── */
