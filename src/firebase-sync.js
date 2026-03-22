@@ -116,6 +116,7 @@ window.FirebaseSync = {
             }
         } catch (e) {
             console.warn('[Auth] Google 로그인 오류:', e);
+            alert(`[로그인 디버그 로그]\nError: ${e.message}\n\n※ 이 화면의 에러 코드를 알려주세요.`);
             throw e;
         }
     },
