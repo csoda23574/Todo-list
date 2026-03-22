@@ -17,3 +17,4 @@ export const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 export const getStorageKey = (uid, key) => `todoApp_${uid}_${key}`;
 export const getGlobalResetKey = (uid) => `todoApp_${uid}_lastReset`;
 export const getItemResetKey = (uid, itemId) => `todoApp_${uid}_itemLastReset_${itemId}`;
+export const getResetTimestampKey = (uid) => `todoApp_${uid}_resetTimestamp`;

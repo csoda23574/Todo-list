@@ -5,11 +5,15 @@
  */
 
 import { state } from './state.js';
-import { getGlobalResetKey, getItemResetKey } from './config.js';
+import { getGlobalResetKey, getItemResetKey, getResetTimestampKey } from './config.js';
 import { saveTodos } from './storage.js';
 import { emit } from './bus.js'; // renderer 직접 의존 제거 — DIP
 import { showToast, showSystemNotification } from './utils.js';
 import { DOM } from './dom.js';
+
+function updateResetTimestamp() {
+    localStorage.setItem(getResetTimestampKey(state.uid), Date.now().toString());
+}
 
 /* ─────────────────────── 다음 초기화 날짜 계산 ──────────────────────────── */
 
@@ -229,11 +233,13 @@ export function doGlobalReset(now, h, m) {
         const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
         if (localStorage.getItem(rKey) === todayKey) return;
         localStorage.setItem(rKey, todayKey);
+        updateResetTimestamp();
     } else {
         const resetKey = buildResetKey(now, h, m);
         const rKey = getGlobalResetKey(state.uid);
         if (localStorage.getItem(rKey) === resetKey) return;
         localStorage.setItem(rKey, resetKey);
+        updateResetTimestamp();
     }
 
     const targetItems = state.todos.filter(t => !t.itemResetTime);
@@ -241,14 +247,13 @@ export function doGlobalReset(now, h, m) {
     console.log(`[전역 초기화] 대상: ${targetItems.length}개, 완료: ${completedBefore.length}개`);
     if (completedBefore.length > 0) {
         console.log('  완료→미완료:', completedBefore.map(t => `"${t.text}"`).join(', '));
-    }
 
-    state.remoteSyncInProgress = true;
-    state.todos = state.todos.map(t => t.itemResetTime ? t : { ...t, done: false });
-    saveTodos();
-    emit('todos:changed');
-    showToast('할 일 목록이 자동으로 초기화되었습니다', 'info');
-    showSystemNotification('✅ 체크리스트 초기화', '할 일 목록이 자동으로 초기화되었습니다.');
+        state.todos = state.todos.map(t => t.itemResetTime ? t : { ...t, done: false });
+        _onResetOccurred('[전역 초기화]', completedBefore);
+    } else {
+        // 이미 미완료 상태여도 변경된 초기화 키 동기화를 위해 저장 
+        saveTodos();
+    }
 }
 
 /* ──────────────────── 개별 시간 초기화 ─────────────────────────────────── */
@@ -275,13 +280,17 @@ export function doItemResets(now, hh, mm) {
         return { ...t, done: false };
     });
 
-    if (anyReset) _onResetOccurred('[개별 초기화]', changedItems);
+    if (anyReset) {
+        updateResetTimestamp();
+        _onResetOccurred('[개별 시간 초기화]', changedItems);
+    }
 }
 
 /* ─────────────────── 날짜/시간 지정 1회 초기화 ─────────────────────────── */
 
 export function doItemDatetimeResets(now) {
     const changedItems = [];
+    let anyReset = false;
     state.todos = state.todos.map(t => {
         if (!t.itemResetDatetime) return t;
         const itemKey = getItemResetKey(state.uid, t.id);
@@ -289,11 +298,16 @@ export function doItemDatetimeResets(now) {
         if (now < new Date(t.itemResetDatetime)) return t;
 
         localStorage.setItem(itemKey, t.itemResetDatetime);
+
+        anyReset = true;
         if (t.done) changedItems.push(t.text);
         return { ...t, done: false };
     });
 
-    if (changedItems.length > 0) _onResetOccurred('[날짜/시간 초기화]', changedItems);
+    if (anyReset) {
+        updateResetTimestamp();
+        _onResetOccurred('[날짜/시간 초기화]', changedItems);
+    }
 }
 
 /* ─────────────────── 주간/월간/연간 스케줄 초기화 ──────────────────────── */
@@ -302,6 +316,7 @@ export function doItemScheduleResets(now, catchUp = false) {
     const hh = now.getHours();
     const mm = now.getMinutes();
     const changedItems = [];
+    let anyReset = false;
 
     state.todos = state.todos.map(t => {
         if (!t.itemResetSchedule) return t;
@@ -322,11 +337,15 @@ export function doItemScheduleResets(now, catchUp = false) {
         if (localStorage.getItem(itemKey) === occKey) return t;
         localStorage.setItem(itemKey, occKey);
 
+        anyReset = true;
         if (t.done) changedItems.push(t.text);
         return { ...t, done: false };
     });
 
-    if (changedItems.length > 0) _onResetOccurred('[스케줄 초기화]', changedItems);
+    if (anyReset) {
+        updateResetTimestamp();
+        _onResetOccurred('[스케줄 초기화]', changedItems);
+    }
 }
 
 const scheduleMatchers = {
@@ -345,12 +364,14 @@ function _matchesSchedule(s, now) {
 
 /** 초기화 발생 공통 후처리 */
 function _onResetOccurred(label, changedItems) {
-    console.log(`${label} 완료→미완료: ${changedItems.length}개`);
+    if (changedItems.length > 0) {
+        console.log(`${label} 완료→미완료: ${changedItems.length}개`);
+        showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
+        showSystemNotification('🔄 항목 초기화', '일부 할 일이 자동으로 초기화되었습니다.');
+    }
     state.remoteSyncInProgress = true;
     saveTodos();
     emit('todos:changed');
-    showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
-    showSystemNotification('🔄 항목 초기화', '일부 할 일이 자동으로 초기화되었습니다.');
 }
 
 /* ──────────────────── 타이머 스케줄러 ──────────────────────────────────── */

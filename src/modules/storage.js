@@ -5,7 +5,7 @@
  * 렌더링이나 UI 로직은 포함하지 않습니다.
  */
 
-import { STORAGE_KEYS, getStorageKey, getGlobalResetKey, getItemResetKey } from './config.js';
+import { STORAGE_KEYS, getStorageKey, getGlobalResetKey, getItemResetKey, getResetTimestampKey } from './config.js';
 import { state } from './state.js';
 import { emit } from './bus.js';
 import { saveToIDB, loadFromIDB, removeFromIDB } from './idb.js';
@@ -63,6 +63,7 @@ function computeArrayDiff(current, prevStr) {
 
 function buildSettingsPayload() {
     const resetHistory = {
+        timestamp: parseInt(localStorage.getItem(getResetTimestampKey(state.uid)) || '0', 10),
         globalReset: localStorage.getItem(getGlobalResetKey(state.uid)),
         // map().filter() 대신 reduce로 중간 배열 없이 단일 순회
         itemResets: state.todos.reduce((acc, todo) => {

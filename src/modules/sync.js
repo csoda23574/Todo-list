@@ -6,7 +6,7 @@
  */
 
 import { state } from './state.js';
-import { STORAGE_KEYS, getGlobalResetKey, getItemResetKey } from './config.js';
+import { STORAGE_KEYS, getGlobalResetKey, getItemResetKey, getResetTimestampKey } from './config.js';
 import { saveToStorage, updatePreviousState } from './storage.js';
 import { emit } from './bus.js'; // renderer·categories·reset 직접 의존 제거 — DIP
 import { logResetStatus } from './debug.js';
@@ -40,69 +40,75 @@ export function applyRemoteData(cloudData) {
     if (cloudData.settingsDoc) {
         const { settings, resetHistory } = cloudData.settingsDoc;
 
-        // 리셋 내역 병합
-        if (resetHistory && resetHistory.globalReset) {
-            const resetKey = getGlobalResetKey(state.uid);
-            const current = localStorage.getItem(resetKey);
-            if (state.isFirstSync || current !== rh.globalReset) {
-                localStorage.setItem(resetKey, rh.globalReset);
+        // 리셋 내역 타임스탬프 기반 병합 (충돌 롤백 및 에러 해결)
+        if (resetHistory) {
+            const localTsKey = getResetTimestampKey(state.uid);
+            const localTs = parseInt(localStorage.getItem(localTsKey) || '0', 10);
+            const remoteTs = resetHistory.timestamp || 0;
+
+            // 원격 데이터가 명확하게 최신이거나, 첫 동기화인데 로컬이 아예 비어있을 때만 수용
+            const needsUpdate = remoteTs > localTs || (state.isFirstSync && localTs === 0 && Object.keys(resetHistory).length > 0);
+
+            if (needsUpdate) {
+                if (resetHistory.globalReset) {
+                    localStorage.setItem(getGlobalResetKey(state.uid), resetHistory.globalReset);
+                }
+                if (resetHistory.itemResets) {
+                    Object.entries(resetHistory.itemResets).forEach(([itemId, val]) => {
+                        localStorage.setItem(getItemResetKey(state.uid, itemId), val);
+                    });
+                }
+                localStorage.setItem(localTsKey, remoteTs.toString());
                 resetHistoryChanged = true;
             }
         }
-
-        if (resetHistory && resetHistory.itemResets) {
-            Object.entries(rh.itemResets).forEach(([itemId, val]) => {
-                const key = getItemResetKey(state.uid, itemId);
-                const current = localStorage.getItem(key);
-                if (state.isFirstSync || current !== val) {
-                    localStorage.setItem(key, val);
-                    resetHistoryChanged = true;
-                }
-            });
-        }
-
-        // 설정 병합
-        if (settings) {
-            const localStr = JSON.stringify({ ...state.settings, bgImage: null, bgFileName: null });
-            const remoteStr = JSON.stringify({ ...settings, bgImage: null, bgFileName: null });
-
-            if (state.isFirstSync || localStr !== remoteStr) {
-                const { bgImage, bgFileName } = state.settings;
-                state.settings = { ...state.settings, ...settings, bgImage, bgFileName };
-                const { bgImage: _b, bgFileName: _f, ...rest } = state.settings;
-                saveToStorage(STORAGE_KEYS.SETTINGS, rest);
-                emit('title:changed');
-                changed = true;
-            }
-        }
+        resetHistoryChanged = true;
     }
-    // ── categories ──
-    if (cloudData.categories?.length &&
-        JSON.stringify(cloudData.categories) !== JSON.stringify(state.categories)) {
-        state.categories = cloudData.categories;
-        saveToStorage(STORAGE_KEYS.CATEGORIES, state.categories);
-        if (!state.categories.find(c => c.id === state.currentCategoryId)) {
-            state.currentCategoryId = state.categories[0].id;
-            saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, state.currentCategoryId);
+});
         }
+
+// 설정 병합
+if (settings) {
+    const localStr = JSON.stringify({ ...state.settings, bgImage: null, bgFileName: null });
+    const remoteStr = JSON.stringify({ ...settings, bgImage: null, bgFileName: null });
+
+    if (state.isFirstSync || localStr !== remoteStr) {
+        const { bgImage, bgFileName } = state.settings;
+        state.settings = { ...state.settings, ...settings, bgImage, bgFileName };
+        const { bgImage: _b, bgFileName: _f, ...rest } = state.settings;
+        saveToStorage(STORAGE_KEYS.SETTINGS, rest);
+        emit('title:changed');
         changed = true;
     }
-
-    // ── 초기화 시스템 재시작 조건 ──
-    if (state.isFirstSync || todosChanged || resetHistoryChanged) {
-        emit('reset:reschedule');
-        state.isFirstSync = false;
+}
     }
-
-    if (changed) {
-        updatePreviousState();      // Diff 캐시 강제 갱신 -> 수신한 데이터를 재전송(Echo)하는 것 완벽 방지
-        emit('categories:changed'); // renderCategoryTabs + renderTodos 모두 처리
-        emit('bg:changed');
+// ── categories ──
+if (cloudData.categories?.length &&
+    JSON.stringify(cloudData.categories) !== JSON.stringify(state.categories)) {
+    state.categories = cloudData.categories;
+    saveToStorage(STORAGE_KEYS.CATEGORIES, state.categories);
+    if (!state.categories.find(c => c.id === state.currentCategoryId)) {
+        state.currentCategoryId = state.categories[0].id;
+        saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, state.currentCategoryId);
     }
+    changed = true;
+}
 
-    setTimeout(() => {
-        state.remoteSyncInProgress = false; // 동기적인 렌더링 완료 후 락 해제
-    }, 100);
+// ── 초기화 시스템 재시작 조건 ──
+if (state.isFirstSync || todosChanged || resetHistoryChanged) {
+    emit('reset:reschedule');
+    state.isFirstSync = false;
+}
+
+if (changed) {
+    updatePreviousState();      // Diff 캐시 강제 갱신 -> 수신한 데이터를 재전송(Echo)하는 것 완벽 방지
+    emit('categories:changed'); // renderCategoryTabs + renderTodos 모두 처리
+    emit('bg:changed');
+}
+
+setTimeout(() => {
+    state.remoteSyncInProgress = false; // 동기적인 렌더링 완료 후 락 해제
+}, 100);
 }
 
 /* ──────────────────────── 수동 새로고침 ────────────────────────────────── */
