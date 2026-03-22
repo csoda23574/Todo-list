@@ -33,7 +33,5 @@ export const state = {
 
     // 동기화 플래그
     resetTimerInterval: null,
-    remoteSyncInProgress: false,
-    remoteSyncTimer: null,
     isFirstSync: true,
 };

@@ -66,8 +66,11 @@ function init() {
                 renderTodos();
                 applyBackground();
                 applyAppTitle();
-                scheduleResetTimer();
+                // 타이머는 네트워크 동기화 완료 후 sync.js에서 안전하게 실행됩니다.
             }
+
+            // 비로그인(게스트) 상태는 클라우드 동기화가 없으므로 즉시 타이머 시작
+            scheduleResetTimer();
             DOM.loginOverlay?.classList.add('hidden');
 
             const avatarImg = DOM.userAvatarImg;

@@ -80,7 +80,6 @@ function buildSettingsPayload() {
 
 function pushToFirebase() {
     if (!window.FirebaseSync?.isReady()) return;
-    if (state.remoteSyncInProgress) return;
 
     const todosDiff = computeArrayDiff(state.todos, prevTodosStr);
     const categoriesDiff = computeArrayDiff(state.categories, prevCategoriesStr);
@@ -143,7 +142,6 @@ export function clearUserData() {
     state.categories = [{ id: 'default', name: '기본' }];
     state.currentCategoryId = 'default';
     state.isFirstSync = true;  // 다음 로그인 때 원격 데이터를 강제 적용
-    state.remoteSyncInProgress = false;
     state.settings = {
         resetEnabled: false,
         resetTime: '00:00',

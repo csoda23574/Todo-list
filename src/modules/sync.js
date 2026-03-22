@@ -12,11 +12,11 @@ import { emit } from './bus.js'; // renderer·categories·reset 직접 의존 �
 import { logResetStatus } from './debug.js';
 import { DOM } from './dom.js';
 
+let fallbackTimer = null;
+
 /* ──────────────────────── 원격 데이터 적용 ─────────────────────────────── */
 
 export function applyRemoteData(cloudData) {
-    state.remoteSyncInProgress = true; // DOM/Storage 로컬 갱신 중 역방향 Push(에코) 방지 락
-
     let changed = false;
     let todosChanged = false;
     let resetHistoryChanged = false;
@@ -89,30 +89,32 @@ export function applyRemoteData(cloudData) {
         changed = true;
     }
 
-    // ── 초기화 시스템 재시작 조건 ──
-    const isNetworkReady = window.FirebaseSync?.isNetworkSyncReady?.() ?? true;
-
-    if (state.isFirstSync) {
-        // 불완전한 상태(settings 미수신)에서 초기화 로직이 도는 것을 막기 위해 모든 컬렉션 네트워크 수신 완료 대기
-        if (isNetworkReady) {
-            emit('reset:reschedule');
-            state.isFirstSync = false;
-        }
-    } else if (todosChanged || resetHistoryChanged) {
-        // 이후 동기화에서는 변경 시마다 재스케줄링
-        emit('reset:reschedule');
-    }
-
     if (changed) {
         updatePreviousState();      // Diff 캐시 강제 갱신 -> 수신한 데이터를 재전송(Echo)하는 것 완벽 방지
         emit('categories:changed'); // renderCategoryTabs + renderTodos 모두 처리
         emit('bg:changed');
     }
 
-    if (state.remoteSyncTimer) clearTimeout(state.remoteSyncTimer);
-    state.remoteSyncTimer = setTimeout(() => {
-        state.remoteSyncInProgress = false; // 동기적인 렌더링 완료 후 락 해제
-    }, 500);
+    // ── 초기화 시스템 재시작 조건 ──
+    const isNetworkReady = window.FirebaseSync?.isNetworkSyncReady?.() ?? true;
+
+    if (state.isFirstSync) {
+        if (isNetworkReady) {
+            state.isFirstSync = false;
+            if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+            emit('reset:reschedule');
+        } else if (!fallbackTimer) {
+            // 오프라인/캐시 상태에서 무한 대기를 방지하기 위해 3초 후 강제 타이머 시작
+            fallbackTimer = setTimeout(() => {
+                if (state.isFirstSync) {
+                    state.isFirstSync = false;
+                    emit('reset:reschedule');
+                }
+            }, 3000);
+        }
+    } else if (todosChanged || resetHistoryChanged) {
+        emit('reset:reschedule');
+    }
 }
 
 /* ──────────────────────── 수동 새로고침 ────────────────────────────────── */

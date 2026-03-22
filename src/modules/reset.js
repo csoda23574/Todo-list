@@ -369,7 +369,6 @@ function _onResetOccurred(label, changedItems) {
         showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
         showSystemNotification('🔄 항목 초기화', '일부 할 일이 자동으로 초기화되었습니다.');
     }
-    state.remoteSyncInProgress = true;
     saveTodos();
     emit('todos:changed');
 }
