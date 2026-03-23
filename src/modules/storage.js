@@ -75,6 +75,9 @@ function buildSettingsPayload() {
 
     const { bgImage: _b, bgFileName: _f, ...settingsRest } = state.settings;
 
+    // Cloud Function에서 사용자의 로컬 시간을 기준으로 초기화할 수 있도록 타임존 추가
+    settingsRest.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul';
+
     return { settings: settingsRest, resetHistory };
 }
 
