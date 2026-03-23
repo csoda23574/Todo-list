@@ -129,7 +129,7 @@ exports.autoResetTodos = onSchedule("every 1 minutes", async (event) => {
                 else if (s.type === 'yearly') matched = (s.dates || []).some(d => d.month === (target.getMonth() + 1) && d.day === target.getDate());
 
                 if (matched) {
-                    const occKey = `${s.type}-${target.getFullYear()}-${target.getMonth()}-${target.getDate()}`;
+                    const occKey = `${s.type}-${target.getFullYear()}-${target.getMonth()}-${target.getDate()}-${sh}-${sm}`;
                     if (resetHistory.itemResets[todo.id] !== occKey) {
                         resetHistory.itemResets[todo.id] = occKey;
                         historyChanged = true;

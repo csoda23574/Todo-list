@@ -331,7 +331,7 @@ export function doItemScheduleResets(now) {
         if (!matched) return t;
 
         const itemKey = getItemResetKey(state.uid, t.id);
-        const occKey = `${s.type}-${target.getFullYear()}-${target.getMonth()}-${target.getDate()}`;
+        const occKey = `${s.type}-${target.getFullYear()}-${target.getMonth()}-${target.getDate()}-${sh}-${sm}`;
         if (localStorage.getItem(itemKey) === occKey) return t;
         localStorage.setItem(itemKey, occKey);
 
