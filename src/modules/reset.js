@@ -295,7 +295,14 @@ export function doItemDatetimeResets(now) {
         if (!t.itemResetDatetime) return t;
         const itemKey = getItemResetKey(state.uid, t.id);
         if (localStorage.getItem(itemKey) === t.itemResetDatetime) return t;
-        if (now < new Date(t.itemResetDatetime)) return t;
+
+        // 정각(Exact minute)에만 동작하도록 수정하여 Boot 시 덮어쓰기 방지
+        const target = new Date(t.itemResetDatetime);
+        if (now.getFullYear() !== target.getFullYear() ||
+            now.getMonth() !== target.getMonth() ||
+            now.getDate() !== target.getDate() ||
+            now.getHours() !== target.getHours() ||
+            now.getMinutes() !== target.getMinutes()) return t;
 
         localStorage.setItem(itemKey, t.itemResetDatetime);
 
@@ -313,7 +320,8 @@ export function doItemDatetimeResets(now) {
 /* ─────────────────── 주간/월간/연간 스케줄 초기화 ──────────────────────── */
 
 export function doItemScheduleResets(now) {
-    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const hh = now.getHours();
+    const mm = now.getMinutes();
     const changedItems = [];
     let anyReset = false;
 
@@ -322,16 +330,14 @@ export function doItemScheduleResets(now) {
         const s = t.itemResetSchedule;
         const [sh, sm] = (s.time || '00:00').split(':').map(Number);
 
-        let target = new Date(now);
-        if (nowMins < sh * 60 + sm) {
-            target.setDate(target.getDate() - 1);
-        }
+        // 정각(Exact minute)에만 동작하도록 수정
+        if (hh !== sh || mm !== sm) return t;
 
-        const matched = _matchesSchedule(s, target);
+        const matched = _matchesSchedule(s, now);
         if (!matched) return t;
 
         const itemKey = getItemResetKey(state.uid, t.id);
-        const occKey = `${s.type}-${target.getFullYear()}-${target.getMonth()}-${target.getDate()}-${sh}-${sm}`;
+        const occKey = `${s.type}-${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${sh}-${sm}`;
         if (localStorage.getItem(itemKey) === occKey) return t;
         localStorage.setItem(itemKey, occKey);
 
@@ -383,60 +389,47 @@ export function scheduleResetTimer() {
 
 /* ──────────────────── 초기화 시스템 시작 ───────────────────────────────── */
 
-const catchUpGlobalReset = (now, nowMins) => {
-    if (!state.settings.resetEnabled) return;
+const handleTimerTick = () => {
+    const now = new Date();
+    const hh = now.getHours();
+    const mm = now.getMinutes();
 
-    const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
-    const repeat = state.settings.resetRepeat;
+    if (state.settings.resetEnabled) {
+        const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
+        const repeat = state.settings.resetRepeat;
 
-    if (repeat === 'calendar') {
-        const cd = state.settings.resetCalendarDate;
-        if (cd) {
-            const calDate = new Date(cd);
-            if (now >= calDate) {
-                doGlobalReset(now, h, m);
+        if (repeat === 'calendar') {
+            const cd = state.settings.resetCalendarDate;
+            if (cd) {
+                const calDate = new Date(cd);
+                if (now.getFullYear() === calDate.getFullYear() &&
+                    now.getMonth() === calDate.getMonth() &&
+                    now.getDate() === calDate.getDate() &&
+                    hh === calDate.getHours() &&
+                    mm === calDate.getMinutes()) {
+                    doGlobalReset(now, h, m);
+                }
             }
-        }
-    } else if (repeat?.startsWith('every')) {
-        doGlobalReset(now, h, m);
-    } else {
-        if (nowMins >= h * 60 + m) {
+        } else if (hh === h && mm === m) {
             doGlobalReset(now, h, m);
-        } else {
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
-            doGlobalReset(yesterday, h, m);
         }
     }
-};
 
-const catchUpItemResets = (now, nowMins) => {
     const uniqueTimes = new Set();
-    state.todos.forEach(t => { if (t.itemResetTime) uniqueTimes.add(t.itemResetTime); });
+    state.todos.forEach(t => { if (t.itemResetTime && !t.itemResetDatetime && !t.itemResetSchedule) uniqueTimes.add(t.itemResetTime); });
 
     uniqueTimes.forEach(timeStr => {
         const [th, tm] = timeStr.split(':').map(Number);
-        if (nowMins >= th * 60 + tm) {
-            doItemResets(now, th, tm);
-        } else {
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
-            doItemResets(yesterday, th, tm);
-        }
+        if (hh === th && mm === tm) doItemResets(now, th, tm);
     });
-};
 
-const handleTimerTick = () => {
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-
-    catchUpGlobalReset(now, nowMins);
-    catchUpItemResets(now, nowMins);
     doItemDatetimeResets(now);
     doItemScheduleResets(now);
 };
 
 export function initializeResetSystem() {
+    // 서버 사이드 초기화(Cloud Functions)를 구축했으므로, 앱 부팅 시 과거 기록을 
+    // 강제로 보상(Catch-Up)하는 클라이언트 로직을 모두 삭제하여 싱크 충돌을 방지합니다.
     handleTimerTick();
     state.resetTimerInterval = setInterval(handleTimerTick, 1000);
 }
