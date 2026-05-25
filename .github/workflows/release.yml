@@ -7,6 +7,11 @@ on:
       - 'v*'
   # 수동 실행도 가능하게
   workflow_dispatch:
+    inputs:
+      version:
+        description: '버전 (예: 1.0.1) — 태그 없이 수동 실행할 때 사용'
+        required: false
+        default: 'dev'
 
 # 빌드 잡은 read-only, 릴리즈 잡만 write 권한
 permissions:
@@ -114,8 +119,12 @@ jobs:
 
       - name: APK 파일명 변경 (Todo.List-버전.apk)
         run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          fi
           APK_SRC=$(find android/app/build/outputs/apk/debug -name "*.apk" | head -1)
           mv "$APK_SRC" "android/app/build/outputs/apk/debug/Todo.List-${VERSION}.apk"
 
