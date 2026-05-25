@@ -39,16 +39,13 @@ export const isCapacitorNative =
 /**
  * Google 로그인 실행
  * - Electron/브라우저: signInWithPopup
- * - Android 네이티브: @capacitor-firebase/authentication
+ * - Android 네이티브: window.Capacitor.Plugins.FirebaseAuthentication
  */
 export async function signInWithGoogle() {
     if (isCapacitorNative) {
-        // Capacitor 네이티브 플러그인 (동적 import — Android 빌드 시에만 존재)
-        const { FirebaseAuthentication } = await import(
-            /* webpackIgnore: true */ '@capacitor-firebase/authentication'
-        );
+        const FirebaseAuthentication = window.Capacitor?.Plugins?.FirebaseAuthentication;
+        if (!FirebaseAuthentication) throw new Error('FirebaseAuthentication 플러그인을 찾을 수 없습니다.');
         const result = await FirebaseAuthentication.signInWithGoogle();
-        // 네이티브 결과를 Web SDK에 연동
         const credential = firebase.auth.GoogleAuthProvider.credential(
             result.credential?.idToken
         );
@@ -65,10 +62,8 @@ export async function signInWithGoogle() {
 export async function signOut() {
     if (isCapacitorNative) {
         try {
-            const { FirebaseAuthentication } = await import(
-                /* webpackIgnore: true */ '@capacitor-firebase/authentication'
-            );
-            await FirebaseAuthentication.signOut();
+            const FirebaseAuthentication = window.Capacitor?.Plugins?.FirebaseAuthentication;
+            if (FirebaseAuthentication) await FirebaseAuthentication.signOut();
         } catch { /* 플러그인 없을 경우 무시 */ }
     }
     return auth.signOut();
