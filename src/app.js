@@ -12,7 +12,7 @@ import {
 } from './modules/renderer.js';
 import { renderCategoryTabs } from './modules/categories.js';
 import { bindEvents, bindElectronEvents } from './modules/events.js';
-import { scheduleResetTimer } from './modules/reset.js';
+import { scheduleResetTimer, checkMissedResetsAfterSync } from './modules/reset.js';
 import { on } from './modules/bus.js';
 import { state } from './modules/state.js';
 import { auth } from './modules/firebase.js';
@@ -117,6 +117,8 @@ function init() {
             // Firestore 초기 병합 → 실시간 리스너 시작
             await initialMerge();
             startListeners();
+            // Firestore 데이터 수신 후 놓친 초기화 소급 적용
+            checkMissedResetsAfterSync();
         } else {
             // ── 로그아웃 ──
             stopListeners();

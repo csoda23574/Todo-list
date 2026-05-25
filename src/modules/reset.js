@@ -428,8 +428,59 @@ const handleTimerTick = () => {
 };
 
 export function initializeResetSystem() {
-    // 서버 사이드 초기화(Cloud Functions)를 구축했으므로, 앱 부팅 시 과거 기록을 
-    // 강제로 보상(Catch-Up)하는 클라이언트 로직을 모두 삭제하여 싱크 충돌을 방지합니다.
+    // 앱 시작 시 놓친 초기화 소급 적용 (앱이 꺼져 있는 동안 지나간 시간 처리)
+    checkMissedResets();
     handleTimerTick();
     state.resetTimerInterval = setInterval(handleTimerTick, 1000);
+}
+
+/**
+ * 앱 시작 시 호출 — 앱이 꺼진 동안 지나간 초기화를 소급 적용합니다.
+ * doGlobalReset / doItemResets 내부의 resetKey 중복 방지 로직이 있으므로
+ * 이미 초기화된 주기는 절대 재실행되지 않습니다.
+ */
+function checkMissedResets() {
+    const now = new Date();
+
+    // ── 전역 초기화 ──
+    if (state.settings.resetEnabled) {
+        const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
+        const repeat = state.settings.resetRepeat;
+
+        // calendar 타입은 1회성이므로 소급 제외
+        if (repeat !== 'calendar') {
+            const resetMoment = new Date(now);
+            resetMoment.setHours(h, m, 0, 0);
+            // 오늘 초기화 시각이 이미 지났으면 doGlobalReset 실행
+            // (내부에서 resetKey 비교로 중복 실행 방지)
+            if (now >= resetMoment) {
+                doGlobalReset(now, h, m);
+            }
+        }
+    }
+
+    // ── 개별 시간 초기화 ──
+    const uniqueTimes = new Set();
+    state.todos.forEach(t => {
+        if (t.itemResetTime && !t.itemResetDatetime && !t.itemResetSchedule) {
+            uniqueTimes.add(t.itemResetTime);
+        }
+    });
+    uniqueTimes.forEach(timeStr => {
+        const [th, tm] = timeStr.split(':').map(Number);
+        const resetMoment = new Date(now);
+        resetMoment.setHours(th, tm, 0, 0);
+        if (now >= resetMoment) {
+            doItemResets(now, th, tm);
+        }
+    });
+}
+
+/**
+ * Firestore initialMerge() 완료 후 호출.
+ * 서버 데이터를 받은 뒤 놓친 초기화를 소급 적용합니다.
+ * (로그인 시 app.js에서 호출)
+ */
+export function checkMissedResetsAfterSync() {
+    checkMissedResets();
 }
