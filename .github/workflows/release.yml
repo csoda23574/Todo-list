@@ -114,6 +114,10 @@ jobs:
       - name: gradlew 실행 권한 부여
         run: chmod +x android/gradlew
 
+      - name: 로컬 debug.keystore 복원
+        run: |
+          echo "${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}" | base64 -d > android/app/debug.keystore
+
       - name: Android Debug APK 빌드
         run: cd android && ./gradlew assembleDebug --no-daemon
 
