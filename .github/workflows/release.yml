@@ -22,36 +22,6 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ─── Linux 빌드 ────────────────────────────────────────────────────────────
-  build-linux:
-    name: Build (Linux)
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: 코드 체크아웃
-        uses: actions/checkout@v4
-
-      - name: Node.js 설정
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: 'npm'
-
-      - name: 의존성 설치
-        run: npm ci
-
-      - name: 아이콘 생성
-        run: node scripts/generate-icon.js
-
-      - name: Linux 빌드 (AppImage)
-        run: npx electron-builder --linux --publish=never
-
-      - name: 빌드 결과물 업로드
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-build
-          path: todo-dist/*.AppImage
-
   # ─── Windows 빌드 ──────────────────────────────────────────────────────────
   build-windows:
     name: Build (Windows)
@@ -141,18 +111,12 @@ jobs:
   # ─── GitHub Release 생성 ───────────────────────────────────────────────────
   release:
     name: GitHub Release 업로드
-    needs: [build-linux, build-windows, build-android]
+    needs: [build-windows, build-android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Linux 빌드 다운로드
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-build
-          path: dist-linux
-
       - name: Windows 빌드 다운로드
         uses: actions/download-artifact@v4
         with:
@@ -174,7 +138,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist-linux/*.AppImage
             dist-windows/*.exe
             dist-android/*.apk
           generate_release_notes: true
