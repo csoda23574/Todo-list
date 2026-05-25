@@ -4,7 +4,7 @@ android {
     namespace "com.personal.todolist"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.personal.todolist"
+        applicationId "com.korin.todo_app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

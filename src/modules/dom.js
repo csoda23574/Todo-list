@@ -81,6 +81,17 @@ export const DOM = {
     // 배경 오버레이
     get bgOverlay() { return document.getElementById('bgOverlay'); },
 
+    // 로그인 오버레이
+    get loginOverlay() { return document.getElementById('loginOverlay'); },
+    get googleLoginBtn() { return document.getElementById('googleLoginBtn'); },
+    get loginErrorMsg() { return document.getElementById('loginErrorMsg'); },
+
+    // 헤더 유저 정보
+    get userAvatar() { return document.getElementById('userAvatar'); },
+    get userDisplayName() { return document.getElementById('userDisplayName'); },
+    get logoutBtn() { return document.getElementById('logoutBtn'); },
+    get syncDot() { return document.getElementById('syncDot'); },
+
     // 필터 탭
     get filterTabs() { return document.querySelectorAll('.filter-tab'); },
 
@@ -90,13 +101,4 @@ export const DOM = {
     // 개발자 도구
     get devToolsSection() { return document.getElementById('devToolsSection'); },
     get testNotificationBtn() { return document.getElementById('testNotificationBtn'); },
-
-    // 인증 / 로그인
-    get loginOverlay() { return document.getElementById('loginOverlay'); },
-    get googleLoginBtn() { return document.getElementById('googleLoginBtn'); },
-    get userAvatarBtn() { return document.getElementById('userAvatarBtn'); },
-    get userAvatarImg() { return document.getElementById('userAvatarImg'); },
-    get accountName() { return document.getElementById('accountName'); },
-    get accountEmail() { return document.getElementById('accountEmail'); },
-    get logoutBtn() { return document.getElementById('logoutBtn'); },
 };

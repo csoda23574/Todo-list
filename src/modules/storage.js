@@ -1,14 +1,15 @@
 /**
- * storage.js — LocalStorage + Firebase 동기화 퍼시스턴스
+ * storage.js — LocalStorage 퍼시스턴스
  *
- * 관심사: 데이터 저장/불러오기 및 Firebase push
+ * 관심사: 데이터 저장/불러오기
  * 렌더링이나 UI 로직은 포함하지 않습니다.
  */
 
-import { STORAGE_KEYS, getStorageKey, getGlobalResetKey, getItemResetKey, getResetTimestampKey } from './config.js';
+import { STORAGE_KEYS, getStorageKey } from './config.js';
 import { state } from './state.js';
 import { emit } from './bus.js';
 import { saveToIDB, loadFromIDB, removeFromIDB } from './idb.js';
+import { pushTodo, pushCategories, pushSettings, setLocalWritePending } from './sync.js';
 
 /* ─────────────────────── LocalStorage 기본 헬퍼 ───────────────────────── */
 
@@ -31,86 +32,28 @@ export function loadFromStorage(key, fallback) {
     }
 }
 
-/* ─────────────────────────── Firebase 동기화 ──────────────────────────── */
-
-let prevTodosStr = null;
-let prevCategoriesStr = null;
-let prevSettingsStr = null;
-
-export function updatePreviousState() {
-    prevTodosStr = JSON.stringify(state.todos);
-    prevCategoriesStr = JSON.stringify(state.categories);
-    prevSettingsStr = JSON.stringify(buildSettingsPayload());
-}
-
-/** 로컬 배열 상태의 Diff를 추려냅니다 */
-function computeArrayDiff(current, prevStr) {
-    const prev = prevStr ? JSON.parse(prevStr) : [];
-    const prevMap = new Map(prev.map(item => [item.id, item]));
-    const currMap = new Map(current.map(item => [item.id, item]));
-    const addedOrModified = [];
-    const deleted = [];
-
-    for (const item of current) {
-        const p = prevMap.get(item.id);
-        if (!p || JSON.stringify(p) !== JSON.stringify(item)) addedOrModified.push(item);
-    }
-    for (const id of prevMap.keys()) {
-        if (!currMap.has(id)) deleted.push(id);
-    }
-    return (addedOrModified.length > 0 || deleted.length > 0) ? { addedOrModified, deleted } : null;
-}
-
-function buildSettingsPayload() {
-    const resetHistory = {
-        timestamp: parseInt(localStorage.getItem(getResetTimestampKey(state.uid)) || '0', 10),
-        globalReset: localStorage.getItem(getGlobalResetKey(state.uid)),
-        // map().filter() 대신 reduce로 중간 배열 없이 단일 순회
-        itemResets: state.todos.reduce((acc, todo) => {
-            const val = localStorage.getItem(getItemResetKey(state.uid, todo.id));
-            if (val) acc[todo.id] = val;
-            return acc;
-        }, {}),
-    };
-
-    const { bgImage: _b, bgFileName: _f, ...settingsRest } = state.settings;
-
-    // Cloud Function에서 사용자의 로컬 시간을 기준으로 초기화할 수 있도록 타임존 추가
-    settingsRest.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul';
-
-    return { settings: settingsRest, resetHistory };
-}
-
-function pushToFirebase() {
-    if (!window.FirebaseSync?.isReady()) return;
-
-    const todosDiff = computeArrayDiff(state.todos, prevTodosStr);
-    const categoriesDiff = computeArrayDiff(state.categories, prevCategoriesStr);
-
-    const currentSettings = buildSettingsPayload();
-    const currentSettingsStr = JSON.stringify(currentSettings);
-    let settingsData = null;
-    if (currentSettingsStr !== prevSettingsStr) settingsData = currentSettings;
-
-    if (todosDiff || categoriesDiff || settingsData) {
-        window.FirebaseSync.pushDiffs(todosDiff, categoriesDiff, settingsData);
-        if (todosDiff) prevTodosStr = JSON.stringify(state.todos);
-        if (categoriesDiff) prevCategoriesStr = JSON.stringify(state.categories);
-        if (settingsData) prevSettingsStr = currentSettingsStr;
-    }
-}
-
 /* ─────────────────────────── 저장 함수들 ──────────────────────────────── */
 
-export function saveTodos() {
+export function saveTodos(changedTodo = null) {
     saveToStorage(STORAGE_KEYS.TODOS, state.todos);
-    pushToFirebase();
+    // Firestore 동기화 — 변경된 단일 todo만 push (성능 최적화)
+    if (state.isSignedIn) {
+        setLocalWritePending(true);
+        const target = changedTodo
+            ? Promise.resolve(pushTodo({ ...changedTodo, updatedAt: new Date().toISOString() }))
+            : Promise.all(state.todos.map(t => pushTodo({ ...t, updatedAt: new Date().toISOString() })));
+        target.finally(() => setLocalWritePending(false));
+    }
 }
 
 export function saveCategories() {
     saveToStorage(STORAGE_KEYS.CATEGORIES, state.categories);
     saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, state.currentCategoryId);
-    pushToFirebase();
+    if (state.isSignedIn) {
+        setLocalWritePending(true);
+        pushCategories(state.categories, state.currentCategoryId)
+            .finally(() => setLocalWritePending(false));
+    }
 }
 
 export function saveSettings() {
@@ -124,45 +67,11 @@ export function saveSettings() {
         removeFromIDB(idbKey);
     }
 
-    pushToFirebase();
-}
-
-/* ───────────── 계정 전환 시 로컬 상태 초기화 ──────────────────────────── */
-
-/**
- * 로그아웃 또는 계정 전환 시 호출.
- * 이전 계정 데이터가 새 계정 화면에 남아있는 문제를 방지합니다.
- */
-export function clearUserData() {
-    // 타이머 정리 (이전 계정의 초기화 인터벌이 새 계정에서 실행되지 않도록)
-    if (state.resetTimerInterval) {
-        clearInterval(state.resetTimerInterval);
-        state.resetTimerInterval = null;
+    // bgImage 제외하고 Firestore 동기화
+    if (state.isSignedIn) {
+        setLocalWritePending(true);
+        pushSettings(state.settings).finally(() => setLocalWritePending(false));
     }
-
-    // 메모리 상태 초기화
-    state.todos = [];
-    state.categories = [{ id: 'default', name: '기본' }];
-    state.currentCategoryId = 'default';
-    state.isFirstSync = true;  // 다음 로그인 때 원격 데이터를 강제 적용
-    state.settings = {
-        resetEnabled: false,
-        resetTime: '00:00',
-        resetRepeat: 'daily',
-        bgOpacity: 50,
-        bgBlur: 0,
-        bgImage: null,
-        bgFileName: '',
-        appTitle: 'My Tasks',
-    };
-
-    // 파괴적인 localStorage.removeItem은 제거합니다. UID 기반으로 이미 완벽히 격리되어 있습니다.
-
-    // UI 갱신
-    emit('categories:changed');
-    emit('title:changed');
-    emit('bg:changed');
-    updatePreviousState(); // 상태 격리/초기화 시 현재 내역을 베이스라인으로 캐싱
 }
 
 /* ────────────────────────── 상태 초기화 (앱 시작) ─────────────────────── */
@@ -206,5 +115,5 @@ export function loadState() {
     if (!state.categories.find(c => c.id === state.currentCategoryId)) {
         state.currentCategoryId = state.categories[0].id;
     }
-    updatePreviousState(); // 시작 베이스라인 확보
 }
+

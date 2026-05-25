@@ -1,5 +1,5 @@
 {
-    "appId": "com.personal.todolist",
+    "appId": "com.korin.todo_app",
     "appName": "Todo List",
     "webDir": "src",
     "server": {
@@ -11,10 +11,8 @@
     },
     "plugins": {
         "FirebaseAuthentication": {
-            "skipNativeAuth": true,
-            "providers": [
-                "google.com"
-            ]
+            "skipNativeAuth": false,
+            "providers": ["google.com"]
         }
     }
 }

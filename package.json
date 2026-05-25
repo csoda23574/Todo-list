@@ -20,15 +20,17 @@
         "version": "sed -i \"s/versionName \\\".*\\\"/versionName \\\"$npm_package_version\\\"/\" android/app/build.gradle && git add android/app/build.gradle"
     },
     "dependencies": {
-        "@capacitor-firebase/authentication": "^6.3.1",
         "@capacitor/core": "^6.2.0",
-        "@capacitor/local-notifications": "^6.0.0"
+        "@capacitor/local-notifications": "^6.0.0",
+        "@capacitor-firebase/authentication": "^6.3.1",
+        "@capacitor-firebase/firestore": "^6.3.1"
     },
     "devDependencies": {
         "@capacitor/android": "^6.2.0",
         "@capacitor/cli": "^6.2.0",
         "electron": "^28.3.3",
         "electron-builder": "^24.13.3",
+        "firebase": "^10.14.1",
         "jimp": "0.16.13"
     },
     "build": {

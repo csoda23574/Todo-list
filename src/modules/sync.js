@@ -1,137 +1,261 @@
 /**
- * sync.js — Firebase 원격 데이터 동기화 처리
+ * sync.js — Firestore 실시간 동기화
  *
- * applyRemoteData: Firebase에서 수신한 cloudData를 로컬 state에 반영
- * manualRefresh:   새로고침 버튼 — Firebase 연결 재시도
+ * Firestore 경로:
+ *   users/{uid}/todos     (컬렉션 — todo 개별 문서)
+ *   users/{uid}/categories (컬렉션 — 카테고리 개별 문서)
+ *   users/{uid}/settings/main (단일 문서 — bgImage 제외)
+ *
+ * 충돌 해결: updatedAt 타임스탬프 기반 Last-Write-Wins
+ * bgImage(IDB), 초기화 타임스탬프(localStorage)는 동기화 제외
  */
 
+import { db } from './firebase.js';
 import { state } from './state.js';
-import { STORAGE_KEYS, getGlobalResetKey, getItemResetKey, getResetTimestampKey } from './config.js';
-import { saveToStorage, updatePreviousState } from './storage.js';
-import { emit } from './bus.js'; // renderer·categories·reset 직접 의존 제거 — DIP
-import { logResetStatus } from './debug.js';
-import { DOM } from './dom.js';
+import { emit } from './bus.js';
 
-let fallbackTimer = null;
+/* ────────────────── Firestore 경로 헬퍼 ──────────────────────────────── */
 
-/* ──────────────────────── 원격 데이터 적용 ─────────────────────────────── */
+const userRef   = () => db.collection('users').doc(state.uid);
+const todosRef  = () => userRef().collection('todos');
+const catsRef   = () => userRef().collection('categories');
+const settingsRef = () => userRef().collection('settings').doc('main');
 
-export function applyRemoteData(cloudData) {
-    let changed = false;
-    let todosChanged = false;
-    let resetHistoryChanged = false;
+/* ────────────────── 내부 플래그 (자기 변경 무시용) ──────────────────── */
 
-    // ── todos ──
-    if (cloudData.todos) {
-        const localJson = JSON.stringify(state.todos);
-        const remoteJson = JSON.stringify(cloudData.todos);
-        const isDiff = localJson !== remoteJson;
+// 로컬에서 변경 중일 때 onSnapshot 콜백이 중복 렌더를 하지 않도록 방지
+let _localWritePending = false;
+export function setLocalWritePending(v) { _localWritePending = v; }
 
-        if (state.isFirstSync || isDiff) {
-            state.todos = cloudData.todos;
-            saveToStorage(STORAGE_KEYS.TODOS, state.todos);
-            changed = true;
-            todosChanged = true;
-        }
-    }
+/* ────────────────── Todos 동기화 ─────────────────────────────────────── */
 
-    // ── resetHistory ──
-    if (cloudData.settingsDoc) {
-        const { settings, resetHistory } = cloudData.settingsDoc;
-
-        // 리셋 내역 타임스탬프 기반 병합 (충돌 롤백 및 에러 해결)
-        if (resetHistory) {
-            const localTsKey = getResetTimestampKey(state.uid);
-            const localTs = parseInt(localStorage.getItem(localTsKey) || '0', 10);
-            const remoteTs = resetHistory.timestamp || 0;
-
-            // 원격 데이터가 명확하게 최신이거나, 첫 동기화인데 로컬이 아예 비어있을 때만 수용
-            const needsUpdate = remoteTs > localTs || (state.isFirstSync && localTs === 0 && Object.keys(resetHistory).length > 0);
-
-            if (needsUpdate) {
-                if (resetHistory.globalReset) {
-                    localStorage.setItem(getGlobalResetKey(state.uid), resetHistory.globalReset);
-                }
-                if (resetHistory.itemResets) {
-                    Object.entries(resetHistory.itemResets).forEach(([itemId, val]) => {
-                        localStorage.setItem(getItemResetKey(state.uid, itemId), val);
-                    });
-                }
-                localStorage.setItem(localTsKey, remoteTs.toString());
-                resetHistoryChanged = true;
-            }
-        }
-
-        // 설정 병합
-        if (settings) {
-            const localStr = JSON.stringify({ ...state.settings, bgImage: null, bgFileName: null });
-            const remoteStr = JSON.stringify({ ...settings, bgImage: null, bgFileName: null });
-
-            if (state.isFirstSync || localStr !== remoteStr) {
-                const { bgImage, bgFileName } = state.settings;
-                state.settings = { ...state.settings, ...settings, bgImage, bgFileName };
-                const { bgImage: _b, bgFileName: _f, ...rest } = state.settings;
-                saveToStorage(STORAGE_KEYS.SETTINGS, rest);
-                emit('title:changed');
-                changed = true;
-            }
-        }
-    }
-    // ── categories ──
-    if (cloudData.categories?.length &&
-        JSON.stringify(cloudData.categories) !== JSON.stringify(state.categories)) {
-        state.categories = cloudData.categories;
-        saveToStorage(STORAGE_KEYS.CATEGORIES, state.categories);
-        if (!state.categories.find(c => c.id === state.currentCategoryId)) {
-            state.currentCategoryId = state.categories[0].id;
-            saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, state.currentCategoryId);
-        }
-        changed = true;
-    }
-
-    if (changed) {
-        updatePreviousState();      // Diff 캐시 강제 갱신 -> 수신한 데이터를 재전송(Echo)하는 것 완벽 방지
-        emit('categories:changed'); // renderCategoryTabs + renderTodos 모두 처리
-        emit('bg:changed');
-    }
-
-    // ── 초기화 시스템 재시작 조건 ──
-    const isNetworkReady = window.FirebaseSync?.isNetworkSyncReady?.() ?? true;
-
-    if (state.isFirstSync) {
-        if (isNetworkReady) {
-            state.isFirstSync = false;
-            if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
-            emit('reset:reschedule');
-        } else if (!fallbackTimer) {
-            // 오프라인/캐시 상태에서 무한 대기를 방지하기 위해 3초 후 강제 타이머 시작
-            fallbackTimer = setTimeout(() => {
-                if (state.isFirstSync) {
-                    state.isFirstSync = false;
-                    emit('reset:reschedule');
-                }
-            }, 3000);
-        }
-    } else if (todosChanged || resetHistoryChanged) {
-        emit('reset:reschedule');
+/**
+ * 단일 todo를 Firestore에 upsert합니다.
+ */
+export async function pushTodo(todo) {
+    if (!state.isSignedIn) return;
+    try {
+        await todosRef().doc(todo.id).set({
+            ...todo,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+    } catch (err) {
+        console.error('[Sync] todo push 실패:', err);
     }
 }
 
-/* ──────────────────────── 수동 새로고침 ────────────────────────────────── */
-
-export function manualRefresh() {
-    const btn = DOM.refreshBtn;
-    if (!btn || btn.classList.contains('spinning')) return;
-    btn.classList.add('spinning');
-
-    if (window.FirebaseSync?.isReady()) {
-        window.FirebaseSync.startSync(applyRemoteData);
-    } else if (window.FirebaseSync?.init()) {
-        window.FirebaseSync.startSync(applyRemoteData);
+/**
+ * 단일 todo를 Firestore에서 삭제합니다.
+ */
+export async function deleteTodoRemote(id) {
+    if (!state.isSignedIn) return;
+    try {
+        await todosRef().doc(id).delete();
+    } catch (err) {
+        console.error('[Sync] todo delete 실패:', err);
     }
+}
 
-    setTimeout(() => {
-        btn.classList.remove('spinning');
-        logResetStatus();
-    }, 1000);
+/**
+ * 전체 todos를 Firestore에 일괄 업로드합니다.
+ * (로그인 직후 로컬 → 서버 초기 동기화용)
+ */
+export async function pushAllTodos(todos) {
+    if (!state.isSignedIn || !todos.length) return;
+    const batch = db.batch();
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    todos.forEach(t => {
+        batch.set(todosRef().doc(t.id), { ...t, updatedAt: ts });
+    });
+    await batch.commit();
+}
+
+/* ────────────────── Categories 동기화 ──────────────────────────────── */
+
+export async function pushCategories(categories, currentCategoryId) {
+    if (!state.isSignedIn) return;
+    try {
+        const batch = db.batch();
+        const ts = firebase.firestore.FieldValue.serverTimestamp();
+
+        // 기존 카테고리 전부 교체 (단순 전략 — 카테고리는 소량)
+        const snap = await catsRef().get();
+        snap.forEach(doc => batch.delete(doc.ref));
+        categories.forEach(c => {
+            batch.set(catsRef().doc(c.id), { ...c, updatedAt: ts });
+        });
+        // 현재 선택 카테고리도 settings/main에 저장
+        batch.set(settingsRef(), { currentCategoryId, updatedAt: ts }, { merge: true });
+
+        await batch.commit();
+    } catch (err) {
+        console.error('[Sync] categories push 실패:', err);
+    }
+}
+
+/* ────────────────── Settings 동기화 ─────────────────────────────────── */
+
+export async function pushSettings(settings) {
+    if (!state.isSignedIn) return;
+    try {
+        // bgImage는 대용량이므로 동기화 제외
+        const { bgImage, bgFileName, ...syncable } = settings;
+        await settingsRef().set({
+            ...syncable,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    } catch (err) {
+        console.error('[Sync] settings push 실패:', err);
+    }
+}
+
+/* ────────────────── 실시간 리스너 ───────────────────────────────────── */
+
+let _unsubTodos    = null;
+let _unsubCats     = null;
+let _unsubSettings = null;
+
+/**
+ * Firestore onSnapshot 리스너를 시작합니다.
+ * 로그인 성공 후 1회 호출. 로그아웃 시 stopListeners()로 해제.
+ */
+export function startListeners() {
+    stopListeners(); // 혹시 이전 리스너가 남아있으면 정리
+
+    // ── Todos 리스너 ──
+    _unsubTodos = todosRef().onSnapshot(snap => {
+        if (_localWritePending) return; // 자기 변경 무시
+
+        const remoteTodos = snap.docs.map(doc => {
+            const data = doc.data();
+            // Firestore Timestamp → ISO string 변환
+            return {
+                ...data,
+                id: doc.id,
+                createdAt: data.createdAt?.toDate?.()?.toISOString?.() ?? data.createdAt,
+                updatedAt: data.updatedAt?.toDate?.()?.toISOString?.() ?? data.updatedAt,
+            };
+        });
+
+        // updatedAt 기반으로 최신 항목만 적용 (충돌 해결)
+        const localMap = new Map(state.todos.map(t => [t.id, t]));
+        remoteTodos.forEach(remote => {
+            const local = localMap.get(remote.id);
+            if (!local) {
+                localMap.set(remote.id, remote);
+                return;
+            }
+            const remoteTs = new Date(remote.updatedAt || 0).getTime();
+            const localTs  = new Date(local.updatedAt  || 0).getTime();
+            if (remoteTs >= localTs) localMap.set(remote.id, remote);
+        });
+
+        // 원격에서 삭제된 항목 제거
+        const remoteIds = new Set(remoteTodos.map(t => t.id));
+        for (const [id] of localMap) {
+            if (!remoteIds.has(id)) localMap.delete(id);
+        }
+
+        state.todos = [...localMap.values()].sort((a, b) =>
+            new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        emit('todos:changed');
+    }, err => console.error('[Sync] todos 리스너 오류:', err));
+
+    // ── Categories 리스너 ──
+    _unsubCats = catsRef().onSnapshot(snap => {
+        if (_localWritePending) return;
+        if (snap.empty) return;
+
+        const cats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (cats.length) {
+            state.categories = cats;
+            if (!state.categories.find(c => c.id === state.currentCategoryId)) {
+                state.currentCategoryId = state.categories[0].id;
+            }
+            emit('categories:changed');
+        }
+    }, err => console.error('[Sync] categories 리스너 오류:', err));
+
+    // ── Settings 리스너 ──
+    _unsubSettings = settingsRef().onSnapshot(snap => {
+        if (_localWritePending) return;
+        if (!snap.exists) return;
+
+        const data = snap.data();
+        const { updatedAt, currentCategoryId, ...remoteSettings } = data;
+
+        state.settings = { ...state.settings, ...remoteSettings };
+        if (currentCategoryId) state.currentCategoryId = currentCategoryId;
+
+        emit('title:changed');
+        emit('categories:changed');
+    }, err => console.error('[Sync] settings 리스너 오류:', err));
+}
+
+/**
+ * 모든 Firestore 리스너를 해제합니다.
+ */
+export function stopListeners() {
+    _unsubTodos?.();
+    _unsubCats?.();
+    _unsubSettings?.();
+    _unsubTodos = _unsubCats = _unsubSettings = null;
+}
+
+/* ────────────────── 초기 데이터 병합 전략 ───────────────────────────── */
+
+/**
+ * 로그인 직후 서버 데이터를 가져와 로컬과 병합합니다.
+ * - 서버에 데이터가 있으면 → 서버를 우선하되, 로컬에만 있는 새 항목은 push
+ * - 서버가 비어있고 로컬에 데이터가 있으면 → 로컬을 서버로 업로드
+ */
+export async function initialMerge() {
+    try {
+        const snap = await todosRef().get();
+        if (snap.empty && state.todos.length > 0) {
+            // 신규 계정 — 로컬 데이터를 서버로 업로드
+            await pushAllTodos(state.todos);
+        } else if (!snap.empty) {
+            // 기존 계정 — 서버 데이터로 덮어쓰기 (가장 최근 기기 우선)
+            const remoteTodos = snap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    ...data,
+                    id: doc.id,
+                    createdAt: data.createdAt?.toDate?.()?.toISOString?.() ?? data.createdAt,
+                    updatedAt: data.updatedAt?.toDate?.()?.toISOString?.() ?? data.updatedAt,
+                };
+            });
+            state.todos = remoteTodos.sort((a, b) =>
+                new Date(b.createdAt) - new Date(a.createdAt)
+            );
+            emit('todos:changed');
+        }
+
+        // Categories 초기 로드
+        const catSnap = await catsRef().get();
+        if (!catSnap.empty) {
+            state.categories = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            if (!state.categories.find(c => c.id === state.currentCategoryId)) {
+                state.currentCategoryId = state.categories[0].id;
+            }
+            emit('categories:changed');
+        } else if (state.categories.length) {
+            await pushCategories(state.categories, state.currentCategoryId);
+        }
+
+        // Settings 초기 로드
+        const setSnap = await settingsRef().get();
+        if (setSnap.exists) {
+            const { updatedAt, currentCategoryId, ...remoteSettings } = setSnap.data();
+            state.settings = { ...state.settings, ...remoteSettings };
+            if (currentCategoryId) state.currentCategoryId = currentCategoryId;
+            emit('title:changed');
+        } else {
+            await pushSettings(state.settings);
+        }
+    } catch (err) {
+        console.error('[Sync] initialMerge 오류:', err);
+    }
 }

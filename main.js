@@ -8,10 +8,8 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 
-// ─── Local File Server (Firebase Auth requires http:// origin, not file://) ───
-// file:// 프로토콜에서는 Firebase signInWithPopup의 결과가
-// window.opener.postMessage로 전달되지 않아 로그인이 먹통이 됨.
-// localhost HTTP 서버로 서빙하면 일반 브라우저와 동일하게 동작함.
+// ─── Local File Server ───────────────────────────────────────────────────────
+// file:// 프로토콜 대신 localhost HTTP 서버로 서빙하여 로컬 스토리지 일관성을 보장합니다.
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
@@ -60,12 +58,12 @@ function startLocalServer() {
                     'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
                     'Content-Security-Policy': [
                         "default-src 'self'",
-                        "script-src 'self' https://cdn.jsdelivr.net https://apis.google.com",
+                        "script-src 'self' https://apis.google.com",
                         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
                         "font-src 'self' https://fonts.gstatic.com",
                         "img-src 'self' data: blob: https://lh3.googleusercontent.com",
-                        "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://securetoken.googleapis.com https://todo-list-2695f.firebaseapp.com",
-                        "frame-src 'self' https://todo-list-2695f.firebaseapp.com",
+                        "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://securetoken.googleapis.com https://todo-ff76f.firebaseapp.com https://firestore.googleapis.com",
+                        "frame-src 'self' https://todo-ff76f.firebaseapp.com https://accounts.google.com",
                         "object-src 'none'",
                         "base-uri 'self'",
                     ].join('; '),
@@ -87,7 +85,7 @@ function startLocalServer() {
         });
 
         localServer.once('error', () => {
-            // 포트 충돌 시 임의 포트로 대체 (localStorage는 리셋되지만 Firebase 로그인 후 복원)
+            // 포트 충돌 시 임의 포트로 대체
             localServer.listen(0, 'localhost', () => {
                 localServerPort = localServer.address().port;
                 console.warn('[Main] Preferred port in use, using random port:', localServerPort);
@@ -213,12 +211,11 @@ function createWindow(port) {
 
     mainWindow.loadURL(`http://localhost:${port}/index.html`);
 
-    // Firebase Auth signInWithPopup이 여는 팝업창 허용
-    // 차단 시 Google 로그인 버튼이 완전히 먹통이 됨
+    // Google 로그인 팝업(signInWithPopup) 허용
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         const allowed = [
             'https://accounts.google.com/',
-            'https://todo-list-2695f.firebaseapp.com/',
+            'https://todo-ff76f.firebaseapp.com/',
         ];
         if (allowed.some(prefix => url.startsWith(prefix))) {
             return {
@@ -444,7 +441,7 @@ app.whenReady().then(async () => {
     // Register auto-start on Windows (first run only)
     ensureAutoLaunchOnFirstRun();
 
-    // 로컬 파일 서버 시작 후 윈도우 생성 (Firebase Auth를 위해 localhost origin 필요)
+    // 로컬 파일 서버 시작 후 윈도우 생성
     const port = await startLocalServer();
     createWindow(port);
     createTray();

@@ -2312,3 +2312,126 @@ input[type="datetime-local"].time-input {
     font-size: 0.75rem;
     color: var(--color-text-muted);
 }
+/* ─────────────────── 로그인 오버레이 ─────────────────────────────────── */
+
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg);
+    backdrop-filter: blur(4px);
+}
+
+.login-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 2.5rem 2rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: min(340px, 90vw);
+    text-align: center;
+}
+
+.login-logo svg {
+    width: 52px;
+    height: 52px;
+    color: var(--color-accent);
+}
+
+.login-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.login-sub {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.btn-google-login {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.7rem 1.5rem;
+    background: var(--color-surface-solid);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: background var(--transition-fast), box-shadow var(--transition-fast);
+    white-space: nowrap;
+}
+
+.btn-google-login:hover:not(:disabled) {
+    background: var(--color-accent-light);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-google-login:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.login-error {
+    font-size: 0.8rem;
+    color: var(--color-danger);
+    margin: 0;
+}
+
+/* ─────────────────── 헤더 유저 정보 ─────────────────────────────────── */
+
+.user-info-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.user-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid var(--color-border);
+}
+
+.user-display-name {
+    font-size: 0.78rem;
+    color: var(--color-text-secondary);
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sync-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1.5px solid var(--color-text-muted);
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.sync-dot.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    animation: syncPulse 1s ease-in-out infinite;
+}
+
+@keyframes syncPulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+}

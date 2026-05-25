@@ -6,7 +6,12 @@
  */
 
 export const state = {
-    uid: 'guest',           // 로그인 사용자 격리용 UID
+    uid: 'guest',           // 로컬 스토리지 키 격리용 식별자 (로그인 후 Firebase UID로 교체)
+    user: null,             // Firebase User 객체 (로그인 전 null)
+    isSignedIn: false,      // 로그인 상태
+    isSyncing: false,       // Firestore 동기화 진행 중 여부
+    unsubscribeSync: null,  // Firestore onSnapshot 해제 함수
+
     // 할 일 목록
     todos: [],
 
@@ -31,7 +36,6 @@ export const state = {
         appTitle: 'My Tasks',
     },
 
-    // 동기화 플래그
+    // 타이머
     resetTimerInterval: null,
-    isFirstSync: true,
 };

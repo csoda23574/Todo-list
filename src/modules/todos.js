@@ -6,8 +6,9 @@
 
 import { state } from './state.js';
 import { saveTodos } from './storage.js';
-import { emit } from './bus.js'; // renderer 직접 의존 제거 — DIP
+import { emit } from './bus.js';
 import { showToast, generateId } from './utils.js';
+import { deleteTodoRemote } from './sync.js';
 
 /* ──────────────────────────── 추가 ────────────────────────────────────── */
 
@@ -25,7 +26,7 @@ export function addTodo(text, note, priority, itemResetTime, itemResetDatetime, 
         categoryId: state.currentCategoryId,
     };
     state.todos.unshift(todo);
-    saveTodos();
+    saveTodos(todo);
     emit('todos:changed');
     showToast('새 할 일이 추가되었습니다', 'success');
 }
@@ -45,7 +46,7 @@ export function editTodo(id, text, note, priority, itemResetTime, itemResetDatet
         itemResetDatetime: itemResetDatetime || null,
         itemResetSchedule: itemResetSchedule || null,
     };
-    saveTodos();
+    saveTodos(state.todos[idx]);
     emit('todos:changed');
     showToast('할 일이 수정되었습니다', 'info');
 }
@@ -55,6 +56,7 @@ export function editTodo(id, text, note, priority, itemResetTime, itemResetDatet
 const removeTodoState = (id) => {
     state.todos = state.todos.filter(t => t.id !== id);
     saveTodos();
+    if (state.isSignedIn) deleteTodoRemote(id);
     emit('todos:changed');
 };
 
@@ -76,7 +78,7 @@ export function toggleTodo(id, done) {
     if (idx === -1) return;
 
     state.todos[idx] = { ...state.todos[idx], done };
-    saveTodos();
+    saveTodos(state.todos[idx]);
     emit('todos:changed');
     if (done) showToast('완료 처리되었습니다!', 'success');
 }
