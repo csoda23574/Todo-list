@@ -16,8 +16,9 @@ let _scaleY = 1;
 let _crop = { x: 0, y: 0, w: 0, h: 0 };
 let _vpW = 0;
 let _vpH = 0;
-let _drag = null;     // { type, dir, startX, startY, startCrop }
+let _drag = null;          // { type, dir, startX, startY, startCrop }
 let _onConfirm = null;     // 크롭 완료 콜백
+let _aspectRatio = null;   // 고정 비율 (w/h). null이면 자유 비율
 
 const MIN_SIZE = 20;
 
@@ -45,11 +46,36 @@ function clamp({ x, y, w, h }) {
     return { x, y, w: Math.min(w, _vpW - x), h: Math.min(h, _vpH - y) };
 }
 
+/**
+ * 비율 고정 clamp: 드래그 방향에 따라 w 또는 h를 기준으로 상대를 재계산.
+ * 뷰포트 경계를 넘지 않도록 양쪽을 함께 조정합니다.
+ */
+function clampAspect({ x, y, w, h }, primaryAxis) {
+    if (!_aspectRatio) return clamp({ x, y, w, h });
+
+    if (primaryAxis === 'w') {
+        w = Math.max(MIN_SIZE, w);
+        h = w / _aspectRatio;
+    } else {
+        h = Math.max(MIN_SIZE, h);
+        w = h * _aspectRatio;
+    }
+
+    // 경계 초과 시 줄이기
+    if (x + w > _vpW) { w = _vpW - x; h = w / _aspectRatio; }
+    if (y + h > _vpH) { h = _vpH - y; w = h * _aspectRatio; }
+    if (x < 0)        { x = 0; }
+    if (y < 0)        { y = 0; }
+
+    return { x, y, w, h };
+}
+
 /* ──────────────────── 크롭 모달 열기 (공개 API) ───────────────────────── */
 
-export function openCropModal(dataUrl, fileName, onConfirm) {
+export function openCropModal(dataUrl, fileName, onConfirm, targetRatio = null) {
     _fileName = fileName;
     _onConfirm = onConfirm;
+    _aspectRatio = targetRatio;  // null이면 자유 비율
 
     const modal = document.getElementById('cropModal');
     const canvas = document.getElementById('cropCanvas');
@@ -75,7 +101,23 @@ export function openCropModal(dataUrl, fileName, onConfirm) {
             _scaleX = img.width / _vpW;
             _scaleY = img.height / _vpH;
 
-            const pw = _vpW * 0.8, ph = _vpH * 0.8;
+            // 초기 크롭 박스: 비율이 지정된 경우 뷰포트에 최대한 맞추고 중앙 배치
+            let pw, ph;
+            if (_aspectRatio) {
+                const vpRatio = _vpW / _vpH;
+                if (_aspectRatio > vpRatio) {
+                    // 가로가 더 넓은 비율 → 가로를 기준으로
+                    pw = _vpW * 0.95;
+                    ph = pw / _aspectRatio;
+                } else {
+                    // 세로가 더 긴 비율 → 세로를 기준으로
+                    ph = _vpH * 0.95;
+                    pw = ph * _aspectRatio;
+                }
+            } else {
+                pw = _vpW * 0.8;
+                ph = _vpH * 0.8;
+            }
             _crop = clamp({ x: (_vpW - pw) / 2, y: (_vpH - ph) / 2, w: pw, h: ph });
             applyCropBox();
         });
@@ -135,11 +177,19 @@ function onPointerMove(e) {
     } else {
         let { x, y, w, h } = sc;
         const dir = _drag.dir;
+        // 드래그 방향에 따라 기준 축 결정
+        const primaryAxis = dir.includes('e') || dir.includes('w') ? 'w' : 'h';
+
         if (dir.includes('e')) w += dx;
         if (dir.includes('s')) h += dy;
         if (dir.includes('w')) { x += dx; w -= dx; }
         if (dir.includes('n')) { y += dy; h -= dy; }
-        _crop = clamp({ x, y, w, h });
+
+        if (_aspectRatio) {
+            _crop = clampAspect({ x, y, w, h }, primaryAxis);
+        } else {
+            _crop = clamp({ x, y, w, h });
+        }
     }
     applyCropBox();
 }

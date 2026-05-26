@@ -201,7 +201,14 @@ function bindSettingsModalEvents() {
         }
 
         const reader = new FileReader();
-        reader.onload = evt => openCropModal(evt.target.result, file.name, applyCropResult);
+        reader.onload = evt => {
+            // app-content 영역 크기 = 배경이 표시되는 실제 영역
+            const appContent = document.querySelector('.app-content');
+            const targetRatio = appContent
+                ? appContent.clientWidth / appContent.clientHeight
+                : null;
+            openCropModal(evt.target.result, file.name, applyCropResult, targetRatio);
+        };
         reader.readAsDataURL(file);
         e.target.value = '';
     });
