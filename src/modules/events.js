@@ -86,18 +86,17 @@ function bindCategoryTabsEvents() {
         if (wasCategoryDragged()) return;
 
         if (e.target.closest('.category-tab-add')) {
+            const scrollWrapper = bar.querySelector('.category-tabs-scroll');
             const addBtn = e.target.closest('.category-tab-add');
-            startCategoryAdd(bar, addBtn);
+            startCategoryAdd(scrollWrapper ?? bar, addBtn);
             return;
         }
 
-        const delBtn = e.target.closest('[data-delete-category-id]');
-        if (delBtn) {
-            e.stopPropagation();
-            openConfirmCategoryModal(
-                delBtn.dataset.deleteCategoryId,
-                delBtn.dataset.deleteCategoryName
-            );
+        if (e.target.closest('.category-tab-trash')) {
+            const cat = state.categories.find(c => c.id === state.currentCategoryId);
+            if (cat && cat.id !== 'default') {
+                openConfirmCategoryModal(cat.id, cat.name);
+            }
             return;
         }
 

@@ -95,21 +95,22 @@ const createCategoryTab = (cat, isActive) => {
     nameSpan.title = '활성 탭 클릭하여 이름 변경';
     tab.appendChild(nameSpan);
 
-    if (cat.id !== 'default') {
-        const delBtn = document.createElement('button');
-        delBtn.className = 'category-tab-del';
-        delBtn.title = '탭 삭제';
-        delBtn.dataset.deleteCategoryId = cat.id;
-        delBtn.dataset.deleteCategoryName = cat.name;
-        delBtn.innerHTML = `
-            <svg viewBox="0 0 10 10" fill="none" stroke="currentColor"
-                 stroke-width="1.8" stroke-linecap="round">
-              <line x1="2" y1="2" x2="8" y2="8"/>
-              <line x1="8" y1="2" x2="2" y2="8"/>
-            </svg>`;
-        tab.appendChild(delBtn);
-    }
     return tab;
+};
+
+const createTrashButton = () => {
+    const btn = document.createElement('button');
+    btn.className = 'category-tab-trash';
+    btn.title = '현재 탭 삭제';
+    btn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14H6L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+          <path d="M9 6V4h6v2"/>
+        </svg>`;
+    return btn;
 };
 
 const createAddTabButton = () => {
@@ -128,6 +129,7 @@ const createAddTabButton = () => {
 /**
  * 카테고리 탭을 렌더링합니다.
  * data-id 속성을 통해 events.js의 위임 처리기가 클릭 이벤트를 선별합니다.
+ * 탭들은 내부 스크롤 영역에 배치하고, 쓰레기통 버튼은 우측에 고정합니다.
  */
 export function renderCategoryTabs() {
     const container = document.getElementById('categoryTabsBar');
@@ -135,13 +137,24 @@ export function renderCategoryTabs() {
 
     container.innerHTML = '';
 
+    // 탭 + 추가 버튼은 스크롤 래퍼 안에
+    const scrollWrapper = document.createElement('div');
+    scrollWrapper.className = 'category-tabs-scroll';
+
     const fragment = document.createDocumentFragment();
     for (let i = 0; i < state.categories.length; i++) {
         const cat = state.categories[i];
         fragment.appendChild(createCategoryTab(cat, cat.id === state.currentCategoryId));
     }
     fragment.appendChild(createAddTabButton());
-    container.appendChild(fragment);
+    scrollWrapper.appendChild(fragment);
+    container.appendChild(scrollWrapper);
+
+    // 쓰레기통 버튼은 스크롤 래퍼 외부 (항상 우측에 고정)
+    const trashBtn = createTrashButton();
+    const activeCat = state.categories.find(c => c.id === state.currentCategoryId);
+    trashBtn.disabled = !activeCat || activeCat.id === 'default';
+    container.appendChild(trashBtn);
 }
 
 /* ──────────────────── 탭 드래그 정렬 ──────────────────────────────────── */
