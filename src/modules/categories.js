@@ -123,6 +123,8 @@ const createScrollNavButton = (dir) => {
         : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
     return btn;
 };
+
+const createAddTabButton = () => {
     const addBtn = document.createElement('button');
     addBtn.className = 'category-tab-add';
     addBtn.title = '새 탭 추가';
