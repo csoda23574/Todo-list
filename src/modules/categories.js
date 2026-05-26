@@ -14,6 +14,8 @@ import { DOM } from './dom.js';
 
 /* ──────────────────────── 카테고리 CRUD ───────────────────────────────── */
 
+/* ──────────────────────── 카테고리 CRUD ───────────────────────────────── */
+
 export function addCategory(name) {
     const id = `cat_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
     state.categories.push({ id, name: name.trim() });
@@ -85,6 +87,7 @@ const createCategoryTab = (cat, isActive) => {
     const tab = document.createElement('div');
     tab.className = `category-tab${isActive ? ' active' : ''}`;
     tab.dataset.id = cat.id;
+    tab.draggable = true;
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'category-tab-name';
@@ -140,6 +143,59 @@ export function renderCategoryTabs() {
     }
     fragment.appendChild(createAddTabButton());
     container.appendChild(fragment);
+
+    _initDragSort(container);
+}
+
+/* ──────────────────── 탭 드래그 정렬 ──────────────────────────────────── */
+
+function _initDragSort(container) {
+    let dragSrcId = null;
+
+    container.querySelectorAll('.category-tab').forEach(tab => {
+        tab.addEventListener('dragstart', e => {
+            dragSrcId = tab.dataset.id;
+            e.dataTransfer.effectAllowed = 'move';
+            // 브라우저 기본 고스트 이미지 살짝 지연 후 클래스 적용
+            requestAnimationFrame(() => tab.classList.add('dragging'));
+        });
+
+        tab.addEventListener('dragend', () => {
+            dragSrcId = null;
+            container.querySelectorAll('.category-tab').forEach(t => {
+                t.classList.remove('dragging', 'drag-over');
+            });
+        });
+
+        tab.addEventListener('dragover', e => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (tab.dataset.id === dragSrcId) return;
+            container.querySelectorAll('.category-tab').forEach(t => t.classList.remove('drag-over'));
+            tab.classList.add('drag-over');
+        });
+
+        tab.addEventListener('dragleave', () => {
+            tab.classList.remove('drag-over');
+        });
+
+        tab.addEventListener('drop', e => {
+            e.preventDefault();
+            const targetId = tab.dataset.id;
+            if (!dragSrcId || dragSrcId === targetId) return;
+
+            const srcIdx = state.categories.findIndex(c => c.id === dragSrcId);
+            const tgtIdx = state.categories.findIndex(c => c.id === targetId);
+            if (srcIdx === -1 || tgtIdx === -1) return;
+
+            // 배열에서 src를 꺼내 target 위치에 삽입
+            const [moved] = state.categories.splice(srcIdx, 1);
+            state.categories.splice(tgtIdx, 0, moved);
+
+            saveCategories();
+            renderCategoryTabs();
+        });
+    });
 }
 
 /* ──────────────────── 인라인 입력 UI 헬퍼 ─────────────────────────────── */

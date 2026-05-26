@@ -628,6 +628,26 @@ body {
     padding: 0;
 }
 
+.category-tab.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+}
+
+.category-tab.drag-over {
+    border-color: var(--color-accent);
+    background: var(--color-accent-light);
+    box-shadow: 0 0 0 2px var(--color-accent-light);
+    transform: scale(1.05);
+}
+
+.category-tab[draggable="true"] {
+    cursor: grab;
+}
+
+.category-tab[draggable="true"]:active {
+    cursor: grabbing;
+}
+
 /* ===================================================
    Filter Tabs
 =================================================== */
