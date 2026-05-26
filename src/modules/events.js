@@ -42,7 +42,7 @@ import {
     openSettingsModal, saveSettingsFromModal,
     tempSettings, applyCropResult, closeModal
 } from './modals.js';
-import { switchCategory, startCategoryAdd, startCategoryRename, wasCategoryDragged } from './categories.js';
+import { switchCategory, startCategoryAdd, startCategoryRename, wasCategoryDragged, initCategoryDragSort } from './categories.js';
 import { updateTaskResetTypeUI, addYearlyDateEntry, updateResetNextInfo } from './reset.js';
 import { openCropModal, initCropModal } from './crop.js';
 import { toggleTheme, setFilter, toggleUI, updateWinMaximizeBtn } from './ui.js';
@@ -77,6 +77,9 @@ function bindTodoListEvents() {
 function bindCategoryTabsEvents() {
     const bar = document.getElementById('categoryTabsBar');
     if (!bar) return;
+
+    // 드래그 정렬: container에 1회만 바인딩 (DOM 재생성에 영향받지 않음)
+    initCategoryDragSort();
 
     bar.addEventListener('click', e => {
         // 드래그 직후 발생하는 클릭은 무시 (drop → click 오발 방지)

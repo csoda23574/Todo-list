@@ -135,7 +135,6 @@ export function renderCategoryTabs() {
 
     container.innerHTML = '';
 
-    // map -> forEach 체이닝 제거 및 DocumentFragment 사용으로 DOM 리플로우 최소화
     const fragment = document.createDocumentFragment();
     for (let i = 0; i < state.categories.length; i++) {
         const cat = state.categories[i];
@@ -143,62 +142,70 @@ export function renderCategoryTabs() {
     }
     fragment.appendChild(createAddTabButton());
     container.appendChild(fragment);
-
-    _initDragSort(container);
 }
 
 /* ──────────────────── 탭 드래그 정렬 ──────────────────────────────────── */
 
-// drop 직후 click 이벤트 억제용 타임스탬프
+let _dragSrcId = null;
 let _dragEndTime = 0;
 export const wasCategoryDragged = () => Date.now() - _dragEndTime < 200;
 
-function _initDragSort(container) {
-    let dragSrcId = null;
+/**
+ * categoryTabsBar에 드래그 정렬 이벤트를 1회만 바인딩합니다.
+ * renderCategoryTabs()가 innerHTML을 갱신해도 container 리스너는 유지됩니다.
+ */
+export function initCategoryDragSort() {
+    const container = document.getElementById('categoryTabsBar');
+    if (!container || container._dragBound) return;
+    container._dragBound = true;
 
-    container.querySelectorAll('.category-tab').forEach(tab => {
-        tab.addEventListener('dragstart', e => {
-            dragSrcId = tab.dataset.id;
-            e.dataTransfer.effectAllowed = 'move';
-            requestAnimationFrame(() => tab.classList.add('dragging'));
-        });
+    container.addEventListener('dragstart', e => {
+        const tab = e.target.closest('.category-tab');
+        if (!tab) return;
+        _dragSrcId = tab.dataset.id;
+        e.dataTransfer.effectAllowed = 'move';
+        requestAnimationFrame(() => tab.classList.add('dragging'));
+    });
 
-        tab.addEventListener('dragend', () => {
-            _dragEndTime = Date.now(); // drop 후 클릭 억제 시작
-            dragSrcId = null;
-            container.querySelectorAll('.category-tab').forEach(t => {
-                t.classList.remove('dragging', 'drag-over');
-            });
-        });
+    container.addEventListener('dragend', () => {
+        _dragEndTime = Date.now();
+        _dragSrcId = null;
+        container.querySelectorAll('.category-tab')
+            .forEach(t => t.classList.remove('dragging', 'drag-over'));
+    });
 
-        tab.addEventListener('dragover', e => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            if (tab.dataset.id === dragSrcId) return;
+    container.addEventListener('dragover', e => {
+        const tab = e.target.closest('.category-tab');
+        if (!tab || tab.dataset.id === _dragSrcId) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        container.querySelectorAll('.category-tab').forEach(t => t.classList.remove('drag-over'));
+        tab.classList.add('drag-over');
+    });
+
+    container.addEventListener('dragleave', e => {
+        if (!container.contains(e.relatedTarget)) {
             container.querySelectorAll('.category-tab').forEach(t => t.classList.remove('drag-over'));
-            tab.classList.add('drag-over');
-        });
+        }
+    });
 
-        tab.addEventListener('dragleave', () => {
-            tab.classList.remove('drag-over');
-        });
+    container.addEventListener('drop', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const tab = e.target.closest('.category-tab');
+        if (!tab) return;
+        const targetId = tab.dataset.id;
+        if (!_dragSrcId || _dragSrcId === targetId) return;
 
-        tab.addEventListener('drop', e => {
-            e.preventDefault();
-            e.stopPropagation(); // 상위 click 이벤트 버블링 차단
-            const targetId = tab.dataset.id;
-            if (!dragSrcId || dragSrcId === targetId) return;
+        const srcIdx = state.categories.findIndex(c => c.id === _dragSrcId);
+        const tgtIdx = state.categories.findIndex(c => c.id === targetId);
+        if (srcIdx === -1 || tgtIdx === -1) return;
 
-            const srcIdx = state.categories.findIndex(c => c.id === dragSrcId);
-            const tgtIdx = state.categories.findIndex(c => c.id === targetId);
-            if (srcIdx === -1 || tgtIdx === -1) return;
+        const [moved] = state.categories.splice(srcIdx, 1);
+        state.categories.splice(tgtIdx, 0, moved);
 
-            const [moved] = state.categories.splice(srcIdx, 1);
-            state.categories.splice(tgtIdx, 0, moved);
-
-            saveCategories();
-            renderCategoryTabs();
-        });
+        saveCategories();
+        renderCategoryTabs();
     });
 }
 
