@@ -393,42 +393,12 @@ body {
     display: block;
 }
 
-/* UI 숨김 상태 */
-.app-container.ui-hidden .app-header>*:not(.header-actions),
-.app-container.ui-hidden .stats-bar,
-.app-container.ui-hidden .category-tabs-bar,
-.app-container.ui-hidden .filter-tabs,
+/* UI 숨김 상태 — todo 항목만 숨김, 타이틀/리스트 섹션은 유지 */
 .app-container.ui-hidden .todo-list-wrapper,
 .app-container.ui-hidden .add-btn-wrap {
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--transition-slow);
-}
-
-.app-container.ui-hidden {
-    background: transparent !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    border-color: transparent !important;
-    box-shadow: none !important;
-}
-
-.app-container.ui-hidden .app-header {
-    background: transparent !important;
-}
-
-.app-container.ui-hidden .titlebar {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--transition-slow);
-}
-
-.app-container.ui-hidden .header-actions {
-    background: rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-radius: var(--radius-sm);
-    padding: 4px;
 }
 
 /* ===================================================
