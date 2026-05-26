@@ -43,6 +43,16 @@ jobs:
       - name: 아이콘 생성
         run: node scripts/generate-icon.js
 
+      - name: 태그 버전을 package.json에 반영
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $VERSION = "${{ github.event.inputs.version }}"
+          } else {
+            $VERSION = "${{ github.ref_name }}" -replace '^v', ''
+          }
+          npm version $VERSION --no-git-tag-version --allow-same-version
+
       - name: Windows 빌드 (NSIS + Portable)
         run: npx electron-builder --win --publish=never
 
