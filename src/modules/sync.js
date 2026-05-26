@@ -24,8 +24,16 @@ const settingsRef = () => userRef().collection('settings').doc('main');
 /* ────────────────── 내부 플래그 (자기 변경 무시용) ──────────────────── */
 
 // 로컬에서 변경 중일 때 onSnapshot 콜백이 중복 렌더를 하지 않도록 방지
-let _localWritePending = false;
-export function setLocalWritePending(v) { _localWritePending = v; }
+// 여러 save* 함수가 동시에 실행될 수 있으므로 boolean 대신 카운터 사용
+let _pendingWriteCount = 0;
+const _localWritePending = () => _pendingWriteCount > 0;
+export function setLocalWritePending(v) {
+    if (v) {
+        _pendingWriteCount++;
+    } else {
+        _pendingWriteCount = Math.max(0, _pendingWriteCount - 1);
+    }
+}
 
 /* ────────────────── Todos 동기화 ─────────────────────────────────────── */
 
@@ -124,7 +132,7 @@ export function startListeners() {
 
     // ── Todos 리스너 ──
     _unsubTodos = todosRef().onSnapshot(snap => {
-        if (_localWritePending) return; // 자기 변경 무시
+        if (_localWritePending()) return; // 자기 변경 무시
 
         const remoteTodos = snap.docs.map(doc => {
             const data = doc.data();
@@ -164,7 +172,7 @@ export function startListeners() {
 
     // ── Categories 리스너 ──
     _unsubCats = catsRef().onSnapshot(snap => {
-        if (_localWritePending) return;
+        if (_localWritePending()) return;
         if (snap.empty) return;
 
         const cats = snap.docs
@@ -181,7 +189,7 @@ export function startListeners() {
 
     // ── Settings 리스너 ──
     _unsubSettings = settingsRef().onSnapshot(snap => {
-        if (_localWritePending) return;
+        if (_localWritePending()) return;
         if (!snap.exists) return;
 
         const data = snap.data();
