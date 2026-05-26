@@ -132,9 +132,17 @@ body {
 }
 
 /* ===================================================
-   App Body (content below header — bg anchored here)
+   App Body (content below header)
 =================================================== */
 .app-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Background anchored here — only covers todo list area */
+.app-content {
     position: relative;
     flex: 1;
     display: flex;
@@ -394,8 +402,7 @@ body {
 }
 
 /* UI 숨김 상태 — todo 항목만 숨김, 타이틀/리스트 섹션은 유지 */
-.app-container.ui-hidden .todo-list-wrapper,
-.app-container.ui-hidden .add-btn-wrap {
+.app-container.ui-hidden .app-content {
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--transition-slow);
