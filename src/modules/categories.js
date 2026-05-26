@@ -113,7 +113,16 @@ const createTrashButton = () => {
     return btn;
 };
 
-const createAddTabButton = () => {
+const createScrollNavButton = (dir) => {
+    const btn = document.createElement('button');
+    btn.className = `category-tabs-nav category-tabs-nav-${dir}`;
+    btn.dataset.scrollDir = dir;
+    btn.setAttribute('aria-label', dir === 'left' ? '왼쪽으로 스크롤' : '오른쪽으로 스크롤');
+    btn.innerHTML = dir === 'left'
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`
+        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
+    return btn;
+};
     const addBtn = document.createElement('button');
     addBtn.className = 'category-tab-add';
     addBtn.title = '새 탭 추가';
@@ -137,6 +146,10 @@ export function renderCategoryTabs() {
 
     container.innerHTML = '';
 
+    // 좌측 네비 버튼
+    const navLeft = createScrollNavButton('left');
+    container.appendChild(navLeft);
+
     // 탭 + 추가 버튼은 스크롤 래퍼 안에
     const scrollWrapper = document.createElement('div');
     scrollWrapper.className = 'category-tabs-scroll';
@@ -150,11 +163,34 @@ export function renderCategoryTabs() {
     scrollWrapper.appendChild(fragment);
     container.appendChild(scrollWrapper);
 
+    // 우측 네비 버튼
+    const navRight = createScrollNavButton('right');
+    container.appendChild(navRight);
+
     // 쓰레기통 버튼은 스크롤 래퍼 외부 (항상 우측에 고정)
     const trashBtn = createTrashButton();
     const activeCat = state.categories.find(c => c.id === state.currentCategoryId);
     trashBtn.disabled = !activeCat || activeCat.id === 'default';
     container.appendChild(trashBtn);
+
+    // 스크롤 상태에 따라 네비 버튼 가시성 갱신
+    _updateScrollNavButtons(scrollWrapper, navLeft, navRight);
+    scrollWrapper.addEventListener('scroll', () =>
+        _updateScrollNavButtons(scrollWrapper, navLeft, navRight), { passive: true });
+
+    // 탭 수 변화·리사이즈 시 재계산
+    if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() =>
+            _updateScrollNavButtons(scrollWrapper, navLeft, navRight));
+        ro.observe(scrollWrapper);
+    }
+}
+
+function _updateScrollNavButtons(scroll, navLeft, navRight) {
+    const atStart = scroll.scrollLeft <= 0;
+    const atEnd   = scroll.scrollLeft + scroll.clientWidth >= scroll.scrollWidth - 1;
+    navLeft.classList.toggle('visible', !atStart);
+    navRight.classList.toggle('visible', !atEnd);
 }
 
 /* ──────────────────── 탭 드래그 정렬 ──────────────────────────────────── */

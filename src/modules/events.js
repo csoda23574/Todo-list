@@ -85,6 +85,17 @@ function bindCategoryTabsEvents() {
         // 드래그 직후 발생하는 클릭은 무시 (drop → click 오발 방지)
         if (wasCategoryDragged()) return;
 
+        // < / > 스크롤 네비 버튼
+        const navBtn = e.target.closest('.category-tabs-nav');
+        if (navBtn) {
+            const scroll = bar.querySelector('.category-tabs-scroll');
+            if (scroll) {
+                const dir = navBtn.dataset.scrollDir === 'left' ? -1 : 1;
+                scroll.scrollBy({ left: dir * 120, behavior: 'smooth' });
+            }
+            return;
+        }
+
         if (e.target.closest('.category-tab-add')) {
             const scrollWrapper = bar.querySelector('.category-tabs-scroll');
             const addBtn = e.target.closest('.category-tab-add');
