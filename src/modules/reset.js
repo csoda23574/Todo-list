@@ -6,7 +6,7 @@
 
 import { state } from './state.js';
 import { getGlobalResetKey, getItemResetKey, getResetTimestampKey } from './config.js';
-import { saveTodos } from './storage.js';
+import { saveTodos, saveSettings } from './storage.js';
 import { emit } from './bus.js'; // renderer 직접 의존 제거 — DIP
 import { showToast, showSystemNotification } from './utils.js';
 import { DOM } from './dom.js';
@@ -216,24 +216,44 @@ export function doGlobalReset(now, h, m) {
 
     const repeat = state.settings.resetRepeat;
 
+    // 이 초기화 주기의 시작 시각 — completedAt 비교 기준
+    const resetMoment = new Date(now);
+    resetMoment.setHours(h, m, 0, 0);
+
     if (repeat?.startsWith('every')) {
         const n = parseInt(repeat.slice(5), 10);
         const rKey = getGlobalResetKey(state.uid);
-        const lastKey = localStorage.getItem(rKey);
-        if (lastKey) {
-            const parts = lastKey.split('-');
-            if (parts.length >= 3) {
-                const lastDate = new Date(+parts[0], +parts[1], +parts[2]);
-                lastDate.setHours(h, m, 0, 0);
-                const nextDate = new Date(lastDate);
-                nextDate.setDate(nextDate.getDate() + n);
-                if (now < nextDate) return;
+
+        // 크로스 디바이스: Firestore 동기화된 lastGlobalResetAt 우선 확인
+        const fsLastReset = state.settings.lastGlobalResetAt;
+        if (fsLastReset) {
+            const nextDate = new Date(fsLastReset);
+            nextDate.setDate(nextDate.getDate() + n);
+            if (now < nextDate) return;
+        } else {
+            // 동일 기기 폴백: localStorage
+            const lastKey = localStorage.getItem(rKey);
+            if (lastKey) {
+                const parts = lastKey.split('-');
+                if (parts.length >= 3) {
+                    const lastDate = new Date(+parts[0], +parts[1], +parts[2]);
+                    lastDate.setHours(h, m, 0, 0);
+                    const nextDate = new Date(lastDate);
+                    nextDate.setDate(nextDate.getDate() + n);
+                    if (now < nextDate) return;
+                }
             }
         }
+
+        // 같은 날 중복 실행 방지
         const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
         if (localStorage.getItem(rKey) === todayKey) return;
         localStorage.setItem(rKey, todayKey);
         updateResetTimestamp();
+
+        // Firestore에 마지막 초기화 시각 저장 (크로스 디바이스 N일 간격 기준)
+        state.settings.lastGlobalResetAt = resetMoment.toISOString();
+        saveSettings();
     } else {
         const resetKey = buildResetKey(now, h, m);
         const rKey = getGlobalResetKey(state.uid);
@@ -243,15 +263,25 @@ export function doGlobalReset(now, h, m) {
     }
 
     const targetItems = state.todos.filter(t => !t.itemResetTime && !t.itemResetDatetime && !t.itemResetSchedule);
-    const completedBefore = targetItems.filter(t => t.done);
-    console.log(`[전역 초기화] 대상: ${targetItems.length}개, 완료: ${completedBefore.length}개`);
-    if (completedBefore.length > 0) {
-        console.log('  완료→미완료:', completedBefore.map(t => `"${t.text}"`).join(', '));
+    // completedAt > resetMoment 인 항목은 초기화 후 재완료된 것이므로 유지
+    const toReset = targetItems.filter(t =>
+        t.done && !(t.completedAt && new Date(t.completedAt) > resetMoment)
+    );
+    const kept = targetItems.filter(t =>
+        t.done && t.completedAt && new Date(t.completedAt) > resetMoment
+    );
 
-        state.todos = state.todos.map(t => (t.itemResetTime || t.itemResetDatetime || t.itemResetSchedule) ? t : { ...t, done: false });
-        _onResetOccurred('[전역 초기화]', completedBefore);
+    console.log(`[전역 초기화] 초기화: ${toReset.length}개, 유지(재완료): ${kept.length}개`);
+
+    if (toReset.length > 0) {
+        const toResetIds = new Set(toReset.map(t => t.id));
+        state.todos = state.todos.map(t => {
+            if (t.itemResetTime || t.itemResetDatetime || t.itemResetSchedule) return t;
+            if (!toResetIds.has(t.id)) return t;
+            return { ...t, done: false, completedAt: null };
+        });
+        _onResetOccurred('[전역 초기화]', toReset);
     } else {
-        // 이미 미완료 상태여도 변경된 초기화 키 동기화를 위해 저장 
         saveTodos();
     }
 }
@@ -263,6 +293,9 @@ export function doItemResets(now, hh, mm) {
 
     // resetKey은 (now, hh, mm)에만 의존 — map 바깥에서 한 번만 계산
     const resetKey = buildResetKey(now, hh, mm);
+    // completedAt 비교 기준: 오늘 해당 초기화 시각
+    const resetMoment = new Date(now);
+    resetMoment.setHours(hh, mm, 0, 0);
     const changedItems = [];
     let anyReset = false;
 
@@ -275,9 +308,12 @@ export function doItemResets(now, hh, mm) {
         if (localStorage.getItem(itemKey) === resetKey) return t;
         localStorage.setItem(itemKey, resetKey);
 
+        // 초기화 시각 이후 완료된 항목은 유지
+        if (t.done && t.completedAt && new Date(t.completedAt) > resetMoment) return t;
+
         anyReset = true;
         if (t.done) changedItems.push(t.text);
-        return { ...t, done: false };
+        return { ...t, done: false, completedAt: null };
     });
 
     if (anyReset) {
@@ -341,9 +377,14 @@ export function doItemScheduleResets(now) {
         if (localStorage.getItem(itemKey) === occKey) return t;
         localStorage.setItem(itemKey, occKey);
 
+        // 초기화 시각 이후 완료된 항목은 유지
+        const resetMoment = new Date(now);
+        resetMoment.setHours(sh, sm, 0, 0);
+        if (t.done && t.completedAt && new Date(t.completedAt) > resetMoment) return t;
+
         anyReset = true;
         if (t.done) changedItems.push(t.text);
-        return { ...t, done: false };
+        return { ...t, done: false, completedAt: null };
     });
 
     if (anyReset) {

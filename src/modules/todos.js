@@ -77,7 +77,11 @@ export function toggleTodo(id, done) {
     const idx = state.todos.findIndex(t => t.id === id);
     if (idx === -1) return;
 
-    state.todos[idx] = { ...state.todos[idx], done };
+    state.todos[idx] = {
+        ...state.todos[idx],
+        done,
+        completedAt: done ? new Date().toISOString() : null,
+    };
     saveTodos(state.todos[idx]);
     emit('todos:changed');
     if (done) showToast('완료 처리되었습니다!', 'success');

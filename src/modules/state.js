@@ -34,6 +34,7 @@ export const state = {
         bgImage: null,      // base64 data URL (로컬 디바이스 전용)
         bgFileName: '',
         appTitle: 'My Tasks',
+        lastGlobalResetAt: null, // everyN 초기화: 마지막 실행 시각 (Firestore 동기화)
     },
 
     // 타이머
