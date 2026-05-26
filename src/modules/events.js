@@ -42,7 +42,7 @@ import {
     openSettingsModal, saveSettingsFromModal,
     tempSettings, applyCropResult, closeModal
 } from './modals.js';
-import { switchCategory, startCategoryAdd, startCategoryRename } from './categories.js';
+import { switchCategory, startCategoryAdd, startCategoryRename, wasCategoryDragged } from './categories.js';
 import { updateTaskResetTypeUI, addYearlyDateEntry, updateResetNextInfo } from './reset.js';
 import { openCropModal, initCropModal } from './crop.js';
 import { toggleTheme, setFilter, toggleUI, updateWinMaximizeBtn } from './ui.js';
@@ -79,6 +79,9 @@ function bindCategoryTabsEvents() {
     if (!bar) return;
 
     bar.addEventListener('click', e => {
+        // 드래그 직후 발생하는 클릭은 무시 (drop → click 오발 방지)
+        if (wasCategoryDragged()) return;
+
         if (e.target.closest('.category-tab-add')) {
             const addBtn = e.target.closest('.category-tab-add');
             startCategoryAdd(bar, addBtn);

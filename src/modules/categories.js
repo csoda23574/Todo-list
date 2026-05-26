@@ -149,6 +149,10 @@ export function renderCategoryTabs() {
 
 /* ──────────────────── 탭 드래그 정렬 ──────────────────────────────────── */
 
+// drop 직후 click 이벤트 억제용 타임스탬프
+let _dragEndTime = 0;
+export const wasCategoryDragged = () => Date.now() - _dragEndTime < 200;
+
 function _initDragSort(container) {
     let dragSrcId = null;
 
@@ -156,11 +160,11 @@ function _initDragSort(container) {
         tab.addEventListener('dragstart', e => {
             dragSrcId = tab.dataset.id;
             e.dataTransfer.effectAllowed = 'move';
-            // 브라우저 기본 고스트 이미지 살짝 지연 후 클래스 적용
             requestAnimationFrame(() => tab.classList.add('dragging'));
         });
 
         tab.addEventListener('dragend', () => {
+            _dragEndTime = Date.now(); // drop 후 클릭 억제 시작
             dragSrcId = null;
             container.querySelectorAll('.category-tab').forEach(t => {
                 t.classList.remove('dragging', 'drag-over');
@@ -181,6 +185,7 @@ function _initDragSort(container) {
 
         tab.addEventListener('drop', e => {
             e.preventDefault();
+            e.stopPropagation(); // 상위 click 이벤트 버블링 차단
             const targetId = tab.dataset.id;
             if (!dragSrcId || dragSrcId === targetId) return;
 
@@ -188,7 +193,6 @@ function _initDragSort(container) {
             const tgtIdx = state.categories.findIndex(c => c.id === targetId);
             if (srcIdx === -1 || tgtIdx === -1) return;
 
-            // 배열에서 src를 꺼내 target 위치에 삽입
             const [moved] = state.categories.splice(srcIdx, 1);
             state.categories.splice(tgtIdx, 0, moved);
 
