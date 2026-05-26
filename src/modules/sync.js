@@ -81,8 +81,8 @@ export async function pushCategories(categories, currentCategoryId) {
         // 기존 카테고리 전부 교체 (단순 전략 — 카테고리는 소량)
         const snap = await catsRef().get();
         snap.forEach(doc => batch.delete(doc.ref));
-        categories.forEach(c => {
-            batch.set(catsRef().doc(c.id), { ...c, updatedAt: ts });
+        categories.forEach((c, i) => {
+            batch.set(catsRef().doc(c.id), { ...c, order: i, updatedAt: ts });
         });
         // 현재 선택 카테고리도 settings/main에 저장
         batch.set(settingsRef(), { currentCategoryId, updatedAt: ts }, { merge: true });
@@ -167,7 +167,9 @@ export function startListeners() {
         if (_localWritePending) return;
         if (snap.empty) return;
 
-        const cats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const cats = snap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
         if (cats.length) {
             state.categories = cats;
             if (!state.categories.find(c => c.id === state.currentCategoryId)) {
@@ -236,7 +238,9 @@ export async function initialMerge() {
         // Categories 초기 로드
         const catSnap = await catsRef().get();
         if (!catSnap.empty) {
-            state.categories = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            state.categories = catSnap.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
             if (!state.categories.find(c => c.id === state.currentCategoryId)) {
                 state.currentCategoryId = state.categories[0].id;
             }

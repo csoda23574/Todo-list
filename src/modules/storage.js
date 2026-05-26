@@ -47,6 +47,8 @@ export function saveTodos(changedTodo = null) {
 }
 
 export function saveCategories() {
+    // order 인덱스를 현재 배열 순서 기준으로 갱신
+    state.categories = state.categories.map((c, i) => ({ ...c, order: i }));
     saveToStorage(STORAGE_KEYS.CATEGORIES, state.categories);
     saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, state.currentCategoryId);
     if (state.isSignedIn) {
