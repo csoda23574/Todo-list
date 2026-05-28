@@ -35,3 +35,5 @@ desktop.ini
 # ─── Environment / secrets ───────────────────────────────────────────────────
 .env
 .env.local
+
+CLAUDE.md
