@@ -113,9 +113,7 @@ export function loadState() {
     const savedCategories = loadFromStorage(STORAGE_KEYS.CATEGORIES, null);
     if (savedCategories?.length) state.categories = savedCategories;
 
-    state.currentCategoryId = loadFromStorage(STORAGE_KEYS.CURRENT_CATEGORY, 'default');
-    if (!state.categories.find(c => c.id === state.currentCategoryId)) {
-        state.currentCategoryId = state.categories[0].id;
-    }
+    // 앱 시작 시 항상 첫 번째(가장 왼쪽) 카테고리를 선택
+    state.currentCategoryId = state.categories[0]?.id ?? 'default';
 }
 

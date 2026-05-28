@@ -196,7 +196,7 @@ export function startListeners() {
         const { updatedAt, currentCategoryId, ...remoteSettings } = data;
 
         state.settings = { ...state.settings, ...remoteSettings };
-        if (currentCategoryId) state.currentCategoryId = currentCategoryId;
+        // currentCategoryId는 앱 시작 시 적용하지 않음 (항상 첫 번째 카테고리로 시작)
 
         emit('title:changed');
         emit('categories:changed');
@@ -262,7 +262,7 @@ export async function initialMerge() {
         if (setSnap.exists) {
             const { updatedAt, currentCategoryId, ...remoteSettings } = setSnap.data();
             state.settings = { ...state.settings, ...remoteSettings };
-            if (currentCategoryId) state.currentCategoryId = currentCategoryId;
+            // currentCategoryId는 앱 시작 시 적용하지 않음 (항상 첫 번째 카테고리로 시작)
             emit('title:changed');
         } else {
             await pushSettings(state.settings);
