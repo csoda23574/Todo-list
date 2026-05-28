@@ -249,9 +249,8 @@ export async function initialMerge() {
             state.categories = catSnap.docs
                 .map(doc => ({ id: doc.id, ...doc.data() }))
                 .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-            if (!state.categories.find(c => c.id === state.currentCategoryId)) {
-                state.currentCategoryId = state.categories[0].id;
-            }
+            // 항상 첫 번째(가장 왼쪽) 카테고리로 시작
+            state.currentCategoryId = state.categories[0].id;
             emit('categories:changed');
         } else if (state.categories.length) {
             await pushCategories(state.categories, state.currentCategoryId);
