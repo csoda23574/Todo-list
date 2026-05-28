@@ -7,7 +7,7 @@
 
 import { state } from './state.js';
 import { DOM } from './dom.js';
-import { escapeHtml, formatItemDatetime, formatScheduleBadge } from './utils.js';
+import { escapeHtml, formatScheduleBadge } from './utils.js';
 
 /* ─────────────────────────── 앱 타이틀 ────────────────────────────────── */
 
@@ -101,9 +101,6 @@ export function createTodoElement(todo) {
         <span class="todo-priority-badge ${priority}">${priorityLabels[priority] || '보통'}</span>
         ${todo.itemResetTime
             ? `<span class="todo-reset-badge">⏰ ${todo.itemResetTime} 매일</span>`
-            : ''}
-        ${todo.itemResetDatetime
-            ? `<span class="todo-reset-badge">📅 ${formatItemDatetime(todo.itemResetDatetime)}</span>`
             : ''}
         ${todo.itemResetSchedule
             ? `<span class="todo-reset-badge">${escapeHtml(formatScheduleBadge(todo.itemResetSchedule))}</span>`

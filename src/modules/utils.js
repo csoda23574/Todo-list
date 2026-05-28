@@ -103,13 +103,6 @@ export function escapeHtml(str) {
 
 export const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
-export function formatItemDatetime(dt) {
-    if (!dt) return '';
-    return new Date(dt).toLocaleString('ko-KR', {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    });
-}
-
 export function formatScheduleBadge(s) {
     if (!s) return '';
     const time = s.time || '';

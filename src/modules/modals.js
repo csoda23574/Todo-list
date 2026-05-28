@@ -40,7 +40,6 @@ function clearTaskForm() {
     DOM.taskInput.value = '';
     DOM.taskNote.value = '';
     DOM.taskResetTime.value = '';
-    DOM.taskResetDatetime.value = '';
     DOM.taskResetWeeklyTime.value = '';
     DOM.taskResetMonthlyTime.value = '';
     DOM.taskResetYearlyTime.value = '';
@@ -99,9 +98,6 @@ function _populateResetFields(todo) {
             DOM.taskResetYearlyTime.value = s.time || '';
             (s.dates || []).forEach(d => addYearlyDateEntry(d.month, d.day));
         }
-    } else if (todo.itemResetDatetime) {
-        DOM.taskResetDatetime.value = todo.itemResetDatetime;
-        updateTaskResetTypeUI('datetime');
     } else if (todo.itemResetTime) {
         DOM.taskResetTime.value = todo.itemResetTime;
         updateTaskResetTypeUI('time');
@@ -127,13 +123,12 @@ export function handleModalSave() {
     const priority = getSelectedPriority();
     const resetType = DOM.taskResetType.value;
     const itemResetTime = resetType === 'time' ? (DOM.taskResetTime.value || null) : null;
-    const itemResetDatetime = resetType === 'datetime' ? (DOM.taskResetDatetime.value || null) : null;
     const itemResetSchedule = _buildScheduleFromForm(resetType);
 
     if (state.editingId) {
-        editTodo(state.editingId, text, note, priority, itemResetTime, itemResetDatetime, itemResetSchedule);
+        editTodo(state.editingId, text, note, priority, itemResetTime, itemResetSchedule);
     } else {
-        addTodo(text, note, priority, itemResetTime, itemResetDatetime, itemResetSchedule);
+        addTodo(text, note, priority, itemResetTime, itemResetSchedule);
     }
     closeModal(DOM.taskModal);
     state.editingId = null;

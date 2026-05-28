@@ -148,7 +148,6 @@ export function getYearlyDatesFromDOM() {
 export function updateTaskResetTypeUI(type) {
     const rows = {
         time: DOM.taskResetTimeRow,
-        datetime: DOM.taskResetDatetimeRow,
         weekly: DOM.taskResetWeeklyRow,
         monthly: DOM.taskResetMonthlyRow,
         yearly: DOM.taskResetYearlyRow,
@@ -262,7 +261,7 @@ export function doGlobalReset(now, h, m) {
         updateResetTimestamp();
     }
 
-    const targetItems = state.todos.filter(t => !t.itemResetTime && !t.itemResetDatetime && !t.itemResetSchedule);
+    const targetItems = state.todos.filter(t => !t.itemResetTime && !t.itemResetSchedule);
     // completedAt > resetMoment 인 항목은 초기화 후 재완료된 것이므로 유지
     const toReset = targetItems.filter(t =>
         t.done && !(t.completedAt && new Date(t.completedAt) > resetMoment)
@@ -276,7 +275,7 @@ export function doGlobalReset(now, h, m) {
     if (toReset.length > 0) {
         const toResetIds = new Set(toReset.map(t => t.id));
         state.todos = state.todos.map(t => {
-            if (t.itemResetTime || t.itemResetDatetime || t.itemResetSchedule) return t;
+            if (t.itemResetTime || t.itemResetSchedule) return t;
             if (!toResetIds.has(t.id)) return t;
             return { ...t, done: false, completedAt: null };
         });
@@ -300,7 +299,7 @@ export function doItemResets(now, hh, mm) {
     let anyReset = false;
 
     state.todos = state.todos.map(t => {
-        if (!t.itemResetTime || t.itemResetDatetime || t.itemResetSchedule) return t;
+        if (!t.itemResetTime || t.itemResetSchedule) return t;
         const [th, tm] = t.itemResetTime.split(':').map(Number);
         if (th !== hh || tm !== mm) return t;
 
@@ -319,37 +318,6 @@ export function doItemResets(now, hh, mm) {
     if (anyReset) {
         updateResetTimestamp();
         _onResetOccurred('[개별 시간 초기화]', changedItems);
-    }
-}
-
-/* ─────────────────── 날짜/시간 지정 1회 초기화 ─────────────────────────── */
-
-export function doItemDatetimeResets(now) {
-    const changedItems = [];
-    let anyReset = false;
-    state.todos = state.todos.map(t => {
-        if (!t.itemResetDatetime) return t;
-        const itemKey = getItemResetKey(state.uid, t.id);
-        if (localStorage.getItem(itemKey) === t.itemResetDatetime) return t;
-
-        // 정각(Exact minute)에만 동작하도록 수정하여 Boot 시 덮어쓰기 방지
-        const target = new Date(t.itemResetDatetime);
-        if (now.getFullYear() !== target.getFullYear() ||
-            now.getMonth() !== target.getMonth() ||
-            now.getDate() !== target.getDate() ||
-            now.getHours() !== target.getHours() ||
-            now.getMinutes() !== target.getMinutes()) return t;
-
-        localStorage.setItem(itemKey, t.itemResetDatetime);
-
-        anyReset = true;
-        if (t.done) changedItems.push(t.text);
-        return { ...t, done: false };
-    });
-
-    if (anyReset) {
-        updateResetTimestamp();
-        _onResetOccurred('[날짜/시간 초기화]', changedItems);
     }
 }
 
@@ -457,14 +425,13 @@ const handleTimerTick = () => {
     }
 
     const uniqueTimes = new Set();
-    state.todos.forEach(t => { if (t.itemResetTime && !t.itemResetDatetime && !t.itemResetSchedule) uniqueTimes.add(t.itemResetTime); });
+    state.todos.forEach(t => { if (t.itemResetTime && !t.itemResetSchedule) uniqueTimes.add(t.itemResetTime); });
 
     uniqueTimes.forEach(timeStr => {
         const [th, tm] = timeStr.split(':').map(Number);
         if (hh === th && mm === tm) doItemResets(now, th, tm);
     });
 
-    doItemDatetimeResets(now);
     doItemScheduleResets(now);
 };
 
@@ -503,7 +470,7 @@ function checkMissedResets() {
     // ── 개별 시간 초기화 ──
     const uniqueTimes = new Set();
     state.todos.forEach(t => {
-        if (t.itemResetTime && !t.itemResetDatetime && !t.itemResetSchedule) {
+        if (t.itemResetTime && !t.itemResetSchedule) {
             uniqueTimes.add(t.itemResetTime);
         }
     });
@@ -518,35 +485,6 @@ function checkMissedResets() {
 
     // ── 스케줄 초기화 소급 (주간/월간/연간) ──
     _checkMissedScheduleResets(now);
-
-    // ── 날짜/시간 지정 1회 초기화 소급 ──
-    // doItemDatetimeResets는 정각에만 동작하므로, 앱이 꺼진 동안 지나간 1회성 초기화를 여기서 처리
-    {
-        const changedItems = [];
-        let anyReset = false;
-        state.todos = state.todos.map(t => {
-            if (!t.itemResetDatetime) return t;
-            const itemKey = getItemResetKey(state.uid, t.id);
-            if (localStorage.getItem(itemKey) === t.itemResetDatetime) return t;
-
-            const target = new Date(t.itemResetDatetime);
-            // 지정 시각이 아직 오지 않았으면 소급 대상 아님
-            if (now < target) return t;
-
-            localStorage.setItem(itemKey, t.itemResetDatetime);
-
-            // 초기화 시각 이후 완료된 항목은 유지
-            if (t.done && t.completedAt && new Date(t.completedAt) > target) return t;
-
-            anyReset = true;
-            if (t.done) changedItems.push(t.text);
-            return { ...t, done: false, completedAt: null };
-        });
-        if (anyReset) {
-            updateResetTimestamp();
-            _onResetOccurred('[날짜/시간 소급 초기화]', changedItems);
-        }
-    }
 }
 
 /**

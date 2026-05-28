@@ -12,7 +12,7 @@ import { deleteTodoRemote } from './sync.js';
 
 /* ──────────────────────────── 추가 ────────────────────────────────────── */
 
-export function addTodo(text, note, priority, itemResetTime, itemResetDatetime, itemResetSchedule) {
+export function addTodo(text, note, priority, itemResetTime, itemResetSchedule) {
     const todo = {
         id: generateId(),
         text: text.trim(),
@@ -21,7 +21,6 @@ export function addTodo(text, note, priority, itemResetTime, itemResetDatetime, 
         done: false,
         createdAt: new Date().toISOString(),
         itemResetTime: itemResetTime || null,
-        itemResetDatetime: itemResetDatetime || null,
         itemResetSchedule: itemResetSchedule || null,
         categoryId: state.currentCategoryId,
     };
@@ -33,7 +32,7 @@ export function addTodo(text, note, priority, itemResetTime, itemResetDatetime, 
 
 /* ──────────────────────────── 수정 ────────────────────────────────────── */
 
-export function editTodo(id, text, note, priority, itemResetTime, itemResetDatetime, itemResetSchedule) {
+export function editTodo(id, text, note, priority, itemResetTime, itemResetSchedule) {
     const idx = state.todos.findIndex(t => t.id === id);
     if (idx === -1) return;
 
@@ -43,7 +42,6 @@ export function editTodo(id, text, note, priority, itemResetTime, itemResetDatet
         note,
         priority: priority || 'medium',
         itemResetTime: itemResetTime || null,
-        itemResetDatetime: itemResetDatetime || null,
         itemResetSchedule: itemResetSchedule || null,
     };
     saveTodos(state.todos[idx]);

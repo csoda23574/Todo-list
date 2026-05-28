@@ -38,9 +38,7 @@ export const DOM = {
     // 할 일 초기화 설정 (모달 내)
     get taskResetType() { return document.getElementById('taskResetType'); },
     get taskResetTime() { return document.getElementById('taskResetTime'); },
-    get taskResetDatetime() { return document.getElementById('taskResetDatetime'); },
     get taskResetTimeRow() { return document.getElementById('taskResetTimeRow'); },
-    get taskResetDatetimeRow() { return document.getElementById('taskResetDatetimeRow'); },
     get taskResetWeeklyRow() { return document.getElementById('taskResetWeeklyRow'); },
     get taskResetMonthlyRow() { return document.getElementById('taskResetMonthlyRow'); },
     get taskResetYearlyRow() { return document.getElementById('taskResetYearlyRow'); },

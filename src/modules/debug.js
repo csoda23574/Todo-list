@@ -38,10 +38,9 @@ export function logResetStatus() {
 
     state.todos.forEach((todo, index) => {
         const lastReset = localStorage.getItem(getItemResetKey(state.uid, todo.id));
-        const resetType = todo.itemResetDatetime ? 'datetime'
-            : todo.itemResetSchedule ? 'schedule'
-                : todo.itemResetTime ? 'time'
-                    : 'global';
+        const resetType = todo.itemResetSchedule ? 'schedule'
+            : todo.itemResetTime ? 'time'
+                : 'global';
         console.log(`  [${index + 1}] "${todo.text}" (${resetType}): ${formatResetTime(lastReset)}`);
     });
 
