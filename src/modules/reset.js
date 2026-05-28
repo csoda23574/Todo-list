@@ -518,6 +518,35 @@ function checkMissedResets() {
 
     // ── 스케줄 초기화 소급 (주간/월간/연간) ──
     _checkMissedScheduleResets(now);
+
+    // ── 날짜/시간 지정 1회 초기화 소급 ──
+    // doItemDatetimeResets는 정각에만 동작하므로, 앱이 꺼진 동안 지나간 1회성 초기화를 여기서 처리
+    {
+        const changedItems = [];
+        let anyReset = false;
+        state.todos = state.todos.map(t => {
+            if (!t.itemResetDatetime) return t;
+            const itemKey = getItemResetKey(state.uid, t.id);
+            if (localStorage.getItem(itemKey) === t.itemResetDatetime) return t;
+
+            const target = new Date(t.itemResetDatetime);
+            // 지정 시각이 아직 오지 않았으면 소급 대상 아님
+            if (now < target) return t;
+
+            localStorage.setItem(itemKey, t.itemResetDatetime);
+
+            // 초기화 시각 이후 완료된 항목은 유지
+            if (t.done && t.completedAt && new Date(t.completedAt) > target) return t;
+
+            anyReset = true;
+            if (t.done) changedItems.push(t.text);
+            return { ...t, done: false, completedAt: null };
+        });
+        if (anyReset) {
+            updateResetTimestamp();
+            _onResetOccurred('[날짜/시간 소급 초기화]', changedItems);
+        }
+    }
 }
 
 /**
