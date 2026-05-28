@@ -515,6 +515,82 @@ function checkMissedResets() {
             doItemResets(now, th, tm);
         }
     });
+
+    // ── 스케줄 초기화 소급 (주간/월간/연간) ──
+    _checkMissedScheduleResets(now);
+}
+
+/**
+ * 스케줄(itemResetSchedule) 항목의 가장 최근 발생 시점을 반환합니다.
+ * 지나간 시점이어야 하며, 타입별로 최대 탐색 범위를 제한합니다.
+ */
+function _getLastScheduleOccurrence(s, now, sh, sm) {
+    if (s.type === 'weekly') {
+        // 오늘 포함 최대 7일 전까지 탐색
+        for (let i = 0; i <= 7; i++) {
+            const candidate = new Date(now);
+            candidate.setDate(candidate.getDate() - i);
+            candidate.setHours(sh, sm, 0, 0);
+            if (candidate > now) continue;
+            if ((s.weekdays || []).includes(candidate.getDay())) return candidate;
+        }
+    } else if (s.type === 'monthly') {
+        // 이번 달 및 지난 달 탐색
+        for (let monthBack = 0; monthBack <= 1; monthBack++) {
+            const base = new Date(now);
+            base.setMonth(base.getMonth() - monthBack);
+            const days = [...(s.days || [])].sort((a, b) => b - a);
+            for (const day of days) {
+                const candidate = new Date(base.getFullYear(), base.getMonth(), day, sh, sm, 0, 0);
+                if (candidate <= now) return candidate;
+            }
+        }
+    } else if (s.type === 'yearly') {
+        // 올해 및 작년 탐색
+        for (let yearBack = 0; yearBack <= 1; yearBack++) {
+            const year = now.getFullYear() - yearBack;
+            for (const d of (s.dates || [])) {
+                const candidate = new Date(year, d.month - 1, d.day, sh, sm, 0, 0);
+                if (candidate <= now) return candidate;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * 앱 시작 시 놓친 스케줄 초기화를 소급 적용합니다.
+ * doItemScheduleResets 와 동일한 occKey 형식을 사용해 중복 실행을 방지합니다.
+ */
+function _checkMissedScheduleResets(now) {
+    const changedItems = [];
+    let anyReset = false;
+
+    state.todos = state.todos.map(t => {
+        if (!t.itemResetSchedule) return t;
+        const s = t.itemResetSchedule;
+        const [sh, sm] = (s.time || '00:00').split(':').map(Number);
+
+        const lastOcc = _getLastScheduleOccurrence(s, now, sh, sm);
+        if (!lastOcc) return t;
+
+        const itemKey = getItemResetKey(state.uid, t.id);
+        const occKey = `${s.type}-${lastOcc.getFullYear()}-${lastOcc.getMonth()}-${lastOcc.getDate()}-${sh}-${sm}`;
+        if (localStorage.getItem(itemKey) === occKey) return t;
+        localStorage.setItem(itemKey, occKey);
+
+        // 마지막 발생 시점 이후 완료된 항목은 유지
+        if (t.done && t.completedAt && new Date(t.completedAt) > lastOcc) return t;
+
+        anyReset = true;
+        if (t.done) changedItems.push(t.text);
+        return { ...t, done: false, completedAt: null };
+    });
+
+    if (anyReset) {
+        updateResetTimestamp();
+        _onResetOccurred('[스케줄 소급 초기화]', changedItems);
+    }
 }
 
 /**
