@@ -15,6 +15,14 @@ function updateResetTimestamp() {
     localStorage.setItem(getResetTimestampKey(state.uid), Date.now().toString());
 }
 
+export function buildMinuteTickKey(now) {
+    return `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
+}
+
+export function shouldHandleMinuteTick(lastMinuteKey, now) {
+    return lastMinuteKey !== buildMinuteTickKey(now);
+}
+
 /* ─────────────────────── 다음 초기화 날짜 계산 ──────────────────────────── */
 
 const getLastResetDate = (hours, minutes) => {
@@ -280,8 +288,6 @@ export function doGlobalReset(now, h, m) {
             return { ...t, done: false, completedAt: null };
         });
         _onResetOccurred('[전역 초기화]', toReset);
-    } else {
-        saveTodos();
     }
 }
 
@@ -393,6 +399,7 @@ export function scheduleResetTimer() {
         clearInterval(state.resetTimerInterval);
         state.resetTimerInterval = null;
     }
+    state._lastResetTickMinuteKey = null;
     initializeResetSystem();
 }
 
@@ -402,6 +409,10 @@ const handleTimerTick = () => {
     const now = new Date();
     const hh = now.getHours();
     const mm = now.getMinutes();
+    const minuteKey = buildMinuteTickKey(now);
+
+    if (!shouldHandleMinuteTick(state._lastResetTickMinuteKey, now)) return;
+    state._lastResetTickMinuteKey = minuteKey;
 
     if (state.settings.resetEnabled) {
         const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);

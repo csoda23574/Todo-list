@@ -39,4 +39,5 @@ export const state = {
 
     // 타이머
     resetTimerInterval: null,
+    _lastResetTickMinuteKey: null,
 };

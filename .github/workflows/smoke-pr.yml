@@ -1,0 +1,48 @@
+name: Smoke (PR)
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke Regression
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      SMOKE_ENV: prod
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run smoke suite (with diff+hints on failure)
+        env:
+          SMOKE_REPORT_DIR: .smoke-report
+        run: npm run test:smoke:ci
+
+      - name: Upload smoke report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: .smoke-report/**
+          if-no-files-found: warn

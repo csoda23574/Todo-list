@@ -12,6 +12,8 @@ import { emit } from './bus.js'; // renderer 직접 의존 제거 — DIP
 import { showToast, escapeHtml } from './utils.js';
 import { DOM } from './dom.js';
 
+let _tabsResizeObserver = null;
+
 /* ──────────────────────── 카테고리 CRUD ───────────────────────────────── */
 
 /* ──────────────────────── 카테고리 CRUD ───────────────────────────────── */
@@ -19,9 +21,9 @@ import { DOM } from './dom.js';
 export function addCategory(name) {
     const id = `cat_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
     state.categories.push({ id, name: name.trim() });
+    state.currentCategoryId = id;
     saveCategories();
-    renderCategoryTabs();
-    switchCategory(id);
+    emit('categories:changed');
 }
 
 export function renameCategory(id, newName) {
@@ -29,7 +31,7 @@ export function renameCategory(id, newName) {
     if (!cat || !newName.trim()) return;
     cat.name = newName.trim();
     saveCategories();
-    renderCategoryTabs();
+    emit('categories:changed');
 }
 
 export function deleteCategory(id) {
@@ -53,15 +55,13 @@ export function deleteCategory(id) {
 
     state.todos = keptTodos;
     state.categories = state.categories.filter(c => c.id !== id);
-    saveTodos();
-    saveCategories();
-
     if (state.currentCategoryId === id) {
         state.currentCategoryId = state.categories[0].id;
-        saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, state.currentCategoryId);
     }
-    renderCategoryTabs();
-    emit('todos:changed');
+
+    saveTodos();
+    saveCategories();
+    emit('categories:changed');
 
     // 실행 취소 토스트
     _showUndoToast(catName, () => {
@@ -77,8 +77,7 @@ export function deleteCategory(id) {
 export function switchCategory(id) {
     state.currentCategoryId = id;
     saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, id);
-    renderCategoryTabs();
-    emit('todos:changed');
+    emit('categories:changed');
 }
 
 /* ────────────────────── 카테고리 탭 렌더링 ─────────────────────────────── */
@@ -180,11 +179,12 @@ export function renderCategoryTabs() {
     scrollWrapper.addEventListener('scroll', () =>
         _updateScrollNavButtons(scrollWrapper, navLeft, navRight), { passive: true });
 
-    // 탭 수 변화·리사이즈 시 재계산
+    // 이전 관찰자를 정리한 뒤 현재 스크롤 래퍼만 관찰
     if (typeof ResizeObserver !== 'undefined') {
-        const ro = new ResizeObserver(() =>
+        _tabsResizeObserver?.disconnect();
+        _tabsResizeObserver = new ResizeObserver(() =>
             _updateScrollNavButtons(scrollWrapper, navLeft, navRight));
-        ro.observe(scrollWrapper);
+        _tabsResizeObserver.observe(scrollWrapper);
     }
 }
 
@@ -256,7 +256,7 @@ export function initCategoryDragSort() {
         state.categories.splice(tgtIdx, 0, moved);
 
         saveCategories();
-        renderCategoryTabs();
+        emit('categories:changed');
     });
 }
 

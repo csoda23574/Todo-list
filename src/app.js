@@ -10,25 +10,45 @@ import {
     applyAppTitle, updateHeaderDate, renderTodos,
     applyBackground
 } from './modules/renderer.js';
-import { renderCategoryTabs } from './modules/categories.js';
+import { renderCategoryTabs, addCategory, switchCategory } from './modules/categories.js';
 import { bindEvents, bindElectronEvents } from './modules/events.js';
-import { scheduleResetTimer, checkMissedResetsAfterSync } from './modules/reset.js';
-import { on } from './modules/bus.js';
+import {
+    scheduleResetTimer,
+    checkMissedResetsAfterSync,
+    buildMinuteTickKey,
+    shouldHandleMinuteTick,
+} from './modules/reset.js';
+import { on, emit } from './modules/bus.js';
 import { state } from './modules/state.js';
 import { auth } from './modules/firebase.js';
-import { initialMerge, startListeners, stopListeners } from './modules/sync.js';
+import { initialMerge, startListeners, stopListeners, getSettingsChangeFlags } from './modules/sync.js';
 import { DOM } from './modules/dom.js';
 import { getStorageKey, STORAGE_KEYS } from './modules/config.js';
 import { loadFromIDB } from './modules/idb.js';
+import {
+    recordRender,
+    withRenderMetric,
+    getRenderMetrics,
+    resetRenderMetrics,
+} from './modules/perf.js';
 
 /* ── Composition Root: 이벤트 버스 구독 ──────────────────────────────────
  * 데이터·도메인 레이어는 emit()만 호출하고, 실제 렌더러·타이머 함수는
  * 이 곳에서만 참조합니다. — DIP (의존성 역전 원칙)
  * ────────────────────────────────────────────────────────────────────── */
-on('todos:changed', renderTodos);
-on('categories:changed', () => { renderCategoryTabs(); renderTodos(); });
-on('bg:changed', applyBackground);
-on('title:changed', applyAppTitle);
+const renderTodosTracked = withRenderMetric('todos', renderTodos);
+const applyBackgroundTracked = withRenderMetric('bg', applyBackground);
+const applyAppTitleTracked = withRenderMetric('title', applyAppTitle);
+
+on('todos:changed', renderTodosTracked);
+on('categories:changed', () => {
+    recordRender('categories');
+    renderCategoryTabs();
+    renderTodosTracked();
+});
+on('bg:changed', applyBackgroundTracked);
+on('title:changed', applyAppTitleTracked);
+on('reset:reschedule', scheduleResetTimer);
 
 /* ─────────────────────────── 헤더 유저 UI 업데이트 ────────────────────── */
 
@@ -84,9 +104,10 @@ function init() {
     bindElectronEvents();
     updateHeaderDate();
     renderCategoryTabs();
-    renderTodos();
-    applyBackground();
-    applyAppTitle();
+    recordRender('categories');
+    renderTodosTracked();
+    applyBackgroundTracked();
+    applyAppTitleTracked();
 
     // 헤더 시계: 1초 간격 업데이트
     setInterval(updateHeaderDate, 1000);
@@ -110,8 +131,7 @@ function init() {
             const idbImage = await loadFromIDB(idbKey);
             if (idbImage) {
                 state.settings.bgImage = idbImage;
-                on('bg:changed', applyBackground); // 이미 등록됐으면 재실행
-                applyBackground();
+                applyBackgroundTracked();
             }
 
             // Firestore 초기 병합 → 실시간 리스너 시작
@@ -131,6 +151,42 @@ function init() {
             showLoginOverlay();
         }
     });
+}
+
+if (typeof window !== 'undefined') {
+    const prev = window.todoDebug || {};
+    window.todoDebug = {
+        ...prev,
+        getRenderMetrics,
+        resetRenderMetrics,
+        simulateLoginRenderScenario: () => {
+            resetRenderMetrics();
+            emit('title:changed');
+            emit('bg:changed');
+            emit('categories:changed');
+            return getRenderMetrics();
+        },
+        simulateCategorySwitchScenario: () => {
+            // 기존 카테고리가 2개 미만이면 switch 없이 계측값만 반환 (데이터 생성 방지)
+            resetRenderMetrics();
+            const current = state.currentCategoryId;
+            const target = state.categories.find(c => c.id !== current)?.id;
+            if (!target) return getRenderMetrics();
+            switchCategory(target);
+            return getRenderMetrics();
+        },
+        minuteTickScenario: (isoNow) => {
+            const now = new Date(isoNow);
+            const key = buildMinuteTickKey(now);
+            return {
+                key,
+                first: shouldHandleMinuteTick(null, now),
+                second: shouldHandleMinuteTick(key, now),
+            };
+        },
+        settingsChangeScenario: (prevSettings, nextSettings) =>
+            getSettingsChangeFlags(prevSettings, nextSettings),
+    };
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -42,19 +42,44 @@
 todo-app/
 ├── main.js              # Electron 메인 프로세스 (로컬 HTTP 서버 내장)
 ├── preload.js           # contextBridge를 통한 안전한 IPC 브릿지
-├── index.html           # 앱 진입점 및 레이아웃
 ├── src/
-│   ├── app.js           # 모듈 초기화 및 이벤트 버스(Composition Root)
-│   ├── firebase-sync.js # Firebase 초기화 및 동기화 담당
+│   ├── index.html       # 앱 진입점 및 레이아웃
+│   ├── app.js           # 모듈 초기화, 이벤트 버스 구독, 디버그 훅(Composition Root)
 │   ├── style.css        # 스타일시트
+│   ├── assets/          # 아이콘 등 정적 리소스
 │   ├── lib/             # 오프라인 호환을 위한 Firebase SDK 로컬 번들
 │   └── modules/         # 기능별 분리된 ES 모듈 (SOLID 원칙 적용)
-│       ├── bus.js, categories.js, config.js, crop.js,
-│       ├── dom.js, events.js, idb.js, modal-base.js,
-│       ├── modals.js, renderer.js, reset.js, state.js,
-│       ├── storage.js, sync.js, todos.js, ui.js, utils.js
-├── android/             # Capacitor Android 프로젝트 환경
-└── todo-dist/           # 빌드 출력 디렉터리
+│       ├── bus.js        # 이벤트 버스 (DIP 매개체)
+│       ├── categories.js # 카테고리 CRUD 및 탭 렌더
+│       ├── config.js     # 전역 상수 및 스토리지 키
+│       ├── crop.js       # 배경 이미지 크롭
+│       ├── debug.js      # 개발용 상태 로그 유틸
+│       ├── dom.js        # DOM 요소 참조 집중 관리
+│       ├── events.js     # 이벤트 바인딩
+│       ├── firebase.js   # Firebase 초기화 및 인증 헬퍼
+│       ├── idb.js        # IndexedDB 래퍼 (배경 이미지 저장)
+│       ├── modal-base.js # 모달 열기/닫기 기반 로직
+│       ├── modals.js     # 할 일·설정·확인 모달 UI 로직
+│       ├── perf.js       # 렌더 횟수 계측 유틸
+│       ├── renderer.js   # 할 일 목록·배경·타이틀 렌더
+│       ├── reset.js      # 자동 초기화 타이머 시스템
+│       ├── state.js      # 전역 앱 상태 객체
+│       ├── storage.js    # localStorage 읽기·쓰기 래퍼
+│       ├── sync.js       # Firestore 실시간 동기화 및 병합
+│       ├── todos.js      # 할 일 CRUD 도메인 로직
+│       ├── ui.js         # 테마·필터·UI 토글
+│       └── utils.js      # 순수 유틸리티 함수
+├── scripts/
+│   ├── smoke-policy.json # 환경별 렌더 budget 임계값 (dev/prod)
+│   ├── smoke-test.js     # 정적 아키텍처 불변성 검사
+│   ├── runtime-smoke.js  # Electron 런타임 렌더·시나리오 검사
+│   └── smoke-ci.js       # CI 래퍼 (실패 시 힌트·diff 리포트 출력)
+├── .github/
+│   └── workflows/
+│       ├── release.yml   # 태그 푸시 시 Windows/Android 빌드 및 릴리즈
+│       └── smoke-pr.yml  # PR 시 스모크 회귀 검사 (prod 정책)
+├── android/              # Capacitor Android 프로젝트 환경
+└── todo-dist/            # 빌드 출력 디렉터리
 ```
 
 ---
@@ -85,6 +110,29 @@ npm install
 ```bash
 npm start
 ```
+
+### 스모크 테스트 (회귀/성능 임계값)
+
+```bash
+# 기본(dev) 정책으로 정적+런타임 스모크 실행
+npm run test:smoke
+
+# 환경별 임계값 정책 강제 (PowerShell)
+$env:SMOKE_ENV='prod'; npm run test:smoke
+
+# 환경별 임계값 정책 강제 (bash/zsh)
+SMOKE_ENV=prod npm run test:smoke
+
+# CI/PR용 실행 (실패 시 힌트 + git diff 출력)
+npm run test:smoke:ci
+```
+
+CI에서는 `.smoke-report/`에 실행 로그와 요약(`smoke-output.log`, `smoke-summary.json`)이 생성되며,
+실패 시 힌트(`smoke-hints.txt`)와 diff(`smoke-diff.patch`)도 함께 아티팩트로 업로드됩니다.
+
+정책 파일: `scripts/smoke-policy.json`
+- `dev`: 개발 편의 중심의 완화된 렌더 budget
+- `prod`: PR/배포 게이트용 엄격한 렌더 budget
 
 ---
 

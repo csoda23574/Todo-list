@@ -1,0 +1,34 @@
+{
+  "dev": {
+    "renderBudget": {
+      "login": {
+        "categories": 2,
+        "todos": 2,
+        "bg": 1,
+        "title": 1
+      },
+      "categorySwitch": {
+        "categories": 1,
+        "todos": 2,
+        "bg": 0,
+        "title": 0
+      }
+    }
+  },
+  "prod": {
+    "renderBudget": {
+      "login": {
+        "categories": 1,
+        "todos": 1,
+        "bg": 1,
+        "title": 1
+      },
+      "categorySwitch": {
+        "categories": 1,
+        "todos": 1,
+        "bg": 0,
+        "title": 0
+      }
+    }
+  }
+}

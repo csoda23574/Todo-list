@@ -123,6 +123,51 @@ let _unsubTodos    = null;
 let _unsubCats     = null;
 let _unsubSettings = null;
 
+function _sameTodo(a, b) {
+    return a.id === b.id
+        && a.text === b.text
+        && a.note === b.note
+        && a.priority === b.priority
+        && a.done === b.done
+        && (a.completedAt ?? null) === (b.completedAt ?? null)
+        && (a.createdAt ?? null) === (b.createdAt ?? null)
+        && (a.updatedAt ?? null) === (b.updatedAt ?? null)
+        && (a.categoryId ?? 'default') === (b.categoryId ?? 'default')
+        && (a.itemResetTime ?? null) === (b.itemResetTime ?? null)
+        && JSON.stringify(a.itemResetSchedule ?? null) === JSON.stringify(b.itemResetSchedule ?? null);
+}
+
+function _sameTodos(nextTodos, prevTodos) {
+    if (nextTodos.length !== prevTodos.length) return false;
+    for (let i = 0; i < nextTodos.length; i++) {
+        if (!_sameTodo(nextTodos[i], prevTodos[i])) return false;
+    }
+    return true;
+}
+
+function _sameCategories(nextCats, prevCats) {
+    if (nextCats.length !== prevCats.length) return false;
+    for (let i = 0; i < nextCats.length; i++) {
+        if (nextCats[i].id !== prevCats[i].id) return false;
+        if (nextCats[i].name !== prevCats[i].name) return false;
+        if ((nextCats[i].order ?? i) !== (prevCats[i].order ?? i)) return false;
+    }
+    return true;
+}
+
+export function getSettingsChangeFlags(prevSettings, nextSettings) {
+    return {
+        bgChanged: prevSettings.bgOpacity !== nextSettings.bgOpacity
+            || prevSettings.bgBlur !== nextSettings.bgBlur,
+        titleChanged: prevSettings.appTitle !== nextSettings.appTitle,
+        resetChanged: prevSettings.resetEnabled !== nextSettings.resetEnabled
+            || prevSettings.resetTime !== nextSettings.resetTime
+            || prevSettings.resetRepeat !== nextSettings.resetRepeat
+            || prevSettings.lastGlobalResetAt !== nextSettings.lastGlobalResetAt
+            || prevSettings.resetCalendarDate !== nextSettings.resetCalendarDate,
+    };
+}
+
 /**
  * Firestore onSnapshot 리스너를 시작합니다.
  * 로그인 성공 후 1회 호출. 로그아웃 시 stopListeners()로 해제.
@@ -164,9 +209,11 @@ export function startListeners() {
             if (!remoteIds.has(id)) localMap.delete(id);
         }
 
-        state.todos = [...localMap.values()].sort((a, b) =>
+        const mergedTodos = [...localMap.values()].sort((a, b) =>
             new Date(b.createdAt) - new Date(a.createdAt)
         );
+        if (_sameTodos(mergedTodos, state.todos)) return;
+        state.todos = mergedTodos;
         emit('todos:changed');
     }, err => console.error('[Sync] todos 리스너 오류:', err));
 
@@ -179,10 +226,14 @@ export function startListeners() {
             .map(doc => ({ id: doc.id, ...doc.data() }))
             .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
         if (cats.length) {
+            const prevCats = state.categories;
+            const prevCurrent = state.currentCategoryId;
+
             state.categories = cats;
             if (!state.categories.find(c => c.id === state.currentCategoryId)) {
                 state.currentCategoryId = state.categories[0].id;
             }
+            if (_sameCategories(state.categories, prevCats) && prevCurrent === state.currentCategoryId) return;
             emit('categories:changed');
         }
     }, err => console.error('[Sync] categories 리스너 오류:', err));
@@ -195,11 +246,20 @@ export function startListeners() {
         const data = snap.data();
         const { updatedAt, currentCategoryId, ...remoteSettings } = data;
 
+        const prevSettings = state.settings;
+
         state.settings = { ...state.settings, ...remoteSettings };
         // currentCategoryId는 앱 시작 시 적용하지 않음 (항상 첫 번째 카테고리로 시작)
 
-        emit('title:changed');
-        emit('categories:changed');
+        const {
+            bgChanged,
+            titleChanged,
+            resetChanged,
+        } = getSettingsChangeFlags(prevSettings, state.settings);
+
+        if (bgChanged) emit('bg:changed');
+        if (titleChanged) emit('title:changed');
+        if (resetChanged) emit('reset:reschedule');
     }, err => console.error('[Sync] settings 리스너 오류:', err));
 }
 

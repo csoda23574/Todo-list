@@ -134,7 +134,6 @@ export function renderTodos() {
     // 카테고리 필터를 한 번만 수행 → updateStats에 재사용
     const catTodos = _catTodos();
     const filtered = _applyStateFilter(catTodos);
-    console.log('[renderTodos] 항목 수:', filtered.length);
 
     const fragment = document.createDocumentFragment();
     // 콜백 함수 할당 오버헤드 방지

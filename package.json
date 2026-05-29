@@ -7,6 +7,10 @@
     "private": true,
     "scripts": {
         "start": "electron .",
+        "test:smoke:static": "node scripts/smoke-test.js",
+        "test:smoke:runtime": "electron scripts/runtime-smoke.js",
+        "test:smoke": "npm run test:smoke:static && npm run test:smoke:runtime",
+        "test:smoke:ci": "node scripts/smoke-ci.js",
         "build-icon": "node scripts/generate-icon.js",
         "clean": "node -e \"const fs=require('fs');if(fs.existsSync('todo-dist')){fs.rmSync('todo-dist',{recursive:true,force:true});}\"",
         "pack": "npm run clean && npm run build-icon && electron-builder --dir",
