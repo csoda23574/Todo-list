@@ -201,8 +201,10 @@ export function buildResetKey(now, h, m) {
     const d = now.getDate();
 
     if (repeat === 'weekly') {
+        // dayOfWeek 제외: 주(week) 블록 안에서 한 번만 실행되도록 보장
+        // mo 포함: 월 경계에서 W1 충돌 방지 (예: 3월 W1 vs 4월 W1)
         const week = Math.ceil(d / 7);
-        return `${y}-W${week}-${now.getDay()}-${h}-${m}`;
+        return `${y}-${mo}-W${week}-${h}-${m}`;
     }
     if (repeat === 'monthly') return `${y}-${mo}-${h}-${m}`;
     if (repeat === 'yearly') return `${y}-${h}-${m}`;
@@ -473,7 +475,17 @@ function checkMissedResets() {
             // 오늘 초기화 시각이 이미 지났으면 doGlobalReset 실행
             // (내부에서 resetKey 비교로 중복 실행 방지)
             if (now >= resetMoment) {
-                doGlobalReset(now, h, m);
+                const rKey = getGlobalResetKey(state.uid);
+                if (!localStorage.getItem(rKey)) {
+                    // 최초 활성화: 즉시 초기화 실행 없이 키만 시드
+                    // → 다음 주기부터 정상 초기화됨
+                    const seedKey = repeat?.startsWith('every')
+                        ? `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`
+                        : buildResetKey(now, h, m);
+                    localStorage.setItem(rKey, seedKey);
+                } else {
+                    doGlobalReset(now, h, m);
+                }
             }
         }
     }
