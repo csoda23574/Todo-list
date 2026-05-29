@@ -103,8 +103,8 @@ function init() {
     bindEvents();
     bindElectronEvents();
     updateHeaderDate();
-    renderCategoryTabs();
     recordRender('categories');
+    renderCategoryTabs();
     renderTodosTracked();
     applyBackgroundTracked();
     applyAppTitleTracked();

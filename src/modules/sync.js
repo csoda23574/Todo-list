@@ -296,22 +296,29 @@ export async function initialMerge() {
                     createdAt: data.createdAt?.toDate?.()?.toISOString?.() ?? data.createdAt,
                     updatedAt: data.updatedAt?.toDate?.()?.toISOString?.() ?? data.updatedAt,
                 };
-            });
-            state.todos = remoteTodos.sort((a, b) =>
-                new Date(b.createdAt) - new Date(a.createdAt)
-            );
-            emit('todos:changed');
+            }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            if (!_sameTodos(remoteTodos, state.todos)) {
+                state.todos = remoteTodos;
+                emit('todos:changed');
+            }
         }
 
         // Categories 초기 로드
         const catSnap = await catsRef().get();
         if (!catSnap.empty) {
-            state.categories = catSnap.docs
+            const cats = catSnap.docs
                 .map(doc => ({ id: doc.id, ...doc.data() }))
                 .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-            // 항상 첫 번째(가장 왼쪽) 카테고리로 시작
-            state.currentCategoryId = state.categories[0].id;
-            emit('categories:changed');
+            if (cats.length) {
+                const prevCats = state.categories;
+                const prevCurrent = state.currentCategoryId;
+                state.categories = cats;
+                // 항상 첫 번째(가장 왼쪽) 카테고리로 시작
+                state.currentCategoryId = state.categories[0].id;
+                if (!_sameCategories(state.categories, prevCats) || state.currentCategoryId !== prevCurrent) {
+                    emit('categories:changed');
+                }
+            }
         } else if (state.categories.length) {
             await pushCategories(state.categories, state.currentCategoryId);
         }
@@ -320,9 +327,14 @@ export async function initialMerge() {
         const setSnap = await settingsRef().get();
         if (setSnap.exists) {
             const { updatedAt, currentCategoryId, ...remoteSettings } = setSnap.data();
+            const prevSettings = { ...state.settings };
             state.settings = { ...state.settings, ...remoteSettings };
             // currentCategoryId는 앱 시작 시 적용하지 않음 (항상 첫 번째 카테고리로 시작)
+            const { bgChanged, titleChanged, resetChanged } = getSettingsChangeFlags(prevSettings, state.settings);
+            // title은 로그인 직후 항상 DOM에 적용 (로컬과 같아도 최신값 보장)
             emit('title:changed');
+            if (bgChanged) emit('bg:changed');
+            if (resetChanged) emit('reset:reschedule');
         } else {
             await pushSettings(state.settings);
         }
