@@ -281,8 +281,14 @@ export function stopListeners() {
  * - 서버가 비어있고 로컬에 데이터가 있으면 → 로컬을 서버로 업로드
  */
 export async function initialMerge() {
+    // 앱 시작 직후 Firestore WebSocket 연결이 확립되기 전에 .get()이 호출되면
+    // 오프라인으로 간주되어 스테일 캐시를 반환할 수 있음.
+    // source:'server'를 우선 시도해 반드시 서버 최신값을 가져오고, 오프라인일 때만 캐시로 폴백.
+    const getFromServer = ref =>
+        ref.get({ source: 'server' }).catch(() => ref.get());
+
     try {
-        const snap = await todosRef().get();
+        const snap = await getFromServer(todosRef());
         if (snap.empty && state.todos.length > 0) {
             // 신규 계정 — 로컬 데이터를 서버로 업로드
             await pushAllTodos(state.todos);
@@ -304,7 +310,7 @@ export async function initialMerge() {
         }
 
         // Categories 초기 로드
-        const catSnap = await catsRef().get();
+        const catSnap = await getFromServer(catsRef());
         if (!catSnap.empty) {
             const cats = catSnap.docs
                 .map(doc => ({ id: doc.id, ...doc.data() }))
@@ -324,7 +330,7 @@ export async function initialMerge() {
         }
 
         // Settings 초기 로드
-        const setSnap = await settingsRef().get();
+        const setSnap = await getFromServer(settingsRef());
         if (setSnap.exists) {
             const { updatedAt, currentCategoryId, ...remoteSettings } = setSnap.data();
             const prevSettings = { ...state.settings };

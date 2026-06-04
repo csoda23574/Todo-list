@@ -264,11 +264,19 @@ export function doGlobalReset(now, h, m) {
         state.settings.lastGlobalResetAt = resetMoment.toISOString();
         saveSettings();
     } else {
+        // 크로스 디바이스: 다른 기기가 이미 이 주기를 초기화했는지 Firestore로 확인
+        const fsLastReset = state.settings.lastGlobalResetAt;
+        if (fsLastReset && new Date(fsLastReset) >= resetMoment) return;
+
         const resetKey = buildResetKey(now, h, m);
         const rKey = getGlobalResetKey(state.uid);
         if (localStorage.getItem(rKey) === resetKey) return;
         localStorage.setItem(rKey, resetKey);
         updateResetTimestamp();
+
+        // Firestore에 마지막 초기화 시각 저장 (크로스 디바이스 중복 방지)
+        state.settings.lastGlobalResetAt = resetMoment.toISOString();
+        saveSettings();
     }
 
     const targetItems = state.todos.filter(t => !t.itemResetTime && !t.itemResetSchedule);
