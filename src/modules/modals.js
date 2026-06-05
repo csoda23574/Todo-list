@@ -80,27 +80,31 @@ export function openEditModal(id) {
 
 /** 할 일의 초기화 설정을 폼에 채웁니다. */
 function _populateResetFields(todo) {
-    const s = todo.itemResetSchedule;
-    if (s) {
-        updateTaskResetTypeUI(s.type);
-        if (s.type === 'weekly') {
-            DOM.taskResetWeeklyTime.value = s.time || '';
-            document.querySelectorAll('.weekday-btn').forEach(b => {
-                b.classList.toggle('active', (s.weekdays || []).includes(parseInt(b.dataset.day, 10)));
-            });
-        } else if (s.type === 'monthly') {
-            initMonthDayGrid();
-            DOM.taskResetMonthlyTime.value = s.time || '';
-            DOM.monthDayGrid.querySelectorAll('.day-number-btn').forEach(b => {
-                b.classList.toggle('active', (s.days || []).includes(parseInt(b.dataset.day, 10)));
-            });
-        } else if (s.type === 'yearly') {
-            DOM.taskResetYearlyTime.value = s.time || '';
-            (s.dates || []).forEach(d => addYearlyDateEntry(d.month, d.day));
-        }
-    } else if (todo.itemResetTime) {
-        DOM.taskResetTime.value = todo.itemResetTime;
-        updateTaskResetTypeUI('time');
+    const r = todo.recurrence;
+    if (!r) {
+        updateTaskResetTypeUI('none');
+        return;
+    }
+    if (r.type === 'daily' || r.type === 'weekday') {
+        DOM.taskResetTime.value = r.time || '';
+        updateTaskResetTypeUI(r.type);
+    } else if (r.type === 'weekly') {
+        updateTaskResetTypeUI('weekly');
+        DOM.taskResetWeeklyTime.value = r.time || '';
+        document.querySelectorAll('.weekday-btn').forEach(b => {
+            b.classList.toggle('active', (r.weekdays || []).includes(parseInt(b.dataset.day, 10)));
+        });
+    } else if (r.type === 'monthly') {
+        initMonthDayGrid();
+        DOM.taskResetMonthlyTime.value = r.time || '';
+        DOM.monthDayGrid.querySelectorAll('.day-number-btn').forEach(b => {
+            b.classList.toggle('active', (r.days || []).includes(parseInt(b.dataset.day, 10)));
+        });
+        updateTaskResetTypeUI('monthly');
+    } else if (r.type === 'yearly') {
+        DOM.taskResetYearlyTime.value = r.time || '';
+        (r.dates || []).forEach(d => addYearlyDateEntry(d.month, d.day));
+        updateTaskResetTypeUI('yearly');
     } else {
         updateTaskResetTypeUI('none');
     }
@@ -122,19 +126,21 @@ export function handleModalSave() {
     const note = DOM.taskNote.value;
     const priority = getSelectedPriority();
     const resetType = DOM.taskResetType.value;
-    const itemResetTime = resetType === 'time' ? (DOM.taskResetTime.value || null) : null;
-    const itemResetSchedule = _buildScheduleFromForm(resetType);
+    const recurrence = _buildRecurrenceFromForm(resetType);
 
     if (state.editingId) {
-        editTodo(state.editingId, text, note, priority, itemResetTime, itemResetSchedule);
+        editTodo(state.editingId, text, note, priority, recurrence);
     } else {
-        addTodo(text, note, priority, itemResetTime, itemResetSchedule);
+        addTodo(text, note, priority, recurrence);
     }
     closeModal(DOM.taskModal);
     state.editingId = null;
 }
 
-function _buildScheduleFromForm(resetType) {
+function _buildRecurrenceFromForm(resetType) {
+    if (resetType === 'daily' || resetType === 'weekday') {
+        return { type: resetType, time: DOM.taskResetTime.value || '00:00' };
+    }
     if (resetType === 'weekly') {
         const weekdays = Array.from(document.querySelectorAll('.weekday-btn.active'))
             .map(b => parseInt(b.dataset.day, 10));
@@ -291,6 +297,9 @@ export async function saveSettingsFromModal() {
     if (DOM.appTitleInput) {
         state.settings.appTitle = DOM.appTitleInput.value.trim() || 'My Tasks';
     }
+
+    // 설정 저장 시 nextGlobalResetAt을 초기화 → applyResets()에서 재계산됨
+    state.settings.nextGlobalResetAt = null;
 
     saveSettings();
     emit('bg:changed');

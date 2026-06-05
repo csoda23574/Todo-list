@@ -9,10 +9,14 @@ import { saveTodos } from './storage.js';
 import { emit } from './bus.js';
 import { showToast, generateId } from './utils.js';
 import { deleteTodoRemote } from './sync.js';
+import { calcNextDueAfter } from './recurrence.js';
 
 /* ──────────────────────────── 추가 ────────────────────────────────────── */
 
-export function addTodo(text, note, priority, itemResetTime, itemResetSchedule) {
+export function addTodo(text, note, priority, recurrence) {
+    const nextDue = recurrence
+        ? calcNextDueAfter(recurrence, new Date(), new Date())?.toISOString() ?? null
+        : null;
     const todo = {
         id: generateId(),
         text: text.trim(),
@@ -20,8 +24,8 @@ export function addTodo(text, note, priority, itemResetTime, itemResetSchedule) 
         priority: priority || 'medium',
         done: false,
         createdAt: new Date().toISOString(),
-        itemResetTime: itemResetTime || null,
-        itemResetSchedule: itemResetSchedule || null,
+        recurrence: recurrence || null,
+        nextDue,
         categoryId: state.currentCategoryId,
     };
     state.todos.unshift(todo);
@@ -32,17 +36,20 @@ export function addTodo(text, note, priority, itemResetTime, itemResetSchedule) 
 
 /* ──────────────────────────── 수정 ────────────────────────────────────── */
 
-export function editTodo(id, text, note, priority, itemResetTime, itemResetSchedule) {
+export function editTodo(id, text, note, priority, recurrence) {
     const idx = state.todos.findIndex(t => t.id === id);
     if (idx === -1) return;
 
+    const nextDue = recurrence
+        ? calcNextDueAfter(recurrence, new Date(), new Date())?.toISOString() ?? null
+        : null;
     state.todos[idx] = {
         ...state.todos[idx],
         text,
         note,
         priority: priority || 'medium',
-        itemResetTime: itemResetTime || null,
-        itemResetSchedule: itemResetSchedule || null,
+        recurrence: recurrence || null,
+        nextDue,
     };
     saveTodos(state.todos[idx]);
     emit('todos:changed');
@@ -92,12 +99,4 @@ export function clearAllTodos(silent = false) {
     saveTodos();
     emit('todos:changed');
     if (!silent) showToast('모든 할 일이 삭제되었습니다', 'info');
-}
-
-/* ───────────────── 자동 초기화 (완료 해제, 항목 유지) ─────────────────── */
-
-export function resetAllTodos() {
-    state.todos = state.todos.map(t => ({ ...t, done: false }));
-    saveTodos();
-    emit('todos:changed');
 }

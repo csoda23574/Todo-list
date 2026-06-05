@@ -54,8 +54,16 @@ function buildHints(output) {
             hint: 'Category-switch budget exceeded: verify switchCategory only emits once and no extra renderTodos calls occur.',
         },
         {
-            match: 'same-minute scenario',
-            hint: 'Same-minute gate failed: verify shouldHandleMinuteTick/buildMinuteTickKey in src/modules/reset.js and state._lastResetTickMinuteKey lifecycle.',
+            match: 'nextDue-based scheduling',
+            hint: 'Reset nextDue scheduling check failed: ensure _scheduleNext() function exists in src/modules/reset.js.',
+        },
+        {
+            match: 'calcNextDueAfter for item resets',
+            hint: 'calcNextDueAfter import missing in reset.js: ensure it is imported from recurrence.js and used in _applyItemResets.',
+        },
+        {
+            match: 'no longer uses setInterval polling',
+            hint: 'setInterval polling still present: remove old interval-based reset timer from src/modules/reset.js.',
         },
         {
             match: 'remote settings: reset change detected',
@@ -75,7 +83,7 @@ function buildHints(output) {
         },
         {
             match: 'reset timer is gated by minute key',
-            hint: 'Reset minute gate structural check failed: ensure handleTimerTick uses shouldHandleMinuteTick(state._lastResetTickMinuteKey, now).',
+            hint: 'This check is obsolete. The reset system now uses nextDue-based setTimeout scheduling.',
         },
     ];
 

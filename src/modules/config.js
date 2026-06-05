@@ -15,6 +15,3 @@ export const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 계정별 데이터 격리를 위한 동적 키 생성기
 export const getStorageKey = (uid, key) => `todoApp_${uid}_${key}`;
-export const getGlobalResetKey = (uid) => `todoApp_${uid}_lastReset`;
-export const getItemResetKey = (uid, itemId) => `todoApp_${uid}_itemLastReset_${itemId}`;
-export const getResetTimestampKey = (uid) => `todoApp_${uid}_resetTimestamp`;

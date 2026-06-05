@@ -1,6 +1,7 @@
 {
-  "ok": true,
-  "smokeEnv": "prod",
-  "status": 0,
-  "timestamp": "2026-05-29T01:12:25.092Z"
+  "ok": false,
+  "smokeEnv": "dev",
+  "status": 1,
+  "timestamp": "2026-06-05T05:57:30.187Z",
+  "hintsCount": 4
 }

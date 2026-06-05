@@ -61,21 +61,21 @@ function run() {
     );
 
     expectContains(
-        'reset timer is gated by minute key',
+        'reset timer uses nextDue-based scheduling',
         resetJs,
-        'shouldHandleMinuteTick(state._lastResetTickMinuteKey, now)'
+        'function _scheduleNext()'
     );
 
     expectContains(
-        'reset minute key helper exists',
+        'reset system uses calcNextDueAfter for item resets',
         resetJs,
-        'export function buildMinuteTickKey(now)'
+        'calcNextDueAfter'
     );
 
     expectNotContains(
-        'global reset no longer performs unnecessary save on no-op',
+        'reset no longer uses setInterval polling',
         resetJs,
-        '} else {\n        saveTodos();\n    }'
+        'setInterval'
     );
 
     expectContains(

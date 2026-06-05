@@ -10,6 +10,7 @@ import { state } from './state.js';
 import { emit } from './bus.js';
 import { saveToIDB, loadFromIDB, removeFromIDB } from './idb.js';
 import { pushTodo, pushCategories, pushSettings, setLocalWritePending } from './sync.js';
+import { migrateToRecurrence, calcNextDueAfter } from './recurrence.js';
 
 /* ─────────────────────── LocalStorage 기본 헬퍼 ───────────────────────── */
 
@@ -79,13 +80,31 @@ export function saveSettings() {
 /* ────────────────────────── 상태 초기화 (앱 시작) ─────────────────────── */
 
 export function loadState() {
-    state.todos = loadFromStorage(STORAGE_KEYS.TODOS, []);
+    const rawTodos = loadFromStorage(STORAGE_KEYS.TODOS, []);
+
+    // 구버전 itemResetTime/itemResetSchedule → recurrence + nextDue 마이그레이션
+    const now = new Date();
+    state.todos = rawTodos.map(todo => {
+        if (todo.recurrence !== undefined) return todo; // 이미 신규 포맷
+        if (!todo.itemResetTime && !todo.itemResetSchedule) return todo; // 반복 없는 항목
+        const migrated = migrateToRecurrence(todo);
+        if (migrated.recurrence && !migrated.nextDue) {
+            migrated.nextDue = calcNextDueAfter(migrated.recurrence, now, now)?.toISOString() ?? null;
+        }
+        return migrated;
+    });
 
     const savedTheme = loadFromStorage(STORAGE_KEYS.THEME, 'light');
     document.documentElement.setAttribute('data-theme', savedTheme);
 
     const savedSettings = loadFromStorage(STORAGE_KEYS.SETTINGS, {});
     state.settings = { ...state.settings, ...savedSettings };
+
+    // 구버전 lastGlobalResetAt → nextGlobalResetAt 마이그레이션: 삭제하고 applyResets에서 재계산
+    if ('lastGlobalResetAt' in state.settings) {
+        delete state.settings.lastGlobalResetAt;
+        state.settings.nextGlobalResetAt = null;
+    }
 
     // Set an initial null state so the UI doesn't break
     state.settings.bgImage = null;

@@ -133,8 +133,8 @@ function _sameTodo(a, b) {
         && (a.createdAt ?? null) === (b.createdAt ?? null)
         && (a.updatedAt ?? null) === (b.updatedAt ?? null)
         && (a.categoryId ?? 'default') === (b.categoryId ?? 'default')
-        && (a.itemResetTime ?? null) === (b.itemResetTime ?? null)
-        && JSON.stringify(a.itemResetSchedule ?? null) === JSON.stringify(b.itemResetSchedule ?? null);
+        && JSON.stringify(a.recurrence ?? null) === JSON.stringify(b.recurrence ?? null)
+        && (a.nextDue ?? null) === (b.nextDue ?? null);
 }
 
 function _sameTodos(nextTodos, prevTodos) {
@@ -163,7 +163,7 @@ export function getSettingsChangeFlags(prevSettings, nextSettings) {
         resetChanged: prevSettings.resetEnabled !== nextSettings.resetEnabled
             || prevSettings.resetTime !== nextSettings.resetTime
             || prevSettings.resetRepeat !== nextSettings.resetRepeat
-            || prevSettings.lastGlobalResetAt !== nextSettings.lastGlobalResetAt
+            || prevSettings.nextGlobalResetAt !== nextSettings.nextGlobalResetAt
             || prevSettings.resetCalendarDate !== nextSettings.resetCalendarDate,
     };
 }
@@ -215,6 +215,7 @@ export function startListeners() {
         if (_sameTodos(mergedTodos, state.todos)) return;
         state.todos = mergedTodos;
         emit('todos:changed');
+        emit('reset:reschedule'); // nextDue 변경 시 타이머 재예약
     }, err => console.error('[Sync] todos 리스너 오류:', err));
 
     // ── Categories 리스너 ──

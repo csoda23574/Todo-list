@@ -14,9 +14,7 @@ import { renderCategoryTabs, addCategory, switchCategory } from './modules/categ
 import { bindEvents, bindElectronEvents } from './modules/events.js';
 import {
     scheduleResetTimer,
-    checkMissedResetsAfterSync,
-    buildMinuteTickKey,
-    shouldHandleMinuteTick,
+    applyResets,
 } from './modules/reset.js';
 import { on, emit } from './modules/bus.js';
 import { state } from './modules/state.js';
@@ -137,8 +135,8 @@ function init() {
             // Firestore 초기 병합 → 실시간 리스너 시작
             await initialMerge();
             startListeners();
-            // Firestore 데이터 수신 후 놓친 초기화 소급 적용
-            checkMissedResetsAfterSync();
+            // Firestore 데이터 수신 후 소급 초기화 적용
+            applyResets(new Date());
         } else {
             // ── 로그아웃 ──
             stopListeners();
@@ -174,15 +172,6 @@ if (typeof window !== 'undefined') {
             if (!target) return getRenderMetrics();
             switchCategory(target);
             return getRenderMetrics();
-        },
-        minuteTickScenario: (isoNow) => {
-            const now = new Date(isoNow);
-            const key = buildMinuteTickKey(now);
-            return {
-                key,
-                first: shouldHandleMinuteTick(null, now),
-                second: shouldHandleMinuteTick(key, now),
-            };
         },
         settingsChangeScenario: (prevSettings, nextSettings) =>
             getSettingsChangeFlags(prevSettings, nextSettings),

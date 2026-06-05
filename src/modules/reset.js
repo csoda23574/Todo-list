@@ -1,100 +1,207 @@
-/**
- * reset.js — 할 일 자동 초기화 타이머 시스템
+﻿/**
+ * reset.js — 할 일 반복 초기화 시스템 (nextDue 기반)
  *
- * 전역 초기화(일별/주별/...) 및 개별 항목 초기화(시간 지정/날짜/스케줄)를 담당합니다.
+ * 설계 원칙:
+ *   - 각 반복 항목은 `nextDue` (다음 초기화 예정 시각, ISO string) 를 Firestore에 저장
+ *   - `now >= nextDue` 이면 done=false + completedAt=null 처리 후 `nextDue` 를 다음 주기로 전진
+ *   - 크로스 디바이스: `nextDue` 가 Firestore에 저장되므로 onSnapshot 수신 후 자동 동기화
+ *   - 완료 취소: `nextDue` 는 완료 여부와 무관하게 변하지 않음  로직 꼬임 없음
+ *
+ * 초기화 흐름:
+ *   initializeResetSystem()
+ *      applyResets()     현재 시각 기준으로 초기화 실행
+ *      _scheduleNext()   setTimeout으로 다음 초기화 정확히 예약
+ *   (nextDue 도달 시)
+ *      applyResets() + _scheduleNext() 반복
  */
 
 import { state } from './state.js';
-import { getGlobalResetKey, getItemResetKey, getResetTimestampKey } from './config.js';
 import { saveTodos, saveSettings } from './storage.js';
-import { emit } from './bus.js'; // renderer 직접 의존 제거 — DIP
+import { emit } from './bus.js';
 import { showToast, showSystemNotification } from './utils.js';
 import { DOM } from './dom.js';
+import { calcNextDue, calcNextDueAfter, settingsToRecurrence } from './recurrence.js';
 
-function updateResetTimestamp() {
-    localStorage.setItem(getResetTimestampKey(state.uid), Date.now().toString());
-}
+/*  내부 헬퍼  */
 
-export function buildMinuteTickKey(now) {
-    return `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
-}
-
-export function shouldHandleMinuteTick(lastMinuteKey, now) {
-    return lastMinuteKey !== buildMinuteTickKey(now);
-}
-
-/* ─────────────────────── 다음 초기화 날짜 계산 ──────────────────────────── */
-
-const getLastResetDate = (hours, minutes) => {
-    const lastKey = localStorage.getItem(getGlobalResetKey(state.uid));
-    if (!lastKey) return null;
-
-    const parts = lastKey.split('-');
-    if (parts.length < 3) return null;
-
-    const lastDate = new Date(+parts[0], +parts[1], +parts[2]);
-    lastDate.setHours(hours, minutes, 0, 0);
-    return lastDate;
-};
-
-const resetStrategies = {
-    weekly: (target, now) => {
-        const result = new Date(target);
-        while (result.getDay() !== now.getDay()) result.setDate(result.getDate() + 1);
-        return result;
-    },
-    monthly: (target) => {
-        const result = new Date(target);
-        result.setMonth(result.getMonth() + 1);
-        return result;
-    },
-    yearly: (target) => {
-        const result = new Date(target);
-        result.setFullYear(result.getFullYear() + 1);
-        return result;
-    },
-    weekday: (target) => {
-        const result = new Date(target);
-        while (result.getDay() === 0 || result.getDay() === 6) result.setDate(result.getDate() + 1);
-        return result;
+function _onResetOccurred(label, changedItems) {
+    if (changedItems.length > 0) {
+        console.log(`${label} 완료미완료: ${changedItems.length}개`);
+        showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
+        showSystemNotification('🔄 항목 초기화', '일부 할 일이 자동으로 초기화되었습니다.');
     }
-};
+    saveTodos();
+    emit('todos:changed');
+}
 
+/*  전역 초기화 실행 ─ */
+
+/**
+ * 개별 recurrence가 없는 항목을 대상으로 전역 초기화를 실행합니다.
+ * nextGlobalResetAt이 도달했을 때만 실행하며, 이후 다음 주기로 전진합니다.
+ * 크로스 디바이스: nextGlobalResetAt이 Firestore에 저장되므로 다른 기기가
+ * 이미 초기화한 경우 now < nextGlobalResetAt 조건으로 자동 건너뜁니다.
+ */
+function _applyGlobalReset(now) {
+    if (!state.settings.resetEnabled) return;
+    const recurrence = settingsToRecurrence(state.settings);
+    if (!recurrence) return;
+
+    if (!state.settings.nextGlobalResetAt) {
+        // 최초 활성화: 즉시 초기화 없이 다음 주기만 예약
+        const nextDate = recurrence.type === 'calendar'
+            ? (recurrence.date ? new Date(recurrence.date) : null)
+            : calcNextDueAfter(recurrence, now, now);
+        if (nextDate) {
+            state.settings.nextGlobalResetAt = nextDate.toISOString();
+            saveSettings();
+        }
+        return;
+    }
+
+    const nextGlobal = new Date(state.settings.nextGlobalResetAt);
+    if (now < nextGlobal) return; // 아직 주기 미도래
+
+    // 초기화 대상: 개별 recurrence 없는 항목
+    const changedItems = [];
+    state.todos = state.todos.map(t => {
+        if (t.recurrence) return t;
+        if (!t.done) return t;
+        changedItems.push(t.text);
+        return { ...t, done: false, completedAt: null };
+    });
+
+    // nextGlobalResetAt을 다음 미래 주기로 전진 (calendar는 1회성이므로 null)
+    const newNext = recurrence.type === 'calendar'
+        ? null
+        : calcNextDueAfter(recurrence, nextGlobal, now);
+    state.settings.nextGlobalResetAt = newNext ? newNext.toISOString() : null;
+    saveSettings();
+
+    if (changedItems.length > 0) {
+        _onResetOccurred('[전역 초기화]', changedItems);
+    }
+}
+
+/*  항목별 초기화 실행  */
+
+/**
+ * recurrence가 설정된 항목 중 nextDue가 도달한 항목을 초기화합니다.
+ * nextDue를 now 이후 첫 번째 미래 발생 시각으로 전진시킵니다.
+ */
+function _applyItemResets(now) {
+    const changedItems = [];
+    let anyChanged = false;
+
+    state.todos = state.todos.map(t => {
+        if (!t.recurrence || !t.nextDue) return t;
+        if (now < new Date(t.nextDue)) return t;
+
+        const newNextDue = calcNextDueAfter(t.recurrence, new Date(t.nextDue), now);
+        if (t.done) changedItems.push(t.text);
+        anyChanged = true;
+        return {
+            ...t,
+            done: false,
+            completedAt: null,
+            nextDue: newNextDue ? newNextDue.toISOString() : null,
+        };
+    });
+
+    if (anyChanged) {
+        _onResetOccurred('[항목 초기화]', changedItems);
+    }
+}
+
+/*  다음 초기화 예약  */
+
+let _resetTimer = null;
+
+/**
+ * 현재 state 기준으로 가장 이른 nextDue/nextGlobalResetAt에 setTimeout을 설정합니다.
+ * applyResets() 완료 후 자동 호출됩니다.
+ */
+function _scheduleNext() {
+    if (_resetTimer) { clearTimeout(_resetTimer); _resetTimer = null; }
+
+    const now = Date.now();
+    const candidates = [];
+
+    if (state.settings.resetEnabled && state.settings.nextGlobalResetAt) {
+        candidates.push(new Date(state.settings.nextGlobalResetAt).getTime());
+    }
+    state.todos.forEach(t => {
+        if (t.nextDue) candidates.push(new Date(t.nextDue).getTime());
+    });
+
+    const earliest = candidates.filter(t => t > now).reduce((a, b) => Math.min(a, b), Infinity);
+    if (!isFinite(earliest)) return;
+
+    // setTimeout 최대값(~24.8일) 초과 방지
+    const delay = Math.min(earliest - now, 2_147_483_647);
+    _resetTimer = setTimeout(() => {
+        applyResets(new Date());
+    }, delay);
+}
+
+/*  공개 API  */
+
+/**
+ * 현재 시각 기준으로 초기화가 필요한 항목을 모두 실행하고 다음 타이머를 예약합니다.
+ * 앱 시작, Firestore 동기화 완료, 설정 변경 시 호출합니다.
+ * @param {Date} [now=new Date()]
+ */
+export function applyResets(now = new Date()) {
+    _applyGlobalReset(now);
+    _applyItemResets(now);
+    _scheduleNext();
+}
+
+/**
+ * 초기화 시스템을 시작합니다.
+ * applyResets()로 즉시 적용한 뒤 다음 초기화 시각에 setTimeout을 설정합니다.
+ */
+export function initializeResetSystem() {
+    applyResets(new Date());
+}
+
+/**
+ * 설정 변경 시 타이머를 재시작합니다.
+ * 'reset:reschedule' 이벤트로 app.js에서 호출됩니다.
+ */
+export function scheduleResetTimer() {
+    if (_resetTimer) { clearTimeout(_resetTimer); _resetTimer = null; }
+    initializeResetSystem();
+}
+
+/*  다음 초기화 날짜 계산  */
+
+/**
+ * 반복 방식(repeat)에 따라 다음 초기화 예정 날짜를 계산합니다.
+ * 설정 모달의 "다음 초기화" 안내 문구 표시에 사용합니다.
+ * @param {string} timeStr - "HH:mm" 형식의 초기화 시각
+ * @param {string} repeat  - 반복 방식
+ * @returns {Date}
+ */
 export function getNextResetDate(timeStr, repeat) {
     const now = new Date();
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    const target = new Date(now);
-    target.setHours(hours, minutes, 0, 0);
-    if (target <= now) target.setDate(target.getDate() + 1);
-
-    if (resetStrategies[repeat]) {
-        return resetStrategies[repeat](target, now);
-    }
-
-    if (repeat?.startsWith('every')) {
-        const n = parseInt(repeat.slice(5), 10);
-        const lastDate = getLastResetDate(hours, minutes);
-
-        if (lastDate) {
-            const nextDate = new Date(lastDate);
-            nextDate.setDate(nextDate.getDate() + n);
-            if (nextDate > now) return nextDate;
-        }
-        const fallback = new Date(target);
-        fallback.setDate(fallback.getDate() + n - 1);
-        return fallback;
-    }
-
-    return target;
+    if (repeat === 'calendar') return new Date(now.getTime() + 86_400_000);
+    const recurrence = repeat?.startsWith('every')
+        ? { type: 'everyN', n: parseInt(repeat.slice(5), 10), time: timeStr }
+        : { type: repeat || 'daily', time: timeStr };
+    return calcNextDueAfter(recurrence, now, now) ?? new Date(now.getTime() + 86_400_000);
 }
 
-/* ─────────────────── 월별 날짜 그리드 초기화 ────────────────────────────── */
+/*  월별 날짜 그리드 초기화  */
 
+/**
+ * 설정 모달의 월별 날짜 선택 그리드(1~31일 버튼)를 최초 1회 생성합니다.
+ * 이미 생성된 경우 dataset.initialized 플래그로 중복 생성을 방지합니다.
+ */
 export function initMonthDayGrid() {
     const grid = DOM.monthDayGrid;
     if (!grid || grid.dataset.initialized) return;
     grid.dataset.initialized = '1';
-
     for (let i = 1; i <= 31; i++) {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -106,8 +213,13 @@ export function initMonthDayGrid() {
     }
 }
 
-/* ───────────────── 연간 날짜 항목 추가 ──────────────────────────────────── */
+/*  연간 날짜 항목 추가  */
 
+/**
+ * 설정 모달의 연간 날짜 목록에 (월, 일) 선택 행을 추가합니다.
+ * @param {number} [month=1] - 기본 선택 월 (1~12)
+ * @param {number} [day=1]   - 기본 선택 일 (1~31)
+ */
 export function addYearlyDateEntry(month = 1, day = 1) {
     const list = DOM.yearlyDateList;
     const row = document.createElement('div');
@@ -141,8 +253,12 @@ export function addYearlyDateEntry(month = 1, day = 1) {
     list.appendChild(row);
 }
 
-/* ─────────────────── 연간 날짜 DOM 수집 ─────────────────────────────────── */
+/*  연간 날짜 DOM 수집  */
 
+/**
+ * 설정 모달의 연간 날짜 목록 DOM에서 현재 입력된 {month, day} 배열을 수집합니다.
+ * @returns {{ month: number, day: number }[]}
+ */
 export function getYearlyDatesFromDOM() {
     return Array.from(DOM.yearlyDateList.querySelectorAll('.yearly-date-row'))
         .map(row => ({
@@ -151,27 +267,29 @@ export function getYearlyDatesFromDOM() {
         }));
 }
 
-/* ────────────────── 초기화 타입 UI 전환 ─────────────────────────────────── */
+/*  초기화 타입 UI 전환  */
 
+/**
+ * 항목별 초기화 타입에 따라 설정 모달의 관련 입력 행을 표시하거나 숨깁니다.
+ * @param {string} type - 'none' | 'daily' | 'weekday' | 'weekly' | 'monthly' | 'yearly'
+ */
 export function updateTaskResetTypeUI(type) {
-    const rows = {
-        time: DOM.taskResetTimeRow,
-        weekly: DOM.taskResetWeeklyRow,
-        monthly: DOM.taskResetMonthlyRow,
-        yearly: DOM.taskResetYearlyRow,
-    };
-    Object.entries(rows).forEach(([key, el]) => {
-        el?.classList.toggle('hidden', key !== type);
-    });
+    const timeTypes = new Set(['daily', 'weekday']);
+    DOM.taskResetTimeRow?.classList.toggle('hidden', !timeTypes.has(type));
+    DOM.taskResetWeeklyRow?.classList.toggle('hidden', type !== 'weekly');
+    DOM.taskResetMonthlyRow?.classList.toggle('hidden', type !== 'monthly');
+    DOM.taskResetYearlyRow?.classList.toggle('hidden', type !== 'yearly');
     if (type === 'monthly') initMonthDayGrid();
-    if (type === 'yearly' && DOM.yearlyDateList?.children.length === 0) {
-        addYearlyDateEntry();
-    }
+    if (type === 'yearly' && DOM.yearlyDateList?.children.length === 0) addYearlyDateEntry();
     if (DOM.taskResetType) DOM.taskResetType.value = type;
 }
 
-/* ──────────────────── 다음 초기화 정보 표시 ─────────────────────────────── */
+/*  다음 초기화 정보 표시  */
 
+/**
+ * 설정 모달의 "다음 초기화" 안내 문구를 현재 설정값 기준으로 갱신합니다.
+ * 초기화가 비활성화되어 있거나 시각이 미설정된 경우 문구를 숨깁니다.
+ */
 export function updateResetNextInfo() {
     const el = DOM.resetNextInfo;
     if (!el) return;
@@ -190,412 +308,4 @@ export function updateResetNextInfo() {
         month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     })}`;
     el.classList.remove('hidden');
-}
-
-/* ──────────────────── 초기화 키 빌더 ───────────────────────────────────── */
-
-export function buildResetKey(now, h, m) {
-    const repeat = state.settings.resetRepeat;
-    const y = now.getFullYear();
-    const mo = now.getMonth();
-    const d = now.getDate();
-
-    if (repeat === 'weekly') {
-        // dayOfWeek 제외: 주(week) 블록 안에서 한 번만 실행되도록 보장
-        // mo 포함: 월 경계에서 W1 충돌 방지 (예: 3월 W1 vs 4월 W1)
-        const week = Math.ceil(d / 7);
-        return `${y}-${mo}-W${week}-${h}-${m}`;
-    }
-    if (repeat === 'monthly') return `${y}-${mo}-${h}-${m}`;
-    if (repeat === 'yearly') return `${y}-${h}-${m}`;
-    return `${y}-${mo}-${d}-${h}-${m}`;
-}
-
-/* ───────────────── 평일 제한 확인 ──────────────────────────────────────── */
-
-export function isWeekdayBlocked(now) {
-    return state.settings.resetRepeat === 'weekday'
-        && (now.getDay() === 0 || now.getDay() === 6);
-}
-
-/* ──────────────────── 전역 초기화 실행 ──────────────────────────────────── */
-
-export function doGlobalReset(now, h, m) {
-    if (isWeekdayBlocked(now)) return;
-
-    const repeat = state.settings.resetRepeat;
-
-    // 이 초기화 주기의 시작 시각 — completedAt 비교 기준
-    const resetMoment = new Date(now);
-    resetMoment.setHours(h, m, 0, 0);
-
-    if (repeat?.startsWith('every')) {
-        const n = parseInt(repeat.slice(5), 10);
-        const rKey = getGlobalResetKey(state.uid);
-
-        // 크로스 디바이스: Firestore 동기화된 lastGlobalResetAt 우선 확인
-        const fsLastReset = state.settings.lastGlobalResetAt;
-        if (fsLastReset) {
-            const nextDate = new Date(fsLastReset);
-            nextDate.setDate(nextDate.getDate() + n);
-            if (now < nextDate) return;
-        } else {
-            // 동일 기기 폴백: localStorage
-            const lastKey = localStorage.getItem(rKey);
-            if (lastKey) {
-                const parts = lastKey.split('-');
-                if (parts.length >= 3) {
-                    const lastDate = new Date(+parts[0], +parts[1], +parts[2]);
-                    lastDate.setHours(h, m, 0, 0);
-                    const nextDate = new Date(lastDate);
-                    nextDate.setDate(nextDate.getDate() + n);
-                    if (now < nextDate) return;
-                }
-            }
-        }
-
-        // 같은 날 중복 실행 방지
-        const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`;
-        if (localStorage.getItem(rKey) === todayKey) return;
-        localStorage.setItem(rKey, todayKey);
-        updateResetTimestamp();
-
-        // Firestore에 마지막 초기화 시각 저장 (크로스 디바이스 N일 간격 기준)
-        state.settings.lastGlobalResetAt = resetMoment.toISOString();
-        saveSettings();
-    } else {
-        // 크로스 디바이스: 다른 기기가 이미 이 주기를 초기화했는지 Firestore로 확인
-        const fsLastReset = state.settings.lastGlobalResetAt;
-        if (fsLastReset && new Date(fsLastReset) >= resetMoment) return;
-
-        const resetKey = buildResetKey(now, h, m);
-        const rKey = getGlobalResetKey(state.uid);
-        if (localStorage.getItem(rKey) === resetKey) return;
-        localStorage.setItem(rKey, resetKey);
-        updateResetTimestamp();
-
-        // Firestore에 마지막 초기화 시각 저장 (크로스 디바이스 중복 방지)
-        state.settings.lastGlobalResetAt = resetMoment.toISOString();
-        saveSettings();
-    }
-
-    const targetItems = state.todos.filter(t => !t.itemResetTime && !t.itemResetSchedule);
-    // completedAt > resetMoment 인 항목은 초기화 후 재완료된 것이므로 유지
-    const toReset = targetItems.filter(t =>
-        t.done && !(t.completedAt && new Date(t.completedAt) > resetMoment)
-    );
-    const kept = targetItems.filter(t =>
-        t.done && t.completedAt && new Date(t.completedAt) > resetMoment
-    );
-
-    console.log(`[전역 초기화] 초기화: ${toReset.length}개, 유지(재완료): ${kept.length}개`);
-
-    if (toReset.length > 0) {
-        const toResetIds = new Set(toReset.map(t => t.id));
-        state.todos = state.todos.map(t => {
-            if (t.itemResetTime || t.itemResetSchedule) return t;
-            if (!toResetIds.has(t.id)) return t;
-            return { ...t, done: false, completedAt: null };
-        });
-        _onResetOccurred('[전역 초기화]', toReset);
-    }
-}
-
-/* ──────────────────── 개별 시간 초기화 ─────────────────────────────────── */
-
-export function doItemResets(now, hh, mm) {
-    if (isWeekdayBlocked(now)) return;
-
-    // resetKey은 (now, hh, mm)에만 의존 — map 바깥에서 한 번만 계산
-    const resetKey = buildResetKey(now, hh, mm);
-    // completedAt 비교 기준: 오늘 해당 초기화 시각
-    const resetMoment = new Date(now);
-    resetMoment.setHours(hh, mm, 0, 0);
-    const changedItems = [];
-    let anyReset = false;
-
-    state.todos = state.todos.map(t => {
-        if (!t.itemResetTime || t.itemResetSchedule) return t;
-        const [th, tm] = t.itemResetTime.split(':').map(Number);
-        if (th !== hh || tm !== mm) return t;
-
-        const itemKey = getItemResetKey(state.uid, t.id);
-        if (localStorage.getItem(itemKey) === resetKey) return t;
-        localStorage.setItem(itemKey, resetKey);
-
-        // 초기화 시각 이후 완료된 항목은 유지
-        if (t.done && t.completedAt && new Date(t.completedAt) > resetMoment) return t;
-
-        anyReset = true;
-        if (t.done) changedItems.push(t.text);
-        return { ...t, done: false, completedAt: null };
-    });
-
-    if (anyReset) {
-        updateResetTimestamp();
-        _onResetOccurred('[개별 시간 초기화]', changedItems);
-    }
-}
-
-/* ─────────────────── 주간/월간/연간 스케줄 초기화 ──────────────────────── */
-
-export function doItemScheduleResets(now) {
-    const hh = now.getHours();
-    const mm = now.getMinutes();
-    const changedItems = [];
-    let anyReset = false;
-
-    state.todos = state.todos.map(t => {
-        if (!t.itemResetSchedule) return t;
-        const s = t.itemResetSchedule;
-        const [sh, sm] = (s.time || '00:00').split(':').map(Number);
-
-        // 정각(Exact minute)에만 동작하도록 수정
-        if (hh !== sh || mm !== sm) return t;
-
-        const matched = _matchesSchedule(s, now);
-        if (!matched) return t;
-
-        const itemKey = getItemResetKey(state.uid, t.id);
-        const occKey = `${s.type}-${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${sh}-${sm}`;
-        if (localStorage.getItem(itemKey) === occKey) return t;
-        localStorage.setItem(itemKey, occKey);
-
-        // 초기화 시각 이후 완료된 항목은 유지
-        const resetMoment = new Date(now);
-        resetMoment.setHours(sh, sm, 0, 0);
-        if (t.done && t.completedAt && new Date(t.completedAt) > resetMoment) return t;
-
-        anyReset = true;
-        if (t.done) changedItems.push(t.text);
-        return { ...t, done: false, completedAt: null };
-    });
-
-    if (anyReset) {
-        updateResetTimestamp();
-        _onResetOccurred('[스케줄 초기화]', changedItems);
-    }
-}
-
-const scheduleMatchers = {
-    weekly: (s, now) => (s.weekdays || []).includes(now.getDay()),
-    monthly: (s, now) => (s.days || []).includes(now.getDate()),
-    yearly: (s, now) => (s.dates || []).some(
-        d => d.month === (now.getMonth() + 1) && d.day === now.getDate()
-    )
-};
-
-/** 스케줄 타입에 따라 today와 매칭되는지 확인합니다. */
-function _matchesSchedule(s, now) {
-    const matcher = scheduleMatchers[s.type];
-    return matcher ? matcher(s, now) : false;
-}
-
-/** 초기화 발생 공통 후처리 */
-function _onResetOccurred(label, changedItems) {
-    if (changedItems.length > 0) {
-        console.log(`${label} 완료→미완료: ${changedItems.length}개`);
-        showToast('일부 할 일이 자동으로 초기화되었습니다', 'info');
-        showSystemNotification('🔄 항목 초기화', '일부 할 일이 자동으로 초기화되었습니다.');
-    }
-    saveTodos();
-    emit('todos:changed');
-}
-
-/* ──────────────────── 타이머 스케줄러 ──────────────────────────────────── */
-
-export function scheduleResetTimer() {
-    if (state.resetTimerInterval) {
-        clearInterval(state.resetTimerInterval);
-        state.resetTimerInterval = null;
-    }
-    state._lastResetTickMinuteKey = null;
-    initializeResetSystem();
-}
-
-/* ──────────────────── 초기화 시스템 시작 ───────────────────────────────── */
-
-const handleTimerTick = () => {
-    const now = new Date();
-    const hh = now.getHours();
-    const mm = now.getMinutes();
-    const minuteKey = buildMinuteTickKey(now);
-
-    if (!shouldHandleMinuteTick(state._lastResetTickMinuteKey, now)) return;
-    state._lastResetTickMinuteKey = minuteKey;
-
-    if (state.settings.resetEnabled) {
-        const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
-        const repeat = state.settings.resetRepeat;
-
-        if (repeat === 'calendar') {
-            const cd = state.settings.resetCalendarDate;
-            if (cd) {
-                const calDate = new Date(cd);
-                if (now.getFullYear() === calDate.getFullYear() &&
-                    now.getMonth() === calDate.getMonth() &&
-                    now.getDate() === calDate.getDate() &&
-                    hh === calDate.getHours() &&
-                    mm === calDate.getMinutes()) {
-                    doGlobalReset(now, h, m);
-                }
-            }
-        } else if (hh === h && mm === m) {
-            doGlobalReset(now, h, m);
-        }
-    }
-
-    const uniqueTimes = new Set();
-    state.todos.forEach(t => { if (t.itemResetTime && !t.itemResetSchedule) uniqueTimes.add(t.itemResetTime); });
-
-    uniqueTimes.forEach(timeStr => {
-        const [th, tm] = timeStr.split(':').map(Number);
-        if (hh === th && mm === tm) doItemResets(now, th, tm);
-    });
-
-    doItemScheduleResets(now);
-};
-
-export function initializeResetSystem() {
-    // 앱 시작 시 놓친 초기화 소급 적용 (앱이 꺼져 있는 동안 지나간 시간 처리)
-    checkMissedResets();
-    handleTimerTick();
-    state.resetTimerInterval = setInterval(handleTimerTick, 1000);
-}
-
-/**
- * 앱 시작 시 호출 — 앱이 꺼진 동안 지나간 초기화를 소급 적용합니다.
- * doGlobalReset / doItemResets 내부의 resetKey 중복 방지 로직이 있으므로
- * 이미 초기화된 주기는 절대 재실행되지 않습니다.
- */
-function checkMissedResets() {
-    const now = new Date();
-
-    // ── 전역 초기화 ──
-    if (state.settings.resetEnabled) {
-        const [h, m] = (state.settings.resetTime || '00:00').split(':').map(Number);
-        const repeat = state.settings.resetRepeat;
-
-        // calendar 타입은 1회성이므로 소급 제외
-        if (repeat !== 'calendar') {
-            const resetMoment = new Date(now);
-            resetMoment.setHours(h, m, 0, 0);
-            // 오늘 초기화 시각이 이미 지났으면 doGlobalReset 실행
-            // (내부에서 resetKey 비교로 중복 실행 방지)
-            if (now >= resetMoment) {
-                const rKey = getGlobalResetKey(state.uid);
-                if (!localStorage.getItem(rKey)) {
-                    // 최초 활성화: 즉시 초기화 실행 없이 키만 시드
-                    // → 다음 주기부터 정상 초기화됨
-                    const seedKey = repeat?.startsWith('every')
-                        ? `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${h}-${m}`
-                        : buildResetKey(now, h, m);
-                    localStorage.setItem(rKey, seedKey);
-                } else {
-                    doGlobalReset(now, h, m);
-                }
-            }
-        }
-    }
-
-    // ── 개별 시간 초기화 ──
-    const uniqueTimes = new Set();
-    state.todos.forEach(t => {
-        if (t.itemResetTime && !t.itemResetSchedule) {
-            uniqueTimes.add(t.itemResetTime);
-        }
-    });
-    uniqueTimes.forEach(timeStr => {
-        const [th, tm] = timeStr.split(':').map(Number);
-        const resetMoment = new Date(now);
-        resetMoment.setHours(th, tm, 0, 0);
-        if (now >= resetMoment) {
-            doItemResets(now, th, tm);
-        }
-    });
-
-    // ── 스케줄 초기화 소급 (주간/월간/연간) ──
-    _checkMissedScheduleResets(now);
-}
-
-/**
- * 스케줄(itemResetSchedule) 항목의 가장 최근 발생 시점을 반환합니다.
- * 지나간 시점이어야 하며, 타입별로 최대 탐색 범위를 제한합니다.
- */
-function _getLastScheduleOccurrence(s, now, sh, sm) {
-    if (s.type === 'weekly') {
-        // 오늘 포함 최대 7일 전까지 탐색
-        for (let i = 0; i <= 7; i++) {
-            const candidate = new Date(now);
-            candidate.setDate(candidate.getDate() - i);
-            candidate.setHours(sh, sm, 0, 0);
-            if (candidate > now) continue;
-            if ((s.weekdays || []).includes(candidate.getDay())) return candidate;
-        }
-    } else if (s.type === 'monthly') {
-        // 이번 달 및 지난 달 탐색
-        for (let monthBack = 0; monthBack <= 1; monthBack++) {
-            const base = new Date(now);
-            base.setMonth(base.getMonth() - monthBack);
-            const days = [...(s.days || [])].sort((a, b) => b - a);
-            for (const day of days) {
-                const candidate = new Date(base.getFullYear(), base.getMonth(), day, sh, sm, 0, 0);
-                if (candidate <= now) return candidate;
-            }
-        }
-    } else if (s.type === 'yearly') {
-        // 올해 및 작년 탐색
-        for (let yearBack = 0; yearBack <= 1; yearBack++) {
-            const year = now.getFullYear() - yearBack;
-            for (const d of (s.dates || [])) {
-                const candidate = new Date(year, d.month - 1, d.day, sh, sm, 0, 0);
-                if (candidate <= now) return candidate;
-            }
-        }
-    }
-    return null;
-}
-
-/**
- * 앱 시작 시 놓친 스케줄 초기화를 소급 적용합니다.
- * doItemScheduleResets 와 동일한 occKey 형식을 사용해 중복 실행을 방지합니다.
- */
-function _checkMissedScheduleResets(now) {
-    const changedItems = [];
-    let anyReset = false;
-
-    state.todos = state.todos.map(t => {
-        if (!t.itemResetSchedule) return t;
-        const s = t.itemResetSchedule;
-        const [sh, sm] = (s.time || '00:00').split(':').map(Number);
-
-        const lastOcc = _getLastScheduleOccurrence(s, now, sh, sm);
-        if (!lastOcc) return t;
-
-        const itemKey = getItemResetKey(state.uid, t.id);
-        const occKey = `${s.type}-${lastOcc.getFullYear()}-${lastOcc.getMonth()}-${lastOcc.getDate()}-${sh}-${sm}`;
-        if (localStorage.getItem(itemKey) === occKey) return t;
-        localStorage.setItem(itemKey, occKey);
-
-        // 마지막 발생 시점 이후 완료된 항목은 유지
-        if (t.done && t.completedAt && new Date(t.completedAt) > lastOcc) return t;
-
-        anyReset = true;
-        if (t.done) changedItems.push(t.text);
-        return { ...t, done: false, completedAt: null };
-    });
-
-    if (anyReset) {
-        updateResetTimestamp();
-        _onResetOccurred('[스케줄 소급 초기화]', changedItems);
-    }
-}
-
-/**
- * Firestore initialMerge() 완료 후 호출.
- * 서버 데이터를 받은 뒤 놓친 초기화를 소급 적용합니다.
- * (로그인 시 app.js에서 호출)
- */
-export function checkMissedResetsAfterSync() {
-    checkMissedResets();
 }

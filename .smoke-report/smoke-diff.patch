@@ -1,0 +1,62 @@
+diff --git a/src/modules/reset.js b/src/modules/reset.js
+index 7203344..2d5f120 100644
+--- a/src/modules/reset.js
++++ b/src/modules/reset.js
+@@ -264,11 +264,19 @@ export function doGlobalReset(now, h, m) {
+         state.settings.lastGlobalResetAt = resetMoment.toISOString();
+         saveSettings();
+     } else {
++        // 크로스 디바이스: 다른 기기가 이미 이 주기를 초기화했는지 Firestore로 확인
++        const fsLastReset = state.settings.lastGlobalResetAt;
++        if (fsLastReset && new Date(fsLastReset) >= resetMoment) return;
++
+         const resetKey = buildResetKey(now, h, m);
+         const rKey = getGlobalResetKey(state.uid);
+         if (localStorage.getItem(rKey) === resetKey) return;
+         localStorage.setItem(rKey, resetKey);
+         updateResetTimestamp();
++
++        // Firestore에 마지막 초기화 시각 저장 (크로스 디바이스 중복 방지)
++        state.settings.lastGlobalResetAt = resetMoment.toISOString();
++        saveSettings();
+     }
+ 
+     const targetItems = state.todos.filter(t => !t.itemResetTime && !t.itemResetSchedule);
+diff --git a/src/modules/sync.js b/src/modules/sync.js
+index 7ac42ae..d3e0a13 100644
+--- a/src/modules/sync.js
++++ b/src/modules/sync.js
+@@ -281,8 +281,14 @@ export function stopListeners() {
+  * - 서버가 비어있고 로컬에 데이터가 있으면 → 로컬을 서버로 업로드
+  */
+ export async function initialMerge() {
++    // 앱 시작 직후 Firestore WebSocket 연결이 확립되기 전에 .get()이 호출되면
++    // 오프라인으로 간주되어 스테일 캐시를 반환할 수 있음.
++    // source:'server'를 우선 시도해 반드시 서버 최신값을 가져오고, 오프라인일 때만 캐시로 폴백.
++    const getFromServer = ref =>
++        ref.get({ source: 'server' }).catch(() => ref.get());
++
+     try {
+-        const snap = await todosRef().get();
++        const snap = await getFromServer(todosRef());
+         if (snap.empty && state.todos.length > 0) {
+             // 신규 계정 — 로컬 데이터를 서버로 업로드
+             await pushAllTodos(state.todos);
+@@ -304,7 +310,7 @@ export async function initialMerge() {
+         }
+ 
+         // Categories 초기 로드
+-        const catSnap = await catsRef().get();
++        const catSnap = await getFromServer(catsRef());
+         if (!catSnap.empty) {
+             const cats = catSnap.docs
+                 .map(doc => ({ id: doc.id, ...doc.data() }))
+@@ -324,7 +330,7 @@ export async function initialMerge() {
+         }
+ 
+         // Settings 초기 로드
+-        const setSnap = await settingsRef().get();
++        const setSnap = await getFromServer(settingsRef());
+         if (setSnap.exists) {
+             const { updatedAt, currentCategoryId, ...remoteSettings } = setSnap.data();
+             const prevSettings = { ...state.settings };

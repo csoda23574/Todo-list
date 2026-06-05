@@ -7,7 +7,7 @@
 
 import { state } from './state.js';
 import { DOM } from './dom.js';
-import { escapeHtml, formatScheduleBadge } from './utils.js';
+import { escapeHtml, formatRecurrenceBadge } from './utils.js';
 
 /* ─────────────────────────── 앱 타이틀 ────────────────────────────────── */
 
@@ -99,11 +99,8 @@ export function createTodoElement(todo) {
       ${todo.note ? `<div class="todo-note">${escapeHtml(todo.note)}</div>` : ''}
       <div class="todo-meta">
         <span class="todo-priority-badge ${priority}">${priorityLabels[priority] || '보통'}</span>
-        ${todo.itemResetTime
-            ? `<span class="todo-reset-badge">⏰ ${todo.itemResetTime} 매일</span>`
-            : ''}
-        ${todo.itemResetSchedule
-            ? `<span class="todo-reset-badge">${escapeHtml(formatScheduleBadge(todo.itemResetSchedule))}</span>`
+        ${todo.recurrence
+            ? `<span class="todo-reset-badge">${escapeHtml(formatRecurrenceBadge(todo.recurrence))}</span>`
             : ''}
       </div>
     </div>

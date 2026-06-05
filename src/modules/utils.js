@@ -103,21 +103,26 @@ export function escapeHtml(str) {
 
 export const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
-export function formatScheduleBadge(s) {
-    if (!s) return '';
-    const time = s.time || '';
-    if (s.type === 'weekly') {
-        const days = (s.weekdays || []).map(d => WEEKDAY_NAMES[d]).join('·');
+/** recurrence 객체를 배지용 텍스트로 변환합니다. */
+export function formatRecurrenceBadge(r) {
+    if (!r) return '';
+    const time = r.time || '';
+    if (r.type === 'daily')   return `⏰ 매일 ${time}`;
+    if (r.type === 'weekday') return `⏰ 평일 ${time}`;
+    if (r.type === 'weekly') {
+        const days = (r.weekdays || []).map(d => WEEKDAY_NAMES[d]).join('·');
         return `🔄 매주 ${days} ${time}`;
     }
-    if (s.type === 'monthly') {
-        const days = (s.days || []).join('·');
+    if (r.type === 'monthly') {
+        const days = (r.days || []).join('·');
         return `🔄 매월 ${days}일 ${time}`;
     }
-    if (s.type === 'yearly') {
-        const dates = (s.dates || []).map(d => `${d.month}/${d.day}`).join('·');
+    if (r.type === 'yearly') {
+        const dates = (r.dates || []).map(d => `${d.month}/${d.day}`).join('·');
         return `🔄 매년 ${dates} ${time}`;
     }
+    if (r.type === 'everyN') return `🔄 ${r.n}일마다 ${time}`;
+    if (r.type === 'calendar') return '🔄 1회';
     return '';
 }
 

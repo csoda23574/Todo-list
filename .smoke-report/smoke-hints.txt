@@ -1,0 +1,4 @@
+1. Reset nextDue scheduling check failed: ensure _scheduleNext() function exists in src/modules/reset.js.
+2. calcNextDueAfter import missing in reset.js: ensure it is imported from recurrence.js and used in _applyItemResets.
+3. setInterval polling still present: remove old interval-based reset timer from src/modules/reset.js.
+4. Categories emit leaked into settings listener: remove emit('categories:changed') in settings onSnapshot block.
