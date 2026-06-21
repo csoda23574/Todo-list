@@ -121,19 +121,24 @@ export function settingsToRecurrence(settings) {
 }
 
 /**
- * 기존 형식(itemResetTime / itemResetSchedule)을 recurrence 객체로 변환합니다.
+ * 기존 형식(itemResetTime / itemResetSchedule)을 가진 todo를
+ * recurrence + nextDue 형식의 todo로 변환합니다.
  * storage.js의 마이그레이션에서 사용합니다.
  * @param {object} todo
- * @returns {object|null}
+ * @returns {object} 변환된 todo 객체 (oldfields 제거됨)
  */
 export function migrateToRecurrence(todo) {
-    if (todo.recurrence !== undefined) return todo.recurrence; // 이미 마이그레이션 완료
+    if (todo.recurrence !== undefined) return todo; // 이미 마이그레이션 완료
+
+    let recurrence = null;
     if (todo.itemResetSchedule) {
         const s = todo.itemResetSchedule;
-        return { type: s.type, time: s.time, weekdays: s.weekdays, days: s.days, dates: s.dates };
+        recurrence = { type: s.type, time: s.time, weekdays: s.weekdays, days: s.days, dates: s.dates };
+    } else if (todo.itemResetTime) {
+        recurrence = { type: 'daily', time: todo.itemResetTime };
     }
-    if (todo.itemResetTime) {
-        return { type: 'daily', time: todo.itemResetTime };
-    }
-    return null;
+
+    // 구버전 필드 제거하고 recurrence로 교체
+    const { itemResetTime, itemResetSchedule, ...rest } = todo;
+    return { ...rest, recurrence };
 }

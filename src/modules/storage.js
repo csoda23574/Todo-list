@@ -80,22 +80,32 @@ export function saveSettings() {
 /* ────────────────────────── 상태 초기화 (앱 시작) ─────────────────────── */
 
 export function loadState() {
+    const savedTheme = loadFromStorage(STORAGE_KEYS.THEME, 'light');
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    // 테마만 guest uid 무관하게 로드. todos/settings는 loadUserState()에서 uid 확정 후 로드.
+}
+
+/**
+ * 로그인 후 uid가 확정된 시점에 호출합니다.
+ * localStorage에서 해당 계정의 todos·settings·categories를 로드합니다.
+ */
+export function loadUserState() {
     const rawTodos = loadFromStorage(STORAGE_KEYS.TODOS, []);
 
     // 구버전 itemResetTime/itemResetSchedule → recurrence + nextDue 마이그레이션
+    // order 필드 없으면 배열 인덱스 기준으로 부여
     const now = new Date();
-    state.todos = rawTodos.map(todo => {
-        if (todo.recurrence !== undefined) return todo; // 이미 신규 포맷
-        if (!todo.itemResetTime && !todo.itemResetSchedule) return todo; // 반복 없는 항목
-        const migrated = migrateToRecurrence(todo);
+    state.todos = rawTodos.map((todo, i) => {
+        const withOrder = todo.order !== undefined ? todo : { ...todo, order: i };
+        if (withOrder.recurrence !== undefined) return withOrder; // 이미 신규 포맷
+        if (!withOrder.itemResetTime && !withOrder.itemResetSchedule) return withOrder; // 반복 없는 항목
+        const migrated = migrateToRecurrence(withOrder); // 반환값: recurrence 필드 포함한 완전한 todo
         if (migrated.recurrence && !migrated.nextDue) {
             migrated.nextDue = calcNextDueAfter(migrated.recurrence, now, now)?.toISOString() ?? null;
         }
         return migrated;
     });
-
-    const savedTheme = loadFromStorage(STORAGE_KEYS.THEME, 'light');
-    document.documentElement.setAttribute('data-theme', savedTheme);
 
     const savedSettings = loadFromStorage(STORAGE_KEYS.SETTINGS, {});
     state.settings = { ...state.settings, ...savedSettings };

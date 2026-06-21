@@ -17,6 +17,9 @@ export function addTodo(text, note, priority, recurrence) {
     const nextDue = recurrence
         ? calcNextDueAfter(recurrence, new Date(), new Date())?.toISOString() ?? null
         : null;
+    const minOrder = state.todos.length > 0
+        ? Math.min(...state.todos.map(t => t.order ?? 0)) - 1
+        : 0;
     const todo = {
         id: generateId(),
         text: text.trim(),
@@ -27,6 +30,7 @@ export function addTodo(text, note, priority, recurrence) {
         recurrence: recurrence || null,
         nextDue,
         categoryId: state.currentCategoryId,
+        order: minOrder,
     };
     state.todos.unshift(todo);
     saveTodos(todo);
@@ -92,7 +96,32 @@ export function toggleTodo(id, done) {
     if (done) showToast('완료 처리되었습니다!', 'success');
 }
 
-/* ──────────────────────── 전체 삭제 ───────────────────────────────────── */
+/* ──────────────────────── 순서 변경 ───────────────────────────────────── */
+
+/**
+ * 드래그앤드롭으로 할 일 순서를 변경합니다.
+ * @param {string} dragId   - 드래그 중인 항목 id
+ * @param {string} targetId - 삽입 기준이 되는 항목 id
+ * @param {'before'|'after'} position - 기준 항목 앞/뒤
+ */
+export function reorderTodo(dragId, targetId, position) {
+    if (dragId === targetId) return;
+    const srcIdx = state.todos.findIndex(t => t.id === dragId);
+    const tgtIdx = state.todos.findIndex(t => t.id === targetId);
+    if (srcIdx === -1 || tgtIdx === -1) return;
+
+    const [moved] = state.todos.splice(srcIdx, 1);
+    const insertAt = state.todos.findIndex(t => t.id === targetId);
+    state.todos.splice(position === 'before' ? insertAt : insertAt + 1, 0, moved);
+
+    // order 필드를 현재 배열 인덱스 기준으로 갱신 (Firestore 동기화용)
+    state.todos.forEach((t, i) => { t.order = i; });
+
+    saveTodos();
+    emit('todos:changed');
+}
+
+
 
 export function clearAllTodos(silent = false) {
     state.todos = [];

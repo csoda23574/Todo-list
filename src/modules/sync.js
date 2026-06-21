@@ -210,7 +210,7 @@ export function startListeners() {
         }
 
         const mergedTodos = [...localMap.values()].sort((a, b) =>
-            new Date(b.createdAt) - new Date(a.createdAt)
+            (a.order ?? 0) - (b.order ?? 0)
         );
         if (_sameTodos(mergedTodos, state.todos)) return;
         state.todos = mergedTodos;
@@ -303,7 +303,7 @@ export async function initialMerge() {
                     createdAt: data.createdAt?.toDate?.()?.toISOString?.() ?? data.createdAt,
                     updatedAt: data.updatedAt?.toDate?.()?.toISOString?.() ?? data.updatedAt,
                 };
-            }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            }).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
             if (!_sameTodos(remoteTodos, state.todos)) {
                 state.todos = remoteTodos;
                 emit('todos:changed');

@@ -12,7 +12,7 @@
 import { state } from './state.js';
 import { DOM } from './dom.js';
 import { showToast } from './utils.js';
-import { toggleTodo } from './todos.js';
+import { toggleTodo, reorderTodo } from './todos.js';
 import { signInWithGoogle, signOut } from './firebase.js';
 
 /* ────────────────────── 파일 매직 바이트 검증 ────────────────────── */
@@ -70,9 +70,68 @@ function bindTodoListEvents() {
             if (id) openConfirmModal(id);
         }
     });
+
+    initTodoDragSort();
 }
 
-/* ─────────────────── 카테고리 탭 이벤트 위임 ───────────────────────────── */
+/* ──────────────────── 할 일 목록 드래그 정렬 ───────────────────────────── */
+
+function initTodoDragSort() {
+    const list = DOM.todoList;
+    if (!list || list._dragBound) return;
+    list._dragBound = true;
+
+    let dragSrcId = null;
+
+    list.addEventListener('dragstart', e => {
+        const item = e.target.closest('.todo-item');
+        if (!item) return;
+        // 드래그 핸들에서만 시작되도록 (핸들 또는 항목 자체 클릭 허용)
+        dragSrcId = item.dataset.id;
+        e.dataTransfer.effectAllowed = 'move';
+        requestAnimationFrame(() => item.classList.add('dragging'));
+    });
+
+    list.addEventListener('dragend', () => {
+        dragSrcId = null;
+        list.querySelectorAll('.todo-item')
+            .forEach(el => el.classList.remove('dragging', 'drag-over-above', 'drag-over-below'));
+    });
+
+    list.addEventListener('dragover', e => {
+        const item = e.target.closest('.todo-item');
+        if (!item || item.dataset.id === dragSrcId) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        // 마우스 Y 위치로 삽입 위치(위/아래) 결정
+        const rect = item.getBoundingClientRect();
+        const isAbove = e.clientY < rect.top + rect.height / 2;
+        list.querySelectorAll('.todo-item')
+            .forEach(el => el.classList.remove('drag-over-above', 'drag-over-below'));
+        item.classList.add(isAbove ? 'drag-over-above' : 'drag-over-below');
+    });
+
+    list.addEventListener('dragleave', e => {
+        if (!list.contains(e.relatedTarget)) {
+            list.querySelectorAll('.todo-item')
+                .forEach(el => el.classList.remove('drag-over-above', 'drag-over-below'));
+        }
+    });
+
+    list.addEventListener('drop', e => {
+        e.preventDefault();
+        const item = e.target.closest('.todo-item');
+        if (!item || !dragSrcId) return;
+        const targetId = item.dataset.id;
+        if (dragSrcId === targetId) return;
+
+        const isAbove = item.classList.contains('drag-over-above');
+        reorderTodo(dragSrcId, targetId, isAbove ? 'before' : 'after');
+    });
+}
+
+
 
 function bindCategoryTabsEvents() {
     const bar = document.getElementById('categoryTabsBar');

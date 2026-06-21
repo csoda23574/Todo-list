@@ -24,7 +24,10 @@ const app = firebase.initializeApp(firebaseConfig);
 export const auth = firebase.auth();
 export const db   = firebase.firestore();
 
-// Firestore 오프라인 지속성 (경고는 무시해도 무방 — compat API 한정 동작)
+// Firestore 오프라인 지속성 (멀티탭 포함)
+// compat SDK에서 enablePersistence({synchronizeTabs:true})는 내부적으로
+// enableMultiTabIndexedDbPersistence()를 호출하며 deprecation 경고가 출력되나,
+// compat 번들에서는 이것이 현재 유일한 방법 — 기능상 문제 없음
 db.enablePersistence({ synchronizeTabs: true }).catch(err => {
     if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') {
         console.warn('[Firestore] 오프라인 지속성 오류:', err.code);

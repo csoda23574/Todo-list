@@ -5,7 +5,7 @@
  * 각 도메인 로직은 src/modules/ 의 개별 모듈로 분리되어 있습니다.
  */
 
-import { loadState } from './modules/storage.js';
+import { loadState, loadUserState } from './modules/storage.js';
 import {
     applyAppTitle, updateHeaderDate, renderTodos,
     applyBackground
@@ -123,6 +123,13 @@ function init() {
 
             hideLoginOverlay();
             updateUserUI(user);
+
+            // uid 확정 후 localStorage에서 해당 계정 데이터 로드
+            loadUserState();
+            emit('todos:changed');
+            emit('categories:changed');
+            emit('title:changed');
+            emit('bg:changed');
 
             // 로컬 스토리지 키가 uid 기반으로 바뀌었으므로 IDB 배경 이미지 재로드
             const idbKey = getStorageKey(state.uid, STORAGE_KEYS.BG_IMAGE);
