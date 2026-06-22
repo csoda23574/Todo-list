@@ -248,7 +248,7 @@ function bindSettingsModalEvents() {
             showToast('지원하지 않는 파일 형식입니다', 'error');
             return;
         }
-        if (file.size > 10 * 1024 * 1024) {
+        if (file.size > 20 * 1024 * 1024) {
             showToast('파일 크기는 10MB 이하여야 합니다', 'error');
             return;
         }
