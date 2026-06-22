@@ -91,16 +91,6 @@ export function createTodoElement(todo) {
     li.draggable = true;
 
     li.innerHTML = `
-    <div class="drag-handle" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="9" cy="5" r="1" fill="currentColor" stroke="none"/>
-        <circle cx="15" cy="5" r="1" fill="currentColor" stroke="none"/>
-        <circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/>
-        <circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/>
-        <circle cx="9" cy="19" r="1" fill="currentColor" stroke="none"/>
-        <circle cx="15" cy="19" r="1" fill="currentColor" stroke="none"/>
-      </svg>
-    </div>
     <div class="todo-checkbox-wrap">
       <input type="checkbox" class="todo-checkbox" aria-label="완료 표시"
         ${todo.done ? 'checked' : ''} />
