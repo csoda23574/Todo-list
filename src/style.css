@@ -57,6 +57,14 @@
     --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
     --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* ── UI Theme Colors (change here to restyle header/tabs) ── */
+    --ui-stats-bg: linear-gradient(135deg, #6c63ff 0%, #c084fc 100%);
+    --ui-stats-shadow: rgba(108, 99, 255, 0.35);
+    --ui-tabs-bg: #a78bfa;
+    --ui-tabs-shadow: rgba(167, 139, 250, 0.4);
+    --ui-stats-glass: rgba(108, 99, 255, 0.78);
+    --ui-tabs-glass: rgba(167, 139, 250, 0.78);
 }
 
 
@@ -78,6 +86,10 @@
     --color-success: #34d399;
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.25);
+
+    /* UI Theme Colors — dark mode inherits light values; override here if needed */
+    /* --ui-stats-bg: ...; */
+    /* --ui-tabs-bg: ...; */
     --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
     --shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.6), 0 8px 20px rgba(0, 0, 0, 0.4);
 }
@@ -182,18 +194,16 @@ body {
     background: rgba(0, 0, 0, 0.12);
 }
 
-.app-container.has-bg .stats-bar,
-.app-container.has-bg .category-tabs-bar,
-.app-container.has-bg .filter-tabs {
-    background: rgba(255, 255, 255, 0.55);
+.app-container.has-bg .stats-bar {
+    background: var(--ui-stats-glass);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
 }
 
-[data-theme="dark"] .app-container.has-bg .stats-bar,
-[data-theme="dark"] .app-container.has-bg .category-tabs-bar,
-[data-theme="dark"] .app-container.has-bg .filter-tabs {
-    background: rgba(15, 15, 30, 0.60);
+.app-container.has-bg .tabs-zone {
+    background: var(--ui-tabs-glass);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .app-container.has-bg .todo-item {
@@ -277,17 +287,17 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: 1px solid var(--color-border);
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: var(--radius-sm);
-    color: var(--color-text-secondary);
+    color: rgba(255, 255, 255, 0.85);
     cursor: pointer;
     transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .icon-btn:hover {
-    background: var(--color-surface);
-    color: var(--color-text-primary);
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
     transform: translateY(-1px);
 }
 
@@ -341,9 +351,10 @@ body {
     align-items: center;
     gap: var(--space-md);
     padding: var(--space-md) var(--space-xl);
-    background: var(--color-surface-elevated);
-    border-bottom: 1px solid var(--color-border);
+    background: var(--ui-stats-bg);
+    border-bottom: none;
     transition: background var(--transition-slow);
+    box-shadow: 0 3px 16px var(--ui-stats-shadow);
 }
 
 .stat-item {
@@ -356,7 +367,7 @@ body {
 .stat-number {
     font-size: 20px;
     font-weight: 700;
-    color: var(--color-text-primary);
+    color: rgba(255, 255, 255, 0.95);
     line-height: 1;
     font-variant-numeric: tabular-nums;
     transition: color var(--transition-fast);
@@ -365,7 +376,7 @@ body {
 .stat-label {
     font-size: 10px;
     font-weight: 500;
-    color: var(--color-text-muted);
+    color: rgba(255, 255, 255, 0.65);
     text-transform: uppercase;
     letter-spacing: 0.06em;
 }
@@ -373,7 +384,7 @@ body {
 .stat-divider {
     width: 1px;
     height: 28px;
-    background: var(--color-border);
+    background: rgba(255, 255, 255, 0.25);
 }
 
 .stat-progress-wrap {
@@ -386,28 +397,34 @@ body {
 .stat-progress-bar {
     width: 100%;
     height: 6px;
-    background: var(--color-border);
+    background: rgba(255, 255, 255, 0.25);
     border-radius: var(--radius-full);
     overflow: hidden;
 }
 
 .stat-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--color-accent), #c084fc);
+    background: rgba(255, 255, 255, 0.85);
     border-radius: var(--radius-full);
     transition: width var(--transition-slow);
     width: 0%;
 }
 
 /* ===================================================
-   Category Tabs
+   Tabs Zone (Category + Filter unified wrapper)
 =================================================== */
+.tabs-zone {
+    background: var(--ui-tabs-bg);
+    flex-shrink: 0;
+    box-shadow: 0 6px 20px var(--ui-tabs-shadow);
+}
+
 .category-tabs-bar {
     display: flex;
     align-items: center;
     gap: 0;
-    padding: 8px var(--space-xl) 0;
-    background: var(--color-surface-elevated);
+    padding: 10px var(--space-xl) 4px;
+    background: transparent;
     flex-shrink: 0;
 }
 
@@ -420,9 +437,9 @@ body {
     padding: 0;
     flex-shrink: 0;
     background: transparent;
-    border: 1.5px solid var(--color-border);
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
-    color: var(--color-text-muted);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
     opacity: 0;
     overflow: hidden;
@@ -453,9 +470,9 @@ body {
 }
 
 .category-tabs-nav:hover {
-    border-color: var(--color-accent);
-    color: var(--color-accent);
-    background: var(--color-accent-light);
+    border-color: rgba(255, 255, 255, 0.7);
+    color: white;
+    background: rgba(255, 255, 255, 0.15);
 }
 
 .category-tabs-scroll {
@@ -484,9 +501,9 @@ body {
     font-size: 12px;
     font-weight: 500;
     font-family: var(--font-family);
-    color: var(--color-text-secondary);
+    color: rgba(255, 255, 255, 0.8);
     background: transparent;
-    border: 1.5px solid var(--color-border);
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
     border-radius: var(--radius-full);
     cursor: pointer;
     white-space: nowrap;
@@ -496,15 +513,15 @@ body {
 }
 
 .category-tab:hover {
-    color: var(--color-accent);
-    border-color: var(--color-accent);
-    background: var(--color-accent-light);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.15);
 }
 
 .category-tab.active {
-    color: var(--color-accent);
-    background: var(--color-accent-light);
-    border-color: var(--color-accent);
+    color: white;
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.6);
     font-weight: 600;
 }
 
@@ -522,9 +539,9 @@ body {
     margin-left: 6px;
     padding: 0;
     background: transparent;
-    border: 1.5px solid var(--color-border);
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
-    color: var(--color-text-muted);
+    color: rgba(255, 255, 255, 0.6);
     cursor: pointer;
     transition: all var(--transition-fast);
 }
@@ -536,9 +553,9 @@ body {
 }
 
 .category-tab-trash:hover:not(:disabled) {
-    border-color: var(--color-danger);
-    color: var(--color-danger);
-    background: var(--color-danger-light);
+    border-color: #fca5a5;
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.2);
 }
 
 .category-tab-trash:disabled {
@@ -554,9 +571,9 @@ body {
     height: 26px;
     padding: 0;
     background: transparent;
-    border: 1.5px dashed var(--color-border);
+    border: 1.5px dashed rgba(255, 255, 255, 0.4);
     border-radius: 50%;
-    color: var(--color-text-muted);
+    color: rgba(255, 255, 255, 0.6);
     cursor: pointer;
     transition: all var(--transition-fast);
     flex-shrink: 0;
@@ -568,9 +585,9 @@ body {
 }
 
 .category-tab-add:hover {
-    border-color: var(--color-accent);
-    color: var(--color-accent);
-    background: var(--color-accent-light);
+    border-color: rgba(255, 255, 255, 0.9);
+    color: white;
+    background: rgba(255, 255, 255, 0.15);
     border-style: solid;
 }
 
@@ -578,7 +595,7 @@ body {
     font-family: var(--font-family);
     font-size: 12px;
     font-weight: 500;
-    color: var(--color-text-primary);
+    color: white;
     background: transparent;
     border: none;
     outline: none;
@@ -612,9 +629,9 @@ body {
 .filter-tabs {
     display: flex;
     gap: var(--space-xs);
-    padding: var(--space-md) var(--space-xl);
-    background: var(--color-surface-elevated);
-    border-bottom: 1px solid var(--color-border);
+    padding: 4px var(--space-xl) var(--space-md);
+    background: transparent;
+    border-bottom: none;
 }
 
 .filter-tab {
@@ -623,7 +640,7 @@ body {
     font-size: 13px;
     font-weight: 500;
     font-family: var(--font-family);
-    color: var(--color-text-secondary);
+    color: rgba(255, 255, 255, 0.75);
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -632,14 +649,14 @@ body {
 }
 
 .filter-tab:hover {
-    color: var(--color-text-primary);
-    background: var(--color-accent-light);
+    color: rgba(255, 255, 255, 1);
+    background: rgba(255, 255, 255, 0.15);
 }
 
 .filter-tab.active {
-    color: var(--color-accent);
-    background: var(--color-accent-light);
-    border-color: rgba(108, 99, 255, 0.2);
+    color: white;
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.4);
     font-weight: 600;
 }
 
@@ -2099,7 +2116,7 @@ input[type="datetime-local"].time-input {
     /* hidden in browser */
     height: 32px;
     flex-shrink: 0;
-    background: linear-gradient(160deg, var(--color-accent) 0%, #9c88ff 50%, #c084fc 100%);
+    background: #282828;
     -webkit-app-region: drag;
     align-items: center;
     justify-content: flex-end;
@@ -2107,6 +2124,7 @@ input[type="datetime-local"].time-input {
     user-select: none;
     position: relative;
     z-index: 20;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* Show titlebar only inside Electron */
@@ -2197,7 +2215,7 @@ input[type="datetime-local"].time-input {
 
 /* ── Dark mode adjustments ──────────────────────────────────────────────── */
 [data-theme="dark"] .titlebar {
-    background: linear-gradient(160deg, #5a52e0 0%, #7c74ff 50%, #9c6fd4 100%);
+    background: #282828;
 }
 
 /* ── Resize handle padding so content isn't hidden under titlebar ──────── */
