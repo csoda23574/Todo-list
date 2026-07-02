@@ -31,7 +31,13 @@ export function setFilter(filter) {
 /* ─────────────────────── UI 토글 (숨기기/보임) ────────────────────────── */
 
 export function toggleUI() {
-    document.querySelector('.app-container')?.classList.toggle('ui-hidden');
+    const container = document.querySelector('.app-container');
+    if (!container) return;
+    container.classList.toggle('ui-hidden');
+    // 배경 이미지가 있을 때 container 인라인 background는 항상 transparent 유지
+    if (container.classList.contains('has-bg')) {
+        container.style.background = 'transparent';
+    }
 }
 
 /* ──────────────────────── Windows 최대화 버튼 ──────────────────────────── */

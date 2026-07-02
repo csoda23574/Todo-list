@@ -165,12 +165,14 @@ export function applyBackground() {
         overlay.style.opacity = bgOpacity / 100;
         overlay.classList.add('has-bg');
         container?.classList.add('has-bg');
+        if (container) container.style.background = 'transparent';
     } else {
         overlay.classList.remove('has-bg');
         container?.classList.remove('has-bg');
         overlay.style.backgroundImage = '';
         overlay.style.filter = '';
         overlay.style.opacity = '0';
+        if (container) container.style.background = '';
     }
 }
 
