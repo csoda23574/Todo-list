@@ -110,9 +110,6 @@ function init() {
     // 헤더 시계: 1초 간격 업데이트
     setInterval(updateHeaderDate, 1000);
 
-    // 자동 초기화 타이머 시작
-    scheduleResetTimer();
-
     // Firebase Auth 상태 감지
     auth.onAuthStateChanged(async (user) => {
         if (user) {

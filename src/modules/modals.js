@@ -13,7 +13,7 @@ import { STORAGE_KEYS, getStorageKey } from './config.js';
 import { loadFromIDB } from './idb.js';
 import { updateBgPreview } from './renderer.js';
 import { emit } from './bus.js'; // renderer·reset 직접 의존 제거 — DIP
-import { updateResetNextInfo, initMonthDayGrid, addYearlyDateEntry, getYearlyDatesFromDOM, updateTaskResetTypeUI } from './reset.js';
+import { updateResetNextInfo, initMonthDayGrid, addYearlyDateEntry, getYearlyDatesFromDOM, updateTaskResetTypeUI, applyResets } from './reset.js';
 import { addTodo, editTodo, deleteTodo, clearAllTodos } from './todos.js';
 import { deleteCategory } from './categories.js';
 import { openModal, closeModal } from './modal-base.js';
@@ -304,7 +304,7 @@ export async function saveSettingsFromModal() {
     saveSettings();
     emit('bg:changed');
     emit('title:changed');
-    emit('reset:reschedule');
+    applyResets(new Date());
 
     if (window.electronAPI) {
         const autoEl = document.getElementById('autoLaunchEnabled');

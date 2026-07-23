@@ -1,4 +1,4 @@
-﻿/**
+/**
  * reset.js — 할 일 반복 초기화 시스템 (nextDue 기반)
  *
  * 설계 원칙:
@@ -171,7 +171,7 @@ export function initializeResetSystem() {
  */
 export function scheduleResetTimer() {
     if (_resetTimer) { clearTimeout(_resetTimer); _resetTimer = null; }
-    initializeResetSystem();
+    _scheduleNext();
 }
 
 /*  다음 초기화 날짜 계산  */
