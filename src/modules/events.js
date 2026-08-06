@@ -198,8 +198,19 @@ function bindTaskModalEvents() {
     });
     DOM.addYearlyDateBtn?.addEventListener('click', () => addYearlyDateEntry());
 
-    document.querySelectorAll('.weekday-btn').forEach(btn => {
-        btn.addEventListener('click', () => btn.classList.toggle('active'));
+    // 매주 요일 선택 (다중 선택 - 토글)
+    document.getElementById('taskResetWeeklySelector')?.addEventListener('click', e => {
+        const btn = e.target.closest('.weekday-btn');
+        if (btn) btn.classList.toggle('active');
+    });
+
+    // N주마다 요일 선택 (단일 선택 - 라디오)
+    document.getElementById('taskResetEveryNWeekdaySelector')?.addEventListener('click', e => {
+        const btn = e.target.closest('.weekday-btn');
+        if (!btn) return;
+        document.querySelectorAll('#taskResetEveryNWeekdaySelector .weekday-btn')
+            .forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
     });
 
     DOM.prioritySelector?.addEventListener('click', e => {
@@ -253,13 +264,15 @@ function bindSettingsModalEvents() {
         updateResetNextInfo();
     });
 
-    // N주마다 요일 선택 버튼
+    // N주마다 요일 선택 버튼 (단일 선택)
     document.getElementById('resetEveryNWeekdaySelector')?.addEventListener('click', e => {
         const btn = e.target.closest('.weekday-btn');
         if (!btn) return;
-        btn.classList.toggle('active');
-        tempSettings.resetEveryNWeekdays = [...document.querySelectorAll('#resetEveryNWeekdaySelector .weekday-btn.active')]
-            .map(b => Number(b.dataset.day));
+        // 다른 버튼 해제 후 이 버튼만 활성화 (라디오 방식)
+        document.querySelectorAll('#resetEveryNWeekdaySelector .weekday-btn')
+            .forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        tempSettings.resetEveryNWeekday = Number(btn.dataset.day);
         updateResetNextInfo();
     });
 

@@ -116,8 +116,9 @@ function _populateResetFields(todo) {
         const elTime = document.getElementById('taskResetEveryNWeeksTime');
         if (elWeeks) elWeeks.value = r.n || 2;
         if (elTime) elTime.value = r.time || '';
+        const weekday = r.weekday ?? null;
         document.querySelectorAll('#taskResetEveryNWeekdaySelector .weekday-btn').forEach(b => {
-            b.classList.toggle('active', (r.weekdays || []).includes(parseInt(b.dataset.day, 10)));
+            b.classList.toggle('active', Number(b.dataset.day) === weekday);
         });
         updateTaskResetTypeUI('everyNWeeks');
     } else {
@@ -178,9 +179,9 @@ function _buildRecurrenceFromForm(resetType) {
     if (resetType === 'everyNWeeks') {
         const n = parseInt(document.getElementById('taskResetEveryNWeeksInput')?.value, 10) || 2;
         const time = document.getElementById('taskResetEveryNWeeksTime')?.value || '00:00';
-        const weekdays = Array.from(document.querySelectorAll('#taskResetEveryNWeekdaySelector .weekday-btn.active'))
-            .map(b => parseInt(b.dataset.day, 10));
-        return { type: 'everyNWeeks', n, weekdays, time };
+        const activeBtn = document.querySelector('#taskResetEveryNWeekdaySelector .weekday-btn.active');
+        const weekday = activeBtn ? parseInt(activeBtn.dataset.day, 10) : null;
+        return { type: 'everyNWeeks', n, weekday, time };
     }
     return null;
 }
@@ -318,9 +319,9 @@ function _populateSettingsForm() {
     if (repeat === 'everyNWeeks') {
         const el = document.getElementById('resetEveryNWeeksInput');
         if (el) el.value = tempSettings.resetEveryNWeeks || 2;
-        const weekdays = tempSettings.resetEveryNWeekdays || [];
+        const weekday = tempSettings.resetEveryNWeekday ?? null;
         document.querySelectorAll('#resetEveryNWeekdaySelector .weekday-btn').forEach(btn => {
-            btn.classList.toggle('active', weekdays.includes(Number(btn.dataset.day)));
+            btn.classList.toggle('active', Number(btn.dataset.day) === weekday);
         });
     }
 

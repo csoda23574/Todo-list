@@ -86,29 +86,23 @@ export function calcNextDue(recurrence, fromDate) {
 
     if (recurrence.type === 'everyNWeeks') {
         const n = recurrence.n || 1;
-        const weekdays = recurrence.weekdays || [];
-        if (weekdays.length === 0) return null;
+        const weekday = recurrence.weekday ?? null; // 0(일)~6(토), 단일 값
+        if (weekday === null) return null;
+        // fromDate 다음 날부터 시작해서 지정 요일까지 며칠인지 계산
         const next = new Date(fromDate);
         next.setDate(next.getDate() + 1);
         next.setHours(h, m, 0, 0);
-        // 같은 주 내 남은 지정 요일 탐색 (최대 6일)
-        const startDay = next.getDay();
-        for (let i = 0; i < 7; i++) {
-            if (weekdays.includes(next.getDay())) return next;
-            next.setDate(next.getDate() + 1);
-        }
-        // 같은 주에 없으면 (n-1)주 건너뛰고 다시 탐색
-        next.setDate(next.getDate() + (n - 1) * 7);
-        // 해당 주의 월요일로 정렬 후 요일 탐색
-        const dow = next.getDay();
-        const mondayOffset = dow === 0 ? -6 : 1 - dow;
-        next.setDate(next.getDate() + mondayOffset);
-        next.setHours(h, m, 0, 0);
-        for (let i = 0; i < 7; i++) {
-            if (weekdays.includes(next.getDay())) return next;
-            next.setDate(next.getDate() + 1);
-        }
-        return null;
+        const cur = next.getDay();
+        const daysToTarget = (weekday - cur + 7) % 7;
+        // daysToTarget이 0이면 내일이 바로 해당 요일 → 그 자체가 다음 후보
+        next.setDate(next.getDate() + daysToTarget);
+        // n주 주기 맞추기: fromDate 기준 에포크 주 번호와 비교해 배수 조정
+        const epochDays = Math.floor(next.getTime() / 86_400_000);
+        const fromEpochDays = Math.floor(fromDate.getTime() / 86_400_000);
+        const weekDiff = Math.floor((epochDays - fromEpochDays + daysToTarget) / 7);
+        const remainder = weekDiff % n;
+        if (remainder !== 0) next.setDate(next.getDate() + (n - remainder) * 7);
+        return next;
     }
 
     return null;
@@ -145,7 +139,7 @@ export function settingsToRecurrence(settings) {
         return {
             type: 'everyNWeeks',
             n: settings.resetEveryNWeeks || 2,
-            weekdays: settings.resetEveryNWeekdays || [],
+            weekday: settings.resetEveryNWeekday ?? null,
             time: resetTime,
         };
     }
