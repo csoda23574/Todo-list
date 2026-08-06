@@ -122,6 +122,10 @@ export function formatRecurrenceBadge(r) {
         return `🔄 매년 ${dates} ${time}`;
     }
     if (r.type === 'everyN') return `🔄 ${r.n}일마다 ${time}`;
+    if (r.type === 'everyNWeeks') {
+        const days = (r.weekdays || []).map(d => WEEKDAY_NAMES[d]).join('·');
+        return `🔄 ${r.n}주마다 ${days} ${time}`;
+    }
     if (r.type === 'calendar') return '🔄 1회';
     return '';
 }
