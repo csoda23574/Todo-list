@@ -105,6 +105,21 @@ function _populateResetFields(todo) {
         DOM.taskResetYearlyTime.value = r.time || '';
         (r.dates || []).forEach(d => addYearlyDateEntry(d.month, d.day));
         updateTaskResetTypeUI('yearly');
+    } else if (r.type === 'everyN') {
+        const elDays = document.getElementById('taskResetEveryNDays');
+        const elTime = document.getElementById('taskResetEveryNTime');
+        if (elDays) elDays.value = r.n || 2;
+        if (elTime) elTime.value = r.time || '';
+        updateTaskResetTypeUI('everyN');
+    } else if (r.type === 'everyNWeeks') {
+        const elWeeks = document.getElementById('taskResetEveryNWeeksInput');
+        const elTime = document.getElementById('taskResetEveryNWeeksTime');
+        if (elWeeks) elWeeks.value = r.n || 2;
+        if (elTime) elTime.value = r.time || '';
+        document.querySelectorAll('#taskResetEveryNWeekdaySelector .weekday-btn').forEach(b => {
+            b.classList.toggle('active', (r.weekdays || []).includes(parseInt(b.dataset.day, 10)));
+        });
+        updateTaskResetTypeUI('everyNWeeks');
     } else {
         updateTaskResetTypeUI('none');
     }
@@ -154,6 +169,18 @@ function _buildRecurrenceFromForm(resetType) {
     if (resetType === 'yearly') {
         const dates = getYearlyDatesFromDOM();
         return { type: 'yearly', dates, time: DOM.taskResetYearlyTime.value || '00:00' };
+    }
+    if (resetType === 'everyN') {
+        const n = parseInt(document.getElementById('taskResetEveryNDays')?.value, 10) || 2;
+        const time = document.getElementById('taskResetEveryNTime')?.value || '00:00';
+        return { type: 'everyN', n, time };
+    }
+    if (resetType === 'everyNWeeks') {
+        const n = parseInt(document.getElementById('taskResetEveryNWeeksInput')?.value, 10) || 2;
+        const time = document.getElementById('taskResetEveryNWeeksTime')?.value || '00:00';
+        const weekdays = Array.from(document.querySelectorAll('#taskResetEveryNWeekdaySelector .weekday-btn.active'))
+            .map(b => parseInt(b.dataset.day, 10));
+        return { type: 'everyNWeeks', n, weekdays, time };
     }
     return null;
 }
@@ -278,6 +305,24 @@ function _populateSettingsForm() {
     DOM.bgBlurValue.textContent = `${tempSettings.bgBlur}px`;
 
     DOM.resetSubGroup.classList.toggle('hidden', !tempSettings.resetEnabled);
+
+    // N일마다 / N주마다 조건부 UI 토글 + 값 복원
+    const repeat = tempSettings.resetRepeat || 'daily';
+    document.getElementById('resetEveryNRow')?.classList.toggle('hidden', repeat !== 'everyN');
+    document.getElementById('resetEveryNWeeksRow')?.classList.toggle('hidden', repeat !== 'everyNWeeks');
+
+    if (repeat === 'everyN') {
+        const el = document.getElementById('resetEveryNDays');
+        if (el) el.value = tempSettings.resetEveryNDays || 2;
+    }
+    if (repeat === 'everyNWeeks') {
+        const el = document.getElementById('resetEveryNWeeksInput');
+        if (el) el.value = tempSettings.resetEveryNWeeks || 2;
+        const weekdays = tempSettings.resetEveryNWeekdays || [];
+        document.querySelectorAll('#resetEveryNWeekdaySelector .weekday-btn').forEach(btn => {
+            btn.classList.toggle('active', weekdays.includes(Number(btn.dataset.day)));
+        });
+    }
 
     if (DOM.appTitleInput) {
         DOM.appTitleInput.value = tempSettings.appTitle || 'My Tasks';

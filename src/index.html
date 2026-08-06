@@ -200,14 +200,41 @@
                         <option value="weekly">매주 요일</option>
                         <option value="monthly">매월 날짜</option>
                         <option value="yearly">매년 날짜</option>
+                        <option value="everyN">N일마다</option>
+                        <option value="everyNWeeks">N주마다</option>
                     </select>
+                    <!-- N일마다 -->
+                    <div class="task-reset-input-row hidden" id="taskResetEveryNRow">
+                        <div class="every-n-input-wrap">
+                            <input type="number" id="taskResetEveryNDays" class="form-input number-input" min="2" max="365" value="2" />
+                            <span class="every-n-suffix">일마다</span>
+                        </div>
+                        <input type="time" id="taskResetEveryNTime" class="form-input time-input" style="width:100%;margin-top:6px" />
+                    </div>
+                    <!-- N주마다 -->
+                    <div class="task-reset-input-row hidden" id="taskResetEveryNWeeksRow">
+                        <div class="every-n-input-wrap" style="margin-bottom:6px">
+                            <input type="number" id="taskResetEveryNWeeksInput" class="form-input number-input" min="1" max="52" value="2" />
+                            <span class="every-n-suffix">주마다</span>
+                        </div>
+                        <div class="weekday-toggle-wrap" id="taskResetEveryNWeekdaySelector">
+                            <button type="button" class="weekday-btn" data-day="0">일</button>
+                            <button type="button" class="weekday-btn" data-day="1">월</button>
+                            <button type="button" class="weekday-btn" data-day="2">화</button>
+                            <button type="button" class="weekday-btn" data-day="3">수</button>
+                            <button type="button" class="weekday-btn" data-day="4">목</button>
+                            <button type="button" class="weekday-btn" data-day="5">금</button>
+                            <button type="button" class="weekday-btn" data-day="6">토</button>
+                        </div>
+                        <input type="time" id="taskResetEveryNWeeksTime" class="form-input time-input" style="width:100%;margin-top:6px" />
+                    </div>
                     <!-- 매일 -->
                     <div class="task-reset-input-row hidden" id="taskResetTimeRow">
                         <input type="time" id="taskResetTime" class="form-input time-input" style="width:100%" />
                     </div>
                     <!-- 매주 요일 -->
                     <div class="task-reset-input-row hidden" id="taskResetWeeklyRow">
-                        <div class="weekday-toggle-wrap">
+                        <div class="weekday-toggle-wrap" id="taskResetWeeklySelector">
                             <button type="button" class="weekday-btn" data-day="0">일</button>
                             <button type="button" class="weekday-btn" data-day="1">월</button>
                             <button type="button" class="weekday-btn" data-day="2">화</button>
@@ -323,7 +350,41 @@
                                 <option value="weekly">매주</option>
                                 <option value="monthly">매월</option>
                                 <option value="yearly">매년</option>
+                                <option value="everyN">N일마다</option>
+                                <option value="everyNWeeks">N주마다</option>
                             </select>
+                        </div>
+                        <!-- N일마다: 숫자 입력 -->
+                        <div id="resetEveryNRow" class="settings-row hidden">
+                            <span class="settings-row-label">간격 (일)</span>
+                            <div class="every-n-input-wrap">
+                                <input type="number" id="resetEveryNDays" class="form-input number-input"
+                                    min="2" max="365" value="2" />
+                                <span class="every-n-suffix">일마다</span>
+                            </div>
+                        </div>
+                        <!-- N주마다: 숫자 입력 + 요일 선택 -->
+                        <div id="resetEveryNWeeksRow" class="settings-row-group hidden">
+                            <div class="settings-row">
+                                <span class="settings-row-label">간격 (주)</span>
+                                <div class="every-n-input-wrap">
+                                    <input type="number" id="resetEveryNWeeksInput" class="form-input number-input"
+                                        min="1" max="52" value="2" />
+                                    <span class="every-n-suffix">주마다</span>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <span class="settings-row-label">요일 선택</span>
+                                <div class="weekday-selector" id="resetEveryNWeekdaySelector">
+                                    <button type="button" class="weekday-btn" data-day="1">월</button>
+                                    <button type="button" class="weekday-btn" data-day="2">화</button>
+                                    <button type="button" class="weekday-btn" data-day="3">수</button>
+                                    <button type="button" class="weekday-btn" data-day="4">목</button>
+                                    <button type="button" class="weekday-btn" data-day="5">금</button>
+                                    <button type="button" class="weekday-btn" data-day="6">토</button>
+                                    <button type="button" class="weekday-btn" data-day="0">일</button>
+                                </div>
+                            </div>
                         </div>
                         <div class="reset-next-info" id="resetNextInfo"></div>
                     </div>

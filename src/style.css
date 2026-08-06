@@ -1597,6 +1597,34 @@ body {
     display: none;
 }
 
+/* N일마다 / N주마다 입력 */
+.every-n-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.number-input {
+    width: 70px;
+    text-align: center;
+}
+
+.every-n-suffix {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.settings-row-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.settings-row-group.hidden {
+    display: none;
+}
+
 /* Toggle Switch */
 .toggle-switch {
     position: relative;

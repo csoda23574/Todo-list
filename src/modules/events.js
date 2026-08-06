@@ -235,6 +235,31 @@ function bindSettingsModalEvents() {
     });
     DOM.resetRepeat?.addEventListener('change', () => {
         tempSettings.resetRepeat = DOM.resetRepeat.value;
+        const val = DOM.resetRepeat.value;
+        document.getElementById('resetEveryNRow')?.classList.toggle('hidden', val !== 'everyN');
+        document.getElementById('resetEveryNWeeksRow')?.classList.toggle('hidden', val !== 'everyNWeeks');
+        updateResetNextInfo();
+    });
+
+    // N일마다 숫자 입력
+    document.getElementById('resetEveryNDays')?.addEventListener('input', () => {
+        tempSettings.resetEveryNDays = parseInt(document.getElementById('resetEveryNDays').value, 10) || 2;
+        updateResetNextInfo();
+    });
+
+    // N주마다 숫자 입력
+    document.getElementById('resetEveryNWeeksInput')?.addEventListener('input', () => {
+        tempSettings.resetEveryNWeeks = parseInt(document.getElementById('resetEveryNWeeksInput').value, 10) || 2;
+        updateResetNextInfo();
+    });
+
+    // N주마다 요일 선택 버튼
+    document.getElementById('resetEveryNWeekdaySelector')?.addEventListener('click', e => {
+        const btn = e.target.closest('.weekday-btn');
+        if (!btn) return;
+        btn.classList.toggle('active');
+        tempSettings.resetEveryNWeekdays = [...document.querySelectorAll('#resetEveryNWeekdaySelector .weekday-btn.active')]
+            .map(b => Number(b.dataset.day));
         updateResetNextInfo();
     });
 

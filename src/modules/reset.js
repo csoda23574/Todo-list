@@ -186,9 +186,7 @@ export function scheduleResetTimer() {
 export function getNextResetDate(timeStr, repeat) {
     const now = new Date();
     if (repeat === 'calendar') return new Date(now.getTime() + 86_400_000);
-    const recurrence = repeat?.startsWith('every')
-        ? { type: 'everyN', n: parseInt(repeat.slice(5), 10), time: timeStr }
-        : { type: repeat || 'daily', time: timeStr };
+    const recurrence = settingsToRecurrence({ ...state.settings, resetRepeat: repeat, resetTime: timeStr });
     return calcNextDueAfter(recurrence, now, now) ?? new Date(now.getTime() + 86_400_000);
 }
 
@@ -275,10 +273,13 @@ export function getYearlyDatesFromDOM() {
  */
 export function updateTaskResetTypeUI(type) {
     const timeTypes = new Set(['daily', 'weekday']);
-    DOM.taskResetTimeRow?.classList.toggle('hidden', !timeTypes.has(type));
-    DOM.taskResetWeeklyRow?.classList.toggle('hidden', type !== 'weekly');
-    DOM.taskResetMonthlyRow?.classList.toggle('hidden', type !== 'monthly');
-    DOM.taskResetYearlyRow?.classList.toggle('hidden', type !== 'yearly');
+    document.getElementById('taskResetTimeRow')?.classList.toggle('hidden', !timeTypes.has(type));
+    document.getElementById('taskResetWeeklyRow')?.classList.toggle('hidden', type !== 'weekly');
+    document.getElementById('taskResetMonthlyRow')?.classList.toggle('hidden', type !== 'monthly');
+    document.getElementById('taskResetYearlyRow')?.classList.toggle('hidden', type !== 'yearly');
+    document.getElementById('taskResetEveryNRow')?.classList.toggle('hidden', type !== 'everyN');
+    document.getElementById('taskResetEveryNWeeksRow')?.classList.toggle('hidden', type !== 'everyNWeeks');
+    
     if (type === 'monthly') initMonthDayGrid();
     if (type === 'yearly' && DOM.yearlyDateList?.children.length === 0) addYearlyDateEntry();
     if (DOM.taskResetType) DOM.taskResetType.value = type;

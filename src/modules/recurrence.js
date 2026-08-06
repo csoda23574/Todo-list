@@ -84,6 +84,33 @@ export function calcNextDue(recurrence, fromDate) {
         return next;
     }
 
+    if (recurrence.type === 'everyNWeeks') {
+        const n = recurrence.n || 1;
+        const weekdays = recurrence.weekdays || [];
+        if (weekdays.length === 0) return null;
+        const next = new Date(fromDate);
+        next.setDate(next.getDate() + 1);
+        next.setHours(h, m, 0, 0);
+        // 같은 주 내 남은 지정 요일 탐색 (최대 6일)
+        const startDay = next.getDay();
+        for (let i = 0; i < 7; i++) {
+            if (weekdays.includes(next.getDay())) return next;
+            next.setDate(next.getDate() + 1);
+        }
+        // 같은 주에 없으면 (n-1)주 건너뛰고 다시 탐색
+        next.setDate(next.getDate() + (n - 1) * 7);
+        // 해당 주의 월요일로 정렬 후 요일 탐색
+        const dow = next.getDay();
+        const mondayOffset = dow === 0 ? -6 : 1 - dow;
+        next.setDate(next.getDate() + mondayOffset);
+        next.setHours(h, m, 0, 0);
+        for (let i = 0; i < 7; i++) {
+            if (weekdays.includes(next.getDay())) return next;
+            next.setDate(next.getDate() + 1);
+        }
+        return null;
+    }
+
     return null;
 }
 
@@ -114,8 +141,19 @@ export function calcNextDueAfter(recurrence, fromDate, now) {
 export function settingsToRecurrence(settings) {
     const { resetRepeat, resetTime, resetCalendarDate } = settings;
     if (resetRepeat === 'calendar') return { type: 'calendar', date: resetCalendarDate };
-    if (resetRepeat?.startsWith('every')) {
-        return { type: 'everyN', n: parseInt(resetRepeat.slice(5), 10), time: resetTime };
+    if (resetRepeat === 'everyNWeeks') {
+        return {
+            type: 'everyNWeeks',
+            n: settings.resetEveryNWeeks || 2,
+            weekdays: settings.resetEveryNWeekdays || [],
+            time: resetTime,
+        };
+    }
+    if (resetRepeat === 'everyN') {
+        return { type: 'everyN', n: settings.resetEveryNDays || 2, time: resetTime };
+    }
+    if (resetRepeat === 'weekly') {
+        return { type: 'weekly', weekdays: settings.resetWeekdays || [], time: resetTime };
     }
     return { type: resetRepeat || 'daily', time: resetTime };
 }
