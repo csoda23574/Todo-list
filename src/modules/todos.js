@@ -13,7 +13,7 @@ import { calcNextDueAfter } from './recurrence.js';
 
 /* ──────────────────────────── 추가 ────────────────────────────────────── */
 
-export function addTodo(text, note, priority, recurrence) {
+export function addTodo(text, note, priority, recurrence, checklist) {
     const nextDue = recurrence
         ? calcNextDueAfter(recurrence, new Date(), new Date())?.toISOString() ?? null
         : null;
@@ -31,6 +31,7 @@ export function addTodo(text, note, priority, recurrence) {
         nextDue,
         categoryId: state.currentCategoryId,
         order: minOrder,
+        checklist: checklist?.length ? checklist : null,
     };
     state.todos.unshift(todo);
     saveTodos(todo);
@@ -40,7 +41,7 @@ export function addTodo(text, note, priority, recurrence) {
 
 /* ──────────────────────────── 수정 ────────────────────────────────────── */
 
-export function editTodo(id, text, note, priority, recurrence) {
+export function editTodo(id, text, note, priority, recurrence, checklist) {
     const idx = state.todos.findIndex(t => t.id === id);
     if (idx === -1) return;
 
@@ -54,6 +55,7 @@ export function editTodo(id, text, note, priority, recurrence) {
         priority: priority || 'medium',
         recurrence: recurrence || null,
         nextDue,
+        checklist: checklist?.length ? checklist : null,
     };
     saveTodos(state.todos[idx]);
     emit('todos:changed');
@@ -128,4 +130,37 @@ export function clearAllTodos(silent = false) {
     saveTodos();
     emit('todos:changed');
     if (!silent) showToast('모든 할 일이 삭제되었습니다', 'info');
+}
+
+/* ──────────────────── 체크리스트 항목 토글 ─────────────────────────────── */
+
+/**
+ * 체크리스트 항목의 완료 상태를 토글합니다.
+ * 모든 항목이 완료되면 상위 할 일도 자동으로 완료 처리됩니다.
+ */
+export function toggleChecklistItem(todoId, checklistId, done) {
+    const idx = state.todos.findIndex(t => t.id === todoId);
+    if (idx === -1) return;
+
+    const todo = state.todos[idx];
+    if (!todo.checklist) return;
+
+    const newChecklist = todo.checklist.map(item =>
+        item.id === checklistId ? { ...item, done } : item
+    );
+
+    // 모든 체크리스트 항목이 완료되면 상위 할 일도 완료
+    const allDone = newChecklist.every(item => item.done);
+    const parentDone = allDone;
+
+    state.todos[idx] = {
+        ...todo,
+        checklist: newChecklist,
+        done: parentDone,
+        completedAt: parentDone ? new Date().toISOString() : null,
+    };
+
+    saveTodos(state.todos[idx]);
+    emit('todos:changed');
+    if (parentDone) showToast('모든 항목 완료! 할 일이 완료 처리되었습니다 🎉', 'success');
 }

@@ -83,6 +83,10 @@ export function getFilteredTodos() {
 export function createTodoElement(todo) {
     const priorityLabels = { low: '낮음', medium: '보통', high: '높음' };
     const priority = todo.priority || 'medium';
+    const checklist = todo.checklist || [];
+    const clTotal = checklist.length;
+    const clDone = checklist.filter(c => c.done).length;
+    const hasChecklist = clTotal > 0;
 
     const li = document.createElement('li');
     li.className = `todo-item${todo.done ? ' done' : ''}`;
@@ -103,9 +107,18 @@ export function createTodoElement(todo) {
         ${todo.recurrence
             ? `<span class="todo-reset-badge">${escapeHtml(formatRecurrenceBadge(todo.recurrence))}</span>`
             : ''}
+        ${hasChecklist
+            ? `<span class="checklist-progress-badge ${clDone === clTotal ? 'all-done' : ''}">✓ ${clDone}/${clTotal}</span>`
+            : ''}
       </div>
     </div>
     <div class="todo-actions">
+      ${hasChecklist ? `
+      <button class="todo-action-btn checklist-toggle-btn" title="체크리스트 펼침/숨김" aria-label="체크리스트 펼침/숨김" aria-expanded="false">
+        <svg class="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>` : ''}
       <button class="todo-action-btn edit-btn" title="수정" aria-label="항목 수정">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -121,6 +134,16 @@ export function createTodoElement(todo) {
         </svg>
       </button>
     </div>
+    ${hasChecklist ? `
+    <div class="checklist-area" role="list" aria-label="체크리스트">
+      ${checklist.map(item => `
+        <div class="checklist-item ${item.done ? 'done' : ''}" data-checklist-id="${item.id}" role="listitem">
+          <input type="checkbox" class="checklist-item-check" ${item.done ? 'checked' : ''}
+            aria-label="${escapeHtml(item.text)}" />
+          <span class="checklist-item-text">${escapeHtml(item.text)}</span>
+        </div>
+      `).join('')}
+    </div>` : ''}
   `;
 
     return li;

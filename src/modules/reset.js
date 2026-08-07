@@ -66,9 +66,14 @@ function _applyGlobalReset(now) {
     const changedItems = [];
     state.todos = state.todos.map(t => {
         if (t.recurrence) return t;
-        if (!t.done) return t;
+        if (!t.done && !(t.checklist?.some(c => c.done))) return t;
         changedItems.push(t.text);
-        return { ...t, done: false, completedAt: null };
+        return {
+            ...t,
+            done: false,
+            completedAt: null,
+            checklist: t.checklist?.map(c => ({ ...c, done: false })) ?? t.checklist,
+        };
     });
 
     // nextGlobalResetAt을 다음 미래 주기로 전진 (calendar는 1회성이므로 null)
@@ -105,6 +110,7 @@ function _applyItemResets(now) {
             done: false,
             completedAt: null,
             nextDue: newNextDue ? newNextDue.toISOString() : null,
+            checklist: t.checklist?.map(c => ({ ...c, done: false })) ?? t.checklist,
         };
     });
 

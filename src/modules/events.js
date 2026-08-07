@@ -12,7 +12,7 @@
 import { state } from './state.js';
 import { DOM } from './dom.js';
 import { showToast } from './utils.js';
-import { toggleTodo, reorderTodo } from './todos.js';
+import { toggleTodo, reorderTodo, toggleChecklistItem } from './todos.js';
 import { signInWithGoogle, signOut } from './firebase.js';
 
 /* ────────────────────── 파일 매직 바이트 검증 ────────────────────── */
@@ -40,7 +40,7 @@ import {
     openAddModal, openEditModal, openConfirmModal, openConfirmCategoryModal,
     openClearAllModal, handleConfirmDelete, handleModalSave,
     openSettingsModal, saveSettingsFromModal,
-    tempSettings, applyCropResult, closeModal
+    tempSettings, applyCropResult, closeModal, addChecklistFormItem
 } from './modals.js';
 import { switchCategory, startCategoryAdd, startCategoryRename, wasCategoryDragged, initCategoryDragSort } from './categories.js';
 import { updateTaskResetTypeUI, addYearlyDateEntry, updateResetNextInfo } from './reset.js';
@@ -53,13 +53,34 @@ import { updateBgPreview } from './renderer.js';
 function bindTodoListEvents() {
     if (!DOM.todoList) return;
     DOM.todoList.addEventListener('change', e => {
+        // 상위 할 일 체크박스
         const checkbox = e.target.closest('.todo-checkbox');
-        if (!checkbox) return;
-        const id = checkbox.closest('[data-id]')?.dataset.id;
-        if (id) toggleTodo(id, checkbox.checked);
+        if (checkbox) {
+            const id = checkbox.closest('[data-id]')?.dataset.id;
+            if (id) toggleTodo(id, checkbox.checked);
+            return;
+        }
+        // 체크리스트 항목 체크박스
+        const clCheck = e.target.closest('.checklist-item-check');
+        if (clCheck) {
+            const todoId = clCheck.closest('[data-id]')?.dataset.id;
+            const checklistId = clCheck.closest('[data-checklist-id]')?.dataset.checklistId;
+            if (todoId && checklistId) toggleChecklistItem(todoId, checklistId, clCheck.checked);
+        }
     });
 
     DOM.todoList.addEventListener('click', e => {
+        // 체크리스트 펼침/숨김
+        const toggleBtn = e.target.closest('.checklist-toggle-btn');
+        if (toggleBtn) {
+            const li = toggleBtn.closest('.todo-item');
+            const area = li?.querySelector('.checklist-area');
+            if (!area) return;
+            const expanded = area.classList.toggle('expanded');
+            toggleBtn.setAttribute('aria-expanded', expanded);
+            toggleBtn.querySelector('svg')?.classList.toggle('rotated', expanded);
+            return;
+        }
         const editBtn = e.target.closest('.edit-btn');
         const deleteBtn = e.target.closest('.delete-btn');
         if (editBtn) {
@@ -197,6 +218,17 @@ function bindTaskModalEvents() {
         updateTaskResetTypeUI(DOM.taskResetType.value);
     });
     DOM.addYearlyDateBtn?.addEventListener('click', () => addYearlyDateEntry());
+
+    // 체크리스트 항목 추가 버튼
+    document.getElementById('addChecklistItemBtn')?.addEventListener('click', () => {
+        addChecklistFormItem();
+    });
+
+    // 체크리스트 폼 항목 삭제 (이벤트 위임)
+    document.getElementById('checklistFormList')?.addEventListener('click', e => {
+        const removeBtn = e.target.closest('.checklist-form-remove');
+        if (removeBtn) removeBtn.closest('.checklist-form-item')?.remove();
+    });
 
     // 매주 요일 선택 (다중 선택 - 토글)
     document.getElementById('taskResetWeeklySelector')?.addEventListener('click', e => {

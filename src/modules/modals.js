@@ -15,6 +15,7 @@ import { updateBgPreview } from './renderer.js';
 import { emit } from './bus.js'; // renderer·reset 직접 의존 제거 — DIP
 import { updateResetNextInfo, initMonthDayGrid, addYearlyDateEntry, getYearlyDatesFromDOM, updateTaskResetTypeUI, applyResets } from './reset.js';
 import { addTodo, editTodo, deleteTodo, clearAllTodos } from './todos.js';
+import { generateId } from './utils.js';
 import { deleteCategory } from './categories.js';
 import { openModal, closeModal } from './modal-base.js';
 
@@ -46,6 +47,9 @@ function clearTaskForm() {
     document.querySelectorAll('.weekday-btn').forEach(b => b.classList.remove('active'));
     DOM.monthDayGrid?.querySelectorAll('.day-number-btn').forEach(b => b.classList.remove('active'));
     DOM.yearlyDateList.innerHTML = '';
+    // 체크리스트 초기화
+    const formList = document.getElementById('checklistFormList');
+    if (formList) formList.innerHTML = '';
 }
 
 /* ──────────────────────── 할 일 추가 모달 ───────────────────────────────── */
@@ -74,6 +78,7 @@ export function openEditModal(id) {
     DOM.taskNote.value = todo.note || '';
 
     _populateResetFields(todo);
+    _populateChecklist(todo.checklist || []);
     openModal(DOM.taskModal);
     setTimeout(() => DOM.taskInput.focus(), 50);
 }
@@ -143,11 +148,12 @@ export function handleModalSave() {
     const priority = getSelectedPriority();
     const resetType = DOM.taskResetType.value;
     const recurrence = _buildRecurrenceFromForm(resetType);
+    const checklist = _getChecklistFromForm();
 
     if (state.editingId) {
-        editTodo(state.editingId, text, note, priority, recurrence);
+        editTodo(state.editingId, text, note, priority, recurrence, checklist);
     } else {
-        addTodo(text, note, priority, recurrence);
+        addTodo(text, note, priority, recurrence, checklist);
     }
     closeModal(DOM.taskModal);
     state.editingId = null;
@@ -184,6 +190,54 @@ function _buildRecurrenceFromForm(resetType) {
         return { type: 'everyNWeeks', n, weekday, time };
     }
     return null;
+}
+
+/* ────────────────── 체크리스트 폼 헬퍼 ────────────────────────────────── */
+
+/**
+ * 체크리스트 항목 행을 폼 목록에 추가합니다.
+ * @param {string} [text=''] - 초기 텍스트
+ * @param {boolean} [done=false] - 초기 완료 상태
+ * @param {string} [id] - 기존 항목 id (없으면 신규 생성)
+ */
+export function addChecklistFormItem(text = '', done = false, id = null) {
+    const list = document.getElementById('checklistFormList');
+    if (!list) return;
+    const itemId = id || generateId();
+    const row = document.createElement('div');
+    row.className = 'checklist-form-item';
+    row.dataset.id = itemId;
+    row.innerHTML = `
+        <span class="checklist-drag-handle" title="드래그로 순서 변경">⠿</span>
+        <input type="checkbox" class="checklist-form-check" ${done ? 'checked' : ''} title="완료 표시" />
+        <input type="text" class="checklist-form-input form-input" placeholder="항목 입력..." value="${text.replace(/"/g, '&quot;')}" maxlength="200" />
+        <button type="button" class="checklist-form-remove" title="삭제">×</button>
+    `;
+    list.appendChild(row);
+    // 바로 텍스트 입력란 포커스
+    row.querySelector('.checklist-form-input')?.focus();
+}
+
+function _populateChecklist(checklist) {
+    const list = document.getElementById('checklistFormList');
+    if (!list) return;
+    list.innerHTML = '';
+    checklist.forEach(item => addChecklistFormItem(item.text, item.done, item.id));
+}
+
+function _getChecklistFromForm() {
+    const rows = document.querySelectorAll('#checklistFormList .checklist-form-item');
+    const items = [];
+    rows.forEach(row => {
+        const text = row.querySelector('.checklist-form-input')?.value.trim();
+        if (!text) return; // 빈 항목 무시
+        items.push({
+            id: row.dataset.id,
+            text,
+            done: row.querySelector('.checklist-form-check')?.checked ?? false,
+        });
+    });
+    return items;
 }
 
 /* ──────────────────── 확인 모달 (범용) ─────────────────────────────────── */
