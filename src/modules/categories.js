@@ -8,6 +8,7 @@
 import { state } from './state.js';
 import { STORAGE_KEYS } from './config.js';
 import { saveToStorage, saveCategories, saveTodos } from './storage.js';
+import { deleteTodoRemote } from './sync.js';
 import { emit } from './bus.js'; // renderer 직접 의존 제거 — DIP
 import { showToast, escapeHtml } from './utils.js';
 import { DOM } from './dom.js';
@@ -61,6 +62,12 @@ export function deleteCategory(id) {
 
     saveTodos();
     saveCategories();
+
+    // 서버에서도 해당 카테고리의 할 일들 실제 삭제
+    if (state.isSignedIn) {
+        removedTodos.forEach(t => deleteTodoRemote(t.id));
+    }
+
     emit('categories:changed');
 
     // 실행 취소 토스트

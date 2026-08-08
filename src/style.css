@@ -955,6 +955,28 @@ body {
     background: color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
+/* 다음 초기화 예정 시간 배지 */
+.todo-next-reset-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    opacity: 0.75;
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+    transition: opacity var(--transition-fast);
+}
+
+.todo-item:hover .todo-next-reset-badge {
+    opacity: 1;
+}
+
+.todo-item.done .todo-next-reset-badge {
+    display: none;
+}
+
 /* 체크리스트 진행 뱃지 */
 .checklist-progress-badge {
     font-size: 11px;

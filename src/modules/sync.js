@@ -165,6 +165,7 @@ export function getSettingsChangeFlags(prevSettings, nextSettings) {
             || prevSettings.resetRepeat !== nextSettings.resetRepeat
             || prevSettings.nextGlobalResetAt !== nextSettings.nextGlobalResetAt
             || prevSettings.resetCalendarDate !== nextSettings.resetCalendarDate,
+        todosChanged: prevSettings.showNextResetTime !== nextSettings.showNextResetTime,
     };
 }
 
@@ -256,11 +257,13 @@ export function startListeners() {
             bgChanged,
             titleChanged,
             resetChanged,
+            todosChanged,
         } = getSettingsChangeFlags(prevSettings, state.settings);
 
         if (bgChanged) emit('bg:changed');
         if (titleChanged) emit('title:changed');
         if (resetChanged) emit('reset:reschedule');
+        if (todosChanged) emit('todos:changed');
     }, err => console.error('[Sync] settings 리스너 오류:', err));
 }
 
@@ -330,6 +333,20 @@ export async function initialMerge() {
             await pushCategories(state.categories, state.currentCategoryId);
         }
 
+        // 유령 데이터 (삭제된 카테고리에 속한 할 일) 자동 청소
+        const validCategoryIds = new Set(state.categories.map(c => c.id));
+        const ghosts = state.todos.filter(t => !validCategoryIds.has(t.categoryId || 'default'));
+        if (ghosts.length > 0) {
+            console.log('[Sync] 유령 할 일 자동 청소:', ghosts.length);
+            const batch = db.batch();
+            ghosts.forEach(t => batch.delete(todosRef().doc(t.id)));
+            await batch.commit();
+            
+            // 로컬 상태에서도 즉시 제거
+            state.todos = state.todos.filter(t => validCategoryIds.has(t.categoryId || 'default'));
+            emit('todos:changed');
+        }
+
         // Settings 초기 로드
         const setSnap = await getFromServer(settingsRef());
         if (setSnap.exists) {
@@ -337,11 +354,12 @@ export async function initialMerge() {
             const prevSettings = { ...state.settings };
             state.settings = { ...state.settings, ...remoteSettings };
             // currentCategoryId는 앱 시작 시 적용하지 않음 (항상 첫 번째 카테고리로 시작)
-            const { bgChanged, titleChanged, resetChanged } = getSettingsChangeFlags(prevSettings, state.settings);
+            const { bgChanged, titleChanged, resetChanged, todosChanged } = getSettingsChangeFlags(prevSettings, state.settings);
             // title은 로그인 직후 항상 DOM에 적용 (로컬과 같아도 최신값 보장)
             emit('title:changed');
             if (bgChanged) emit('bg:changed');
             if (resetChanged) emit('reset:reschedule');
+            if (todosChanged) emit('todos:changed');
         } else {
             await pushSettings(state.settings);
         }

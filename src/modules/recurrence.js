@@ -39,10 +39,14 @@ export function calcNextDue(recurrence, fromDate) {
 
     if (recurrence.type === 'weekly') {
         const weekdays = recurrence.weekdays || [];
-        if (weekdays.length === 0) return null;
         const next = new Date(fromDate);
         next.setDate(next.getDate() + 1);
         next.setHours(h, m, 0, 0);
+        // weekdays가 비어있으면 단순 7일 주기 (전역 설정의 '매주')
+        if (weekdays.length === 0) {
+            next.setDate(next.getDate() + 6); // +1 이미 했으므로 +6 = 총 7일
+            return next;
+        }
         for (let i = 0; i < 7; i++) {
             if (weekdays.includes(next.getDay())) return next;
             next.setDate(next.getDate() + 1);
@@ -78,31 +82,66 @@ export function calcNextDue(recurrence, fromDate) {
 
     if (recurrence.type === 'everyN') {
         const n = recurrence.n || 1;
-        const next = new Date(fromDate);
-        next.setDate(next.getDate() + n);
-        next.setHours(h, m, 0, 0);
-        return next;
+        if (recurrence.startDate) {
+            let startObj = new Date(recurrence.startDate);
+            if (isNaN(startObj.getTime())) startObj = new Date(fromDate);
+            startObj.setHours(h, m, 0, 0);
+
+            if (startObj > fromDate) return startObj;
+            const next = new Date(startObj);
+            const diffDays = Math.floor((fromDate - startObj) / 86400000);
+            const jumps = Math.max(0, Math.floor(diffDays / n));
+            next.setDate(next.getDate() + jumps * n);
+            while (next <= fromDate) next.setDate(next.getDate() + n);
+            return next;
+        } else {
+            const next = new Date(fromDate);
+            next.setDate(next.getDate() + n);
+            next.setHours(h, m, 0, 0);
+            return next;
+        }
     }
 
     if (recurrence.type === 'everyNWeeks') {
         const n = recurrence.n || 1;
         const weekday = recurrence.weekday ?? null; // 0(일)~6(토), 단일 값
         if (weekday === null) return null;
-        // fromDate 다음 날부터 시작해서 지정 요일까지 며칠인지 계산
-        const next = new Date(fromDate);
-        next.setDate(next.getDate() + 1);
-        next.setHours(h, m, 0, 0);
-        const cur = next.getDay();
-        const daysToTarget = (weekday - cur + 7) % 7;
-        // daysToTarget이 0이면 내일이 바로 해당 요일 → 그 자체가 다음 후보
-        next.setDate(next.getDate() + daysToTarget);
-        // n주 주기 맞추기: fromDate 기준 에포크 주 번호와 비교해 배수 조정
-        const epochDays = Math.floor(next.getTime() / 86_400_000);
-        const fromEpochDays = Math.floor(fromDate.getTime() / 86_400_000);
-        const weekDiff = Math.floor((epochDays - fromEpochDays + daysToTarget) / 7);
-        const remainder = weekDiff % n;
-        if (remainder !== 0) next.setDate(next.getDate() + (n - remainder) * 7);
-        return next;
+
+        if (recurrence.startDate) {
+            let startObj = new Date(recurrence.startDate);
+            if (isNaN(startObj.getTime())) startObj = new Date(fromDate);
+            startObj.setHours(h, m, 0, 0);
+
+            const first = new Date(startObj);
+            const cur = first.getDay();
+            const daysToTarget = (weekday - cur + 7) % 7;
+            first.setDate(first.getDate() + daysToTarget);
+
+            if (first > fromDate) return first;
+
+            const next = new Date(first);
+            const diffDays = Math.floor((fromDate - first) / 86400000);
+            const jumps = Math.max(0, Math.floor(diffDays / (n * 7)));
+            next.setDate(next.getDate() + jumps * n * 7);
+            while (next <= fromDate) next.setDate(next.getDate() + n * 7);
+            return next;
+        } else {
+            // fromDate 다음 날부터 시작해서 지정 요일까지 며칠인지 계산
+            const next = new Date(fromDate);
+            next.setDate(next.getDate() + 1);
+            next.setHours(h, m, 0, 0);
+            const cur = next.getDay();
+            const daysToTarget = (weekday - cur + 7) % 7;
+            // daysToTarget이 0이면 내일이 바로 해당 요일 → 그 자체가 다음 후보
+            next.setDate(next.getDate() + daysToTarget);
+            // n주 주기 맞추기: fromDate 기준 에포크 주 번호와 비교해 배수 조정
+            const epochDays = Math.floor(next.getTime() / 86_400_000);
+            const fromEpochDays = Math.floor(fromDate.getTime() / 86_400_000);
+            const weekDiff = Math.floor((epochDays - fromEpochDays + daysToTarget) / 7);
+            const remainder = weekDiff % n;
+            if (remainder !== 0) next.setDate(next.getDate() + (n - remainder) * 7);
+            return next;
+        }
     }
 
     return null;
@@ -146,9 +185,8 @@ export function settingsToRecurrence(settings) {
     if (resetRepeat === 'everyN') {
         return { type: 'everyN', n: settings.resetEveryNDays || 2, time: resetTime };
     }
-    if (resetRepeat === 'weekly') {
-        return { type: 'weekly', weekdays: settings.resetWeekdays || [], time: resetTime };
-    }
+    // weekly, daily, weekday, monthly, yearly — 모두 기본 분기 처리
+    // (weekly는 매주 같은 요일이 아닌 단순 7일 주기로 동작)
     return { type: resetRepeat || 'daily', time: resetTime };
 }
 

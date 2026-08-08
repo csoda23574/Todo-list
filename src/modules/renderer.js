@@ -8,6 +8,7 @@
 import { state } from './state.js';
 import { DOM } from './dom.js';
 import { escapeHtml, formatRecurrenceBadge } from './utils.js';
+import { settingsToRecurrence } from './recurrence.js';
 
 /* ─────────────────────────── 앱 타이틀 ────────────────────────────────── */
 
@@ -88,6 +89,33 @@ export function createTodoElement(todo) {
     const clDone = checklist.filter(c => c.done).length;
     const hasChecklist = clTotal > 0;
 
+    // 다음 초기화 시간 배지 계산
+    const showBadge = state.settings.showNextResetTime !== false;
+    let nextResetBadgeHtml = '';
+    if (showBadge && !todo.done) {
+        const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+        const formatResetTime = (isoStr) => {
+            if (!isoStr) return null;
+            const d = new Date(isoStr);
+            if (isNaN(d.getTime())) return null;
+            const m = d.getMonth() + 1;
+            const day = d.getDate();
+            const wd = weekdayLabels[d.getDay()];
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            return `${m}/${day}(${wd}) ${hh}:${mm}`;
+        };
+
+        // 개별 초기화가 있으면 nextDue 우선, 없으면 전역 nextGlobalResetAt
+        const timeStr = todo.nextDue
+            ? formatResetTime(todo.nextDue)
+            : (state.settings.resetEnabled ? formatResetTime(state.settings.nextGlobalResetAt) : null);
+
+        if (timeStr) {
+            nextResetBadgeHtml = `<div class="todo-next-reset-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>다음 초기화: ${timeStr}</div>`;
+        }
+    }
+
     const li = document.createElement('li');
     li.className = `todo-item${todo.done ? ' done' : ''}`;
     li.dataset.id = todo.id;
@@ -102,10 +130,11 @@ export function createTodoElement(todo) {
     <div class="todo-content">
       <div class="todo-text">${escapeHtml(todo.text)}</div>
       ${todo.note ? `<div class="todo-note">${escapeHtml(todo.note)}</div>` : ''}
+      ${nextResetBadgeHtml}
       <div class="todo-meta">
         <span class="todo-priority-badge ${priority}">${priorityLabels[priority] || '보통'}</span>
-        ${todo.recurrence
-            ? `<span class="todo-reset-badge">${escapeHtml(formatRecurrenceBadge(todo.recurrence))}</span>`
+        ${(todo.recurrence || (state.settings.resetEnabled ? settingsToRecurrence(state.settings) : null))
+            ? `<span class="todo-reset-badge">${escapeHtml(formatRecurrenceBadge(todo.recurrence || settingsToRecurrence(state.settings)))}</span>`
             : ''}
         ${hasChecklist
             ? `<span class="checklist-progress-badge ${clDone === clTotal ? 'all-done' : ''}">✓ ${clDone}/${clTotal}</span>`

@@ -48,7 +48,22 @@ function _applyGlobalReset(now) {
     if (!recurrence) return;
 
     if (!state.settings.nextGlobalResetAt) {
-        // 최초 활성화: 즉시 초기화 없이 다음 주기만 예약
+        // nextGlobalResetAt이 없으면 즉시 초기화 실행 후 다음 주기 예약
+        // (최초 활성화 및 버그 등으로 null이 된 경우 모두 포함)
+        const changedItems = [];
+        state.todos = state.todos.map(t => {
+            if (t.recurrence) return t;
+            if (!t.done && !(t.checklist?.some(c => c.done))) return t;
+            if (t.done) changedItems.push(t.text);
+            return {
+                ...t,
+                done: false,
+                completedAt: null,
+                ...(t.checklist ? { checklist: t.checklist.map(c => ({ ...c, done: false })) } : {})
+            };
+        });
+        if (changedItems.length > 0) _onResetOccurred('[전역 초기화]', changedItems);
+
         const nextDate = recurrence.type === 'calendar'
             ? (recurrence.date ? new Date(recurrence.date) : null)
             : calcNextDueAfter(recurrence, now, now);
@@ -67,12 +82,12 @@ function _applyGlobalReset(now) {
     state.todos = state.todos.map(t => {
         if (t.recurrence) return t;
         if (!t.done && !(t.checklist?.some(c => c.done))) return t;
-        changedItems.push(t.text);
+        if (t.done) changedItems.push(t.text); // 실제 완료된 항목만 기록
         return {
             ...t,
             done: false,
             completedAt: null,
-            checklist: t.checklist?.map(c => ({ ...c, done: false })) ?? t.checklist,
+            ...(t.checklist ? { checklist: t.checklist.map(c => ({ ...c, done: false })) } : {})
         };
     });
 
@@ -110,7 +125,7 @@ function _applyItemResets(now) {
             done: false,
             completedAt: null,
             nextDue: newNextDue ? newNextDue.toISOString() : null,
-            checklist: t.checklist?.map(c => ({ ...c, done: false })) ?? t.checklist,
+            ...(t.checklist ? { checklist: t.checklist.map(c => ({ ...c, done: false })) } : {})
         };
     });
 

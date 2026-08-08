@@ -209,7 +209,13 @@
                             <input type="number" id="taskResetEveryNDays" class="form-input number-input" min="2" max="365" value="2" />
                             <span class="every-n-suffix">일마다</span>
                         </div>
-                        <input type="time" id="taskResetEveryNTime" class="form-input time-input" style="width:100%;margin-top:6px" />
+                        <div class="form-group" style="margin-top:8px; margin-bottom:0">
+                            <label class="form-label" style="font-size:11px">시작일 및 시간</label>
+                            <div style="display:flex; gap:6px;">
+                                <input type="date" id="taskResetEveryNDate" class="form-input" style="flex:1" />
+                                <input type="time" id="taskResetEveryNTime" class="form-input time-input" style="flex:1" />
+                            </div>
+                        </div>
                     </div>
                     <!-- N주마다 -->
                     <div class="task-reset-input-row hidden" id="taskResetEveryNWeeksRow">
@@ -226,7 +232,13 @@
                             <button type="button" class="weekday-btn" data-day="5">금</button>
                             <button type="button" class="weekday-btn" data-day="6">토</button>
                         </div>
-                        <input type="time" id="taskResetEveryNWeeksTime" class="form-input time-input" style="width:100%;margin-top:6px" />
+                        <div class="form-group" style="margin-top:8px; margin-bottom:0">
+                            <label class="form-label" style="font-size:11px">시작일 및 시간</label>
+                            <div style="display:flex; gap:6px;">
+                                <input type="date" id="taskResetEveryNWeeksDate" class="form-input" style="flex:1" />
+                                <input type="time" id="taskResetEveryNWeeksTime" class="form-input time-input" style="flex:1" />
+                            </div>
+                        </div>
                     </div>
                     <!-- 매일 -->
                     <div class="task-reset-input-row hidden" id="taskResetTimeRow">
@@ -397,6 +409,16 @@
                             </div>
                         </div>
                         <div class="reset-next-info" id="resetNextInfo"></div>
+                        <div class="settings-row" style="margin-top:4px;">
+                            <div class="settings-row-label">
+                                <span>초기화 시간 표시</span>
+                                <span class="settings-row-sub">각 항목에 다음 초기화 예정 시간을 표시합니다</span>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="showNextResetTime" />
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 

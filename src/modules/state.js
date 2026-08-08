@@ -35,5 +35,6 @@ export const state = {
         bgFileName: '',
         appTitle: 'My Tasks',
         nextGlobalResetAt: null, // 다음 전역 초기화 예정 시각 (ISO string, Firestore 동기화)
+        showNextResetTime: true, // 각 항목에 다음 초기화 시간 배지 표시 여부
     },
 };

@@ -18,7 +18,7 @@ import {
 } from './modules/reset.js';
 import { on, emit } from './modules/bus.js';
 import { state } from './modules/state.js';
-import { auth } from './modules/firebase.js';
+import { auth, db } from './modules/firebase.js';
 import { initialMerge, startListeners, stopListeners, getSettingsChangeFlags } from './modules/sync.js';
 import { DOM } from './modules/dom.js';
 import { getStorageKey, STORAGE_KEYS } from './modules/config.js';
@@ -159,6 +159,8 @@ if (typeof window !== 'undefined') {
     const prev = window.todoDebug || {};
     window.todoDebug = {
         ...prev,
+        state,
+        db,
         getRenderMetrics,
         resetRenderMetrics,
         simulateLoginRenderScenario: () => {

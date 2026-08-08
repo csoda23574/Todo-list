@@ -112,15 +112,34 @@ function _populateResetFields(todo) {
         updateTaskResetTypeUI('yearly');
     } else if (r.type === 'everyN') {
         const elDays = document.getElementById('taskResetEveryNDays');
+        const elDate = document.getElementById('taskResetEveryNDate');
         const elTime = document.getElementById('taskResetEveryNTime');
+        
         if (elDays) elDays.value = r.n || 2;
-        if (elTime) elTime.value = r.time || '';
+        if (elTime) elTime.value = r.time || state.settings.resetTime || '00:00';
+        
+        const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+        if (elDate) {
+            elDate.value = r.startDate 
+                ? new Date(r.startDate).toLocaleDateString('en-CA') 
+                : todayStr;
+        }
+        
         updateTaskResetTypeUI('everyN');
     } else if (r.type === 'everyNWeeks') {
         const elWeeks = document.getElementById('taskResetEveryNWeeksInput');
+        const elDate = document.getElementById('taskResetEveryNWeeksDate');
         const elTime = document.getElementById('taskResetEveryNWeeksTime');
+        
         if (elWeeks) elWeeks.value = r.n || 2;
-        if (elTime) elTime.value = r.time || '';
+        if (elTime) elTime.value = r.time || state.settings.resetTime || '00:00';
+        
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        if (elDate) {
+            elDate.value = r.startDate 
+                ? new Date(r.startDate).toLocaleDateString('en-CA') 
+                : todayStr;
+        }
         const weekday = r.weekday ?? null;
         document.querySelectorAll('#taskResetEveryNWeekdaySelector .weekday-btn').forEach(b => {
             b.classList.toggle('active', Number(b.dataset.day) === weekday);
@@ -180,14 +199,18 @@ function _buildRecurrenceFromForm(resetType) {
     if (resetType === 'everyN') {
         const n = parseInt(document.getElementById('taskResetEveryNDays')?.value, 10) || 2;
         const time = document.getElementById('taskResetEveryNTime')?.value || '00:00';
-        return { type: 'everyN', n, time };
+        const dateVal = document.getElementById('taskResetEveryNDate')?.value;
+        const startDate = dateVal ? `${dateVal}T${time}:00` : null;
+        return { type: 'everyN', n, time, startDate };
     }
     if (resetType === 'everyNWeeks') {
         const n = parseInt(document.getElementById('taskResetEveryNWeeksInput')?.value, 10) || 2;
         const time = document.getElementById('taskResetEveryNWeeksTime')?.value || '00:00';
+        const dateVal = document.getElementById('taskResetEveryNWeeksDate')?.value;
+        const startDate = dateVal ? `${dateVal}T${time}:00` : null;
         const activeBtn = document.querySelector('#taskResetEveryNWeekdaySelector .weekday-btn.active');
         const weekday = activeBtn ? parseInt(activeBtn.dataset.day, 10) : null;
-        return { type: 'everyNWeeks', n, weekday, time };
+        return { type: 'everyNWeeks', n, weekday, time, startDate };
     }
     return null;
 }
@@ -383,6 +406,11 @@ function _populateSettingsForm() {
         DOM.appTitleInput.value = tempSettings.appTitle || 'My Tasks';
     }
 
+    const showNextResetTimeEl = document.getElementById('showNextResetTime');
+    if (showNextResetTimeEl) {
+        showNextResetTimeEl.checked = tempSettings.showNextResetTime !== false;
+    }
+
     updateResetNextInfo();
     updateBgPreview(tempBgImage, tempSettings.bgFileName);
     _updateElectronSettingsSection();
@@ -396,6 +424,11 @@ export async function saveSettingsFromModal() {
 
     if (DOM.appTitleInput) {
         state.settings.appTitle = DOM.appTitleInput.value.trim() || 'My Tasks';
+    }
+
+    const showNextResetTimeEl = document.getElementById('showNextResetTime');
+    if (showNextResetTimeEl) {
+        state.settings.showNextResetTime = showNextResetTimeEl.checked;
     }
 
     // 설정 저장 시 nextGlobalResetAt을 초기화 → applyResets()에서 재계산됨
