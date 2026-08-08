@@ -70,6 +70,7 @@ function _applyGlobalReset(now) {
         if (nextDate) {
             state.settings.nextGlobalResetAt = nextDate.toISOString();
             saveSettings();
+            emit('todos:changed');
         }
         return;
     }
@@ -97,6 +98,7 @@ function _applyGlobalReset(now) {
         : calcNextDueAfter(recurrence, nextGlobal, now);
     state.settings.nextGlobalResetAt = newNext ? newNext.toISOString() : null;
     saveSettings();
+    emit('todos:changed');
 
     if (changedItems.length > 0) {
         _onResetOccurred('[전역 초기화]', changedItems);

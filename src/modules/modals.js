@@ -431,13 +431,13 @@ export async function saveSettingsFromModal() {
         state.settings.showNextResetTime = showNextResetTimeEl.checked;
     }
 
-    // 설정 저장 시 nextGlobalResetAt을 초기화 → applyResets()에서 재계산됨
     state.settings.nextGlobalResetAt = null;
 
     saveSettings();
     emit('bg:changed');
     emit('title:changed');
     applyResets(new Date());
+    emit('todos:changed');
 
     if (window.electronAPI) {
         const autoEl = document.getElementById('autoLaunchEnabled');
