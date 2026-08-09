@@ -973,10 +973,6 @@ body {
     opacity: 1;
 }
 
-.todo-item.done .todo-next-reset-badge {
-    display: none;
-}
-
 /* 체크리스트 진행 뱃지 */
 .checklist-progress-badge {
     font-size: 11px;

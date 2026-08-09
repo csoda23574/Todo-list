@@ -262,7 +262,7 @@ export function startListeners() {
 
         if (bgChanged) emit('bg:changed');
         if (titleChanged) emit('title:changed');
-        if (resetChanged) emit('reset:reschedule');
+        if (resetChanged) { emit('reset:reschedule'); emit('todos:changed'); }
         if (todosChanged) emit('todos:changed');
     }, err => console.error('[Sync] settings 리스너 오류:', err));
 }
@@ -358,7 +358,7 @@ export async function initialMerge() {
             // title은 로그인 직후 항상 DOM에 적용 (로컬과 같아도 최신값 보장)
             emit('title:changed');
             if (bgChanged) emit('bg:changed');
-            if (resetChanged) emit('reset:reschedule');
+            if (resetChanged) { emit('reset:reschedule'); emit('todos:changed'); }
             if (todosChanged) emit('todos:changed');
         } else {
             await pushSettings(state.settings);

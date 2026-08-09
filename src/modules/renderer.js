@@ -92,7 +92,7 @@ export function createTodoElement(todo) {
     // 다음 초기화 시간 배지 계산
     const showBadge = state.settings.showNextResetTime !== false;
     let nextResetBadgeHtml = '';
-    if (showBadge && !todo.done) {
+    if (showBadge && todo.done) {
         const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
         const formatResetTime = (isoStr) => {
             if (!isoStr) return null;
