@@ -127,6 +127,7 @@ export function formatRecurrenceBadge(r) {
         return `🔄 ${r.n}주마다 ${day} ${time}`;
     }
     if (r.type === 'calendar') return '🔄 1회';
+    if (r.type === 'neverReset') return '⛔ 초기화 없음';
     return '';
 }
 

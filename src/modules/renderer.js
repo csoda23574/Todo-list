@@ -106,10 +106,12 @@ export function createTodoElement(todo) {
             return `${m}/${day}(${wd}) ${hh}:${mm}`;
         };
 
-        // 개별 초기화가 있으면 nextDue 우선, 없으면 전역 nextGlobalResetAt
-        const timeStr = todo.nextDue
+        // neverReset 항목은 초기화 시간 표시 안 함
+        const isNeverReset = todo.recurrence?.type === 'neverReset';
+        // 개별 초기화가 있으면 nextDue 우선, 없으면 전역 nextGlobalResetAt (neverReset 제외)
+        const timeStr = !isNeverReset && (todo.nextDue
             ? formatResetTime(todo.nextDue)
-            : (state.settings.resetEnabled ? formatResetTime(state.settings.nextGlobalResetAt) : null);
+            : (state.settings.resetEnabled ? formatResetTime(state.settings.nextGlobalResetAt) : null));
 
         if (timeStr) {
             nextResetBadgeHtml = `<div class="todo-next-reset-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>다음 초기화: ${timeStr}</div>`;

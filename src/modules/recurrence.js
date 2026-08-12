@@ -26,6 +26,7 @@ export function calcNextDue(recurrence, fromDate) {
     const [h, m] = (recurrence.time || '00:00').split(':').map(Number);
 
     if (recurrence.type === 'calendar') return null; // 1회성 — 다음 없음
+    if (recurrence.type === 'neverReset') return null; // 초기화 없음
 
     if (recurrence.type === 'daily' || recurrence.type === 'weekday') {
         const next = new Date(fromDate);

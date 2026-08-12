@@ -145,6 +145,8 @@ function _populateResetFields(todo) {
             b.classList.toggle('active', Number(b.dataset.day) === weekday);
         });
         updateTaskResetTypeUI('everyNWeeks');
+    } else if (r.type === 'neverReset') {
+        updateTaskResetTypeUI('neverReset');
     } else {
         updateTaskResetTypeUI('none');
     }
@@ -179,6 +181,9 @@ export function handleModalSave() {
 }
 
 function _buildRecurrenceFromForm(resetType) {
+    if (resetType === 'neverReset') {
+        return { type: 'neverReset' };
+    }
     if (resetType === 'daily' || resetType === 'weekday') {
         return { type: resetType, time: DOM.taskResetTime.value || '00:00' };
     }
