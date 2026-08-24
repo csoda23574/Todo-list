@@ -124,7 +124,7 @@
                 </div>
             </div>
 
-            <!-- Background + Todo list (background anchored to this area only) -->
+            <!-- Todo list -->
             <div class="app-content">
                 <div class="bg-overlay" id="bgOverlay"></div>
 
@@ -423,6 +423,51 @@
                     </div>
                 </div>
 
+                <!-- Palette Section -->
+                <div class="settings-section">
+                    <div class="settings-section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <circle cx="13.5" cy="6.5" r="1.5" /><circle cx="17.5" cy="10.5" r="1.5" />
+                            <circle cx="8.5" cy="7.5" r="1.5" /><circle cx="6.5" cy="12.5" r="1.5" />
+                            <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+                        </svg>
+                        상단바 색상
+                    </div>
+                    <div class="settings-row" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                        <span class="settings-row-label" style="font-size: 12px; color: var(--color-text-secondary);">프리셋</span>
+                        <div class="palette-swatches" id="paletteSwatches">
+                            <button class="palette-swatch" data-color="#3a6491" title="오션 블루" style="background: #3a6491;"></button>
+                            <button class="palette-swatch" data-color="#2d6a4f" title="포레스트 그린" style="background: #2d6a4f;"></button>
+                            <button class="palette-swatch" data-color="#6a3d9a" title="딥 퍼플" style="background: #6a3d9a;"></button>
+                            <button class="palette-swatch" data-color="#8b1a1a" title="다크 레드" style="background: #8b1a1a;"></button>
+                            <button class="palette-swatch" data-color="#7a5c00" title="골드 브라운" style="background: #7a5c00;"></button>
+                            <button class="palette-swatch" data-color="#1a5276" title="네이비" style="background: #1a5276;"></button>
+                            <button class="palette-swatch" data-color="#4a235a" title="다크 바이올렛" style="background: #4a235a;"></button>
+                            <button class="palette-swatch" data-color="#1e4d40" title="딥 틸" style="background: #1e4d40;"></button>
+                            <button class="palette-swatch" data-color="#5d3a1a" title="초콜릿" style="background: #5d3a1a;"></button>
+                            <button class="palette-swatch" data-color="#2e4057" title="슬레이트" style="background: #2e4057;"></button>
+                        </div>
+                        <div class="settings-row" style="width: 100%; padding: 0; margin-top: 4px;">
+                            <span class="settings-row-label" style="font-size: 12px; color: var(--color-text-secondary);">직접 선택</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="color" id="uiBaseColorPicker" class="palette-color-picker" value="#3a6491" />
+                                <div class="palette-hex-wrap">
+                                    <span class="palette-hex-prefix">#</span>
+                                    <input
+                                        type="text"
+                                        id="uiBaseColorHex"
+                                        class="palette-hex-input"
+                                        value="3a6491"
+                                        maxlength="6"
+                                        spellcheck="false"
+                                        placeholder="3a6491"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Background Section -->
                 <div class="settings-section">
                     <div class="settings-section-title">
@@ -524,6 +569,54 @@
                         <button class="btn btn-ghost" id="testNotificationBtn">테스트 알림 보내기</button>
                     </div>
                 </div> -->
+
+                <!-- Preset Section -->
+                <div class="settings-section" id="presetSection">
+                    <div class="settings-section-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                            <polyline points="16 6 12 2 8 6"/>
+                            <line x1="12" y1="2" x2="12" y2="15"/>
+                        </svg>
+                        프리셋
+                        <span class="preset-count-badge" id="presetCountBadge">0 / 5</span>
+                    </div>
+
+                    <!-- 내 프리셋 목록 -->
+                    <div id="presetList" class="preset-list"></div>
+
+                    <!-- 새 프리셋 만들기 -->
+                    <div id="presetCreatePanel" class="preset-create-panel" style="display:none">
+                        <div class="form-group" style="margin-bottom:8px">
+                            <label class="form-label" style="font-size:12px">프리셋 이름</label>
+                            <input type="text" id="presetNameInput" class="form-input" placeholder="예: 일간 루틴" maxlength="30" autocomplete="off" />
+                        </div>
+                        <div class="form-group" style="margin-bottom:8px">
+                            <label class="form-label" style="font-size:12px">공유할 탭 선택</label>
+                            <div id="presetCategoryCheckboxes" class="preset-category-checkboxes"></div>
+                        </div>
+                        <div class="preset-create-actions">
+                            <button class="btn btn-ghost btn-sm" id="presetCreateCancelBtn">취소</button>
+                            <button class="btn btn-primary btn-sm" id="presetCreateSaveBtn">저장</button>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-ghost btn-sm" id="presetCreateToggleBtn" style="width:100%;margin-top:6px">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        새 프리셋 만들기
+                    </button>
+
+                    <!-- 프리셋 가져오기 -->
+                    <div class="preset-import-section">
+                        <label class="form-label" style="font-size:12px;margin-top:12px">프리셋 가져오기</label>
+                        <div class="preset-import-row">
+                            <input type="text" id="presetImportCodeInput" class="form-input" placeholder="6자리 코드 입력" maxlength="6" autocomplete="off" style="flex:1;font-family:monospace;letter-spacing:2px" />
+                            <button class="btn btn-primary btn-sm" id="presetImportBtn">가져오기</button>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Danger Zone -->
                 <div class="settings-section danger-section">

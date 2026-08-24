@@ -14,6 +14,7 @@ import { loadFromIDB } from './idb.js';
 import { updateBgPreview } from './renderer.js';
 import { emit } from './bus.js'; // renderer·reset 직접 의존 제거 — DIP
 import { updateResetNextInfo, initMonthDayGrid, addYearlyDateEntry, getYearlyDatesFromDOM, updateTaskResetTypeUI, applyResets } from './reset.js';
+import { settingsToRecurrence, calcNextDueAfter } from './recurrence.js';
 import { addTodo, editTodo, deleteTodo, clearAllTodos } from './todos.js';
 import { generateId } from './utils.js';
 import { deleteCategory } from './categories.js';
@@ -349,6 +350,15 @@ export async function openSettingsModal() {
 
     _populateSettingsForm();
     openModal(DOM.settingsModal);
+
+    // 프리셋 목록 비동기 로드 (모달이 열린 뒤 백그라운드)
+    import('./presets.js').then(m => m.renderPresetList());
+
+    // 프리셋 생성 패널 초기화 (숨김)
+    const panel = document.getElementById('presetCreatePanel');
+    const toggleBtn = document.getElementById('presetCreateToggleBtn');
+    if (panel) panel.style.display = 'none';
+    if (toggleBtn) toggleBtn.style.display = '';
 }
 
 function _updateElectronSettingsSection() {
@@ -419,6 +429,16 @@ function _populateSettingsForm() {
     updateResetNextInfo();
     updateBgPreview(tempBgImage, tempSettings.bgFileName);
     _updateElectronSettingsSection();
+
+    // 팔레트 복원
+    const color = tempSettings.uiBaseColor || '#3a6491';
+    const picker = document.getElementById('uiBaseColorPicker');
+    const hexInput = document.getElementById('uiBaseColorHex');
+    if (picker) picker.value = color;
+    if (hexInput) hexInput.value = color.replace('#', '');
+    document.querySelectorAll('.palette-swatch').forEach(s => {
+        s.classList.toggle('active', s.dataset.color === color);
+    });
 }
 
 /* ─────────────────────── 설정 모달 저장 ────────────────────────────────── */
@@ -436,10 +456,34 @@ export async function saveSettingsFromModal() {
         state.settings.showNextResetTime = showNextResetTimeEl.checked;
     }
 
-    state.settings.nextGlobalResetAt = null;
+    // nextGlobalResetAt을 null로 지우지 않고, 새 설정 기준으로 다음 미래 시점을 계산하여 업데이트.
+    // null로 지우면 applyResets()에서 "최초 활성화" 케이스로 처리되어 즉시 초기화가 발동됨.
+    // 대신 미래 시점을 직접 계산해 두면 applyResets()에서 아직 시간이 안 됐다고 판단해 초기화를 건너뜀.
+    if (state.settings.resetEnabled) {
+        const newRecurrence = settingsToRecurrence(state.settings);
+        if (newRecurrence && newRecurrence.type !== 'calendar') {
+            const now = new Date();
+            const nextDate = calcNextDueAfter(newRecurrence, now, now);
+            state.settings.nextGlobalResetAt = nextDate ? nextDate.toISOString() : null;
+        } else if (newRecurrence?.type === 'calendar') {
+            // calendar 타입은 기존 nextGlobalResetAt 유지 (1회성이므로 건드리지 않음)
+        } else {
+            state.settings.nextGlobalResetAt = null;
+        }
+    } else {
+        // 자동 초기화 비활성화 시에는 null로
+        state.settings.nextGlobalResetAt = null;
+    }
+
+    // 팔레트 저장
+    const colorPicker = document.getElementById('uiBaseColorPicker');
+    if (colorPicker) {
+        state.settings.uiBaseColor = colorPicker.value;
+    }
 
     saveSettings();
     emit('bg:changed');
+    emit('palette:changed');
     emit('title:changed');
     applyResets(new Date());
     emit('todos:changed');

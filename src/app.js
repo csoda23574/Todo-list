@@ -8,7 +8,7 @@
 import { loadState, loadUserState } from './modules/storage.js';
 import {
     applyAppTitle, updateHeaderDate, renderTodos,
-    applyBackground
+    applyBackground, applyUiPalette
 } from './modules/renderer.js';
 import { renderCategoryTabs, addCategory, switchCategory } from './modules/categories.js';
 import { bindEvents, bindElectronEvents } from './modules/events.js';
@@ -46,6 +46,7 @@ on('categories:changed', () => {
 });
 on('bg:changed', applyBackgroundTracked);
 on('title:changed', applyAppTitleTracked);
+on('palette:changed', applyUiPalette);
 on('reset:reschedule', scheduleResetTimer);
 
 /* ─────────────────────────── 헤더 유저 UI 업데이트 ────────────────────── */
@@ -119,6 +120,12 @@ function init() {
             state.isSignedIn = true;
 
             hideLoginOverlay();
+            
+            // 모든 열려있는 모달 닫기 (메인 화면에서 시작)
+            document.querySelectorAll('.modal-backdrop.open').forEach(modal => {
+                modal.classList.remove('open');
+            });
+            
             updateUserUI(user);
 
             // uid 확정 후 localStorage에서 해당 계정 데이터 로드
@@ -127,6 +134,7 @@ function init() {
             emit('categories:changed');
             emit('title:changed');
             emit('bg:changed');
+            emit('palette:changed');
 
             // 로컬 스토리지 키가 uid 기반으로 바뀌었으므로 IDB 배경 이미지 재로드
             const idbKey = getStorageKey(state.uid, STORAGE_KEYS.BG_IMAGE);

@@ -10,6 +10,31 @@ import { DOM } from './dom.js';
 import { escapeHtml, formatRecurrenceBadge } from './utils.js';
 import { settingsToRecurrence } from './recurrence.js';
 
+/* ─────────────────────────── 팔레트 (상단바 색상) ─────────────────────── */
+
+/**
+ * state.settings.uiBaseColor 를 CSS 변수에 반영합니다.
+ * 이 하나의 변수만 바꾸면 상단바 / 탭 / 그림자 색상이 자동으로 따라옵니다.
+ * 밝기(Luminance)를 계산해 글씨 색상(--ui-fg-base)도 자동 조절합니다.
+ */
+export function applyUiPalette() {
+    const color = state.settings.uiBaseColor || '#3a6491';
+    document.documentElement.style.setProperty('--ui-base-color', color);
+
+    // 밝기 계산 (hex -> rgb)
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // 단순화된 밝기 공식 (YIQ)
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    
+    // 128 이상이면 밝은 배경이므로 어두운 텍스트(0,0,0), 아니면 흰색 텍스트(255,255,255)
+    const fgBase = (yiq >= 140) ? '10, 10, 10' : '255, 255, 255';
+    document.documentElement.style.setProperty('--ui-fg-base', fgBase);
+}
+
 /* ─────────────────────────── 앱 타이틀 ────────────────────────────────── */
 
 export function applyAppTitle() {

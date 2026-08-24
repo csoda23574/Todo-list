@@ -46,7 +46,8 @@ import { switchCategory, startCategoryAdd, startCategoryRename, wasCategoryDragg
 import { updateTaskResetTypeUI, addYearlyDateEntry, updateResetNextInfo } from './reset.js';
 import { openCropModal, initCropModal } from './crop.js';
 import { toggleTheme, setFilter, toggleUI, updateWinMaximizeBtn } from './ui.js';
-import { updateBgPreview } from './renderer.js';
+import { updateBgPreview, applyUiPalette } from './renderer.js';
+import { createPreset, importPreset, renderPresetList } from './presets.js';
 
 /* ──────────────────── 할 일 목록 이벤트 위임 ───────────────────────────── */
 
@@ -355,6 +356,145 @@ function bindSettingsModalEvents() {
     DOM.bgBlur?.addEventListener('input', () => {
         tempSettings.bgBlur = parseInt(DOM.bgBlur.value, 10);
         if (DOM.bgBlurValue) DOM.bgBlurValue.textContent = `${tempSettings.bgBlur}px`;
+    });
+
+    // 팔레트 — 프리셋 스와치 클릭
+    document.getElementById('paletteSwatches')?.addEventListener('click', (e) => {
+        const swatch = e.target.closest('.palette-swatch');
+        if (!swatch) return;
+        const color = swatch.dataset.color;
+        _applyPaletteColor(color);
+    });
+
+    // 팔레트 — 커스텀 색상 피커
+    document.getElementById('uiBaseColorPicker')?.addEventListener('input', (e) => {
+        _applyPaletteColor(e.target.value);
+    });
+
+    // 팔레트 — hex 직접 입력 (6자리 완성 시 실시간 반영, blur 시 최종 적용)
+    const hexInput = document.getElementById('uiBaseColorHex');
+    if (hexInput) {
+        hexInput.addEventListener('input', (e) => {
+            // 허용 문자만 남기기 (0-9, a-f, A-F)
+            e.target.value = e.target.value.replace(/[^0-9a-fA-F]/g, '');
+            if (e.target.value.length === 6) {
+                _applyPaletteColor('#' + e.target.value);
+            }
+        });
+        hexInput.addEventListener('blur', (e) => {
+            const val = e.target.value.trim();
+            // 3자리 축약형 지원 (예: fff → ffffff)
+            if (val.length === 3) {
+                const expanded = val.split('').map(c => c + c).join('');
+                _applyPaletteColor('#' + expanded);
+            } else if (val.length === 6) {
+                _applyPaletteColor('#' + val);
+            } else {
+                // 유효하지 않으면 현재 색으로 되돌리기
+                e.target.value = (tempSettings.uiBaseColor || '#3a6491').replace('#', '');
+            }
+        });
+        hexInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') hexInput.blur();
+        });
+    }
+
+    bindPresetEvents();
+}
+
+function _applyPaletteColor(color) {
+    tempSettings.uiBaseColor = color;
+    // 색상 피커 & hex 입력창 동기화 (input은 # 없이)
+    const picker = document.getElementById('uiBaseColorPicker');
+    const hexInput = document.getElementById('uiBaseColorHex');
+    if (picker) picker.value = color;
+    if (hexInput) hexInput.value = color.replace('#', '');
+    // 스와치 active 상태 업데이트
+    document.querySelectorAll('.palette-swatch').forEach(s => {
+        s.classList.toggle('active', s.dataset.color === color);
+    });
+    // 실시간 미리보기: CSS 변수 직접 적용
+    document.documentElement.style.setProperty('--ui-base-color', color);
+}
+
+/* ──────────────────────── 프리셋 이벤트 ─────────────────────────────────── */
+
+function bindPresetEvents() {
+    const toggleBtn = document.getElementById('presetCreateToggleBtn');
+    const panel = document.getElementById('presetCreatePanel');
+    const cancelBtn = document.getElementById('presetCreateCancelBtn');
+    const saveBtn = document.getElementById('presetCreateSaveBtn');
+    const importBtn = document.getElementById('presetImportBtn');
+    const importInput = document.getElementById('presetImportCodeInput');
+
+    // 새 프리셋 만들기 패널 토글
+    toggleBtn?.addEventListener('click', () => {
+        const visible = panel.style.display !== 'none';
+        panel.style.display = visible ? 'none' : 'block';
+        toggleBtn.style.display = visible ? '' : 'none';
+
+        if (!visible) {
+            // 카테고리 체크박스 동적 생성
+            const checkboxArea = document.getElementById('presetCategoryCheckboxes');
+            if (checkboxArea) {
+                checkboxArea.innerHTML = state.categories.map(c => `
+                    <label class="preset-cat-label">
+                        <input type="checkbox" value="${c.id}" class="preset-cat-check" />
+                        <span>${c.name}</span>
+                    </label>
+                `).join('');
+            }
+            const nameInput = document.getElementById('presetNameInput');
+            nameInput.value = '';
+            setTimeout(() => nameInput.focus(), 50);
+        }
+    });
+
+    // 취소
+    cancelBtn?.addEventListener('click', () => {
+        panel.style.display = 'none';
+        toggleBtn.style.display = '';
+    });
+
+    // 저장
+    saveBtn?.addEventListener('click', async () => {
+        const name = document.getElementById('presetNameInput')?.value?.trim();
+        const checked = document.querySelectorAll('.preset-cat-check:checked');
+        const ids = Array.from(checked).map(el => el.value);
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = '저장 중...';
+        try {
+            const code = await createPreset(name, ids);
+            if (code) {
+                panel.style.display = 'none';
+                toggleBtn.style.display = '';
+                await renderPresetList();
+            }
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = '저장';
+        }
+    });
+
+    // 가져오기
+    importBtn?.addEventListener('click', async () => {
+        const code = importInput?.value?.trim();
+        if (!code) { importInput?.focus(); return; }
+
+        importBtn.disabled = true;
+        importBtn.textContent = '가져오는 중...';
+        try {
+            const ok = await importPreset(code);
+            if (ok) importInput.value = '';
+        } finally {
+            importBtn.disabled = false;
+            importBtn.textContent = '가져오기';
+        }
+    });
+
+    importInput?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') importBtn?.click();
     });
 }
 
