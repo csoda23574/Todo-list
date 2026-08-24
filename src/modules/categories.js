@@ -6,8 +6,9 @@
  */
 
 import { state } from './state.js';
-import { STORAGE_KEYS } from './config.js';
-import { saveToStorage, saveCategories, saveTodos } from './storage.js';
+import { STORAGE_KEYS, getStorageKey } from './config.js';
+import { saveToStorage, saveCategories, saveTodos, removeCategoryBg } from './storage.js';
+import { loadFromIDB } from './idb.js';
 import { deleteTodoRemote } from './sync.js';
 import { emit } from './bus.js'; // renderer 직접 의존 제거 — DIP
 import { showToast, escapeHtml } from './utils.js';
@@ -15,16 +16,24 @@ import { DOM } from './dom.js';
 
 let _tabsResizeObserver = null;
 
-/* ──────────────────────── 카테고리 CRUD ───────────────────────────────── */
+/* ──────────────────────── 카테고리 배경 캐시 ────────────────────────────── */
+
+export async function ensureCategoryBg(id) {
+    const meta = state.settings.categoryBgSettings?.[id];
+    if (meta?.hasBg && !state._catBgCache[id]) {
+        const idbKey = getStorageKey(state.uid, `${STORAGE_KEYS.CAT_BG_IMAGE}_${id}`);
+        const bg = await loadFromIDB(idbKey);
+        if (bg) state._catBgCache[id] = bg;
+    }
+}
 
 /* ──────────────────────── 카테고리 CRUD ───────────────────────────────── */
 
 export function addCategory(name) {
     const id = `cat_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
     state.categories.push({ id, name: name.trim() });
-    state.currentCategoryId = id;
+    switchCategory(id);
     saveCategories();
-    emit('categories:changed');
 }
 
 export function renameCategory(id, newName) {
@@ -56,19 +65,25 @@ export function deleteCategory(id) {
 
     state.todos = keptTodos;
     state.categories = state.categories.filter(c => c.id !== id);
+    let newCurrentId = state.currentCategoryId;
     if (state.currentCategoryId === id) {
-        state.currentCategoryId = state.categories[0].id;
+        newCurrentId = state.categories[0].id;
     }
 
     saveTodos();
     saveCategories();
+    removeCategoryBg(id); // IDB 정리
 
     // 서버에서도 해당 카테고리의 할 일들 실제 삭제
     if (state.isSignedIn) {
         removedTodos.forEach(t => deleteTodoRemote(t.id));
     }
 
-    emit('categories:changed');
+    if (state.currentCategoryId !== newCurrentId) {
+        switchCategory(newCurrentId);
+    } else {
+        emit('categories:changed');
+    }
 
     // 실행 취소 토스트
     _showUndoToast(catName, () => {
@@ -81,10 +96,14 @@ export function deleteCategory(id) {
     });
 }
 
-export function switchCategory(id) {
+export async function switchCategory(id) {
     state.currentCategoryId = id;
     saveToStorage(STORAGE_KEYS.CURRENT_CATEGORY, id);
     emit('categories:changed');
+    
+    // 카테고리 전환 시 배경 동기화
+    await ensureCategoryBg(id);
+    emit('bg:changed');
 }
 
 /* ────────────────────── 카테고리 탭 렌더링 ─────────────────────────────── */

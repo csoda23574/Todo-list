@@ -77,6 +77,26 @@ export function saveSettings() {
     }
 }
 
+export function saveCategoryBg(catId, bgImage, meta) {
+    if (!state.settings.categoryBgSettings) state.settings.categoryBgSettings = {};
+    const idbKey = getStorageKey(state.uid, `${STORAGE_KEYS.CAT_BG_IMAGE}_${catId}`);
+    
+    if (bgImage) {
+        state.settings.categoryBgSettings[catId] = { ...meta, hasBg: true };
+        state._catBgCache[catId] = bgImage;
+        saveToIDB(idbKey, bgImage);
+    } else {
+        delete state.settings.categoryBgSettings[catId];
+        delete state._catBgCache[catId];
+        removeFromIDB(idbKey);
+    }
+    saveSettings(); // Push metadata to sync
+}
+
+export function removeCategoryBg(catId) {
+    saveCategoryBg(catId, null);
+}
+
 /* ────────────────────────── 상태 초기화 (앱 시작) ─────────────────────── */
 
 export function loadState() {

@@ -233,10 +233,24 @@ export function renderTodos() {
 const BG_DATA_URL_RE = /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+=*$/;
 
 export function applyBackground() {
-    const { bgImage, bgOpacity, bgBlur } = state.settings;
     const overlay = DOM.bgOverlay;
     if (!overlay) return;
     const container = document.querySelector('.app-container');
+
+    const catId = state.currentCategoryId;
+    const catMeta = state.settings.categoryBgSettings?.[catId];
+    
+    let bgImage, bgOpacity, bgBlur;
+
+    if (catMeta?.hasBg) {
+        bgImage = state._catBgCache[catId];
+        bgOpacity = catMeta.bgOpacity ?? 50;
+        bgBlur = catMeta.bgBlur ?? 0;
+    } else {
+        bgImage = state.settings.bgImage;
+        bgOpacity = state.settings.bgOpacity ?? 50;
+        bgBlur = state.settings.bgBlur ?? 0;
+    }
 
     if (bgImage && BG_DATA_URL_RE.test(bgImage)) {
         overlay.style.backgroundImage = `url(${bgImage})`;

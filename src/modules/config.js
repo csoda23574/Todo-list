@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
     TODOS: 'todos',               // 이 아래부터는 UID 기반 동적 키로 조합됨
     SETTINGS: 'settings',
     BG_IMAGE: 'bgImage',
+    CAT_BG_IMAGE: 'catBg',        // 카테고리별 배경 이미지 접두사
     CATEGORIES: 'categories',
     CURRENT_CATEGORY: 'currentCategory',
 };

@@ -33,10 +33,12 @@ export const state = {
         bgBlur: 0,
         bgImage: null,      // base64 data URL (로컬 디바이스 전용)
         bgFileName: '',
+        categoryBgSettings: {},  // 카테고리별 배경 메타데이터 { bgOpacity, bgBlur, bgFileName, hasBg }
         appTitle: 'My Tasks',
         uiBaseColor: '#3a6491',  // 상단바 팔레트 베이스 컬러
         nextGlobalResetAt: null, // 다음 전역 초기화 예정 시각 (ISO string, Firestore 동기화)
         showNextResetTime: true, // 각 항목에 다음 초기화 시간 배지 표시 여부
         presetCodes: [],         // 유저가 생성한 프리셋 코드 목록 (최대 5개)
     },
+    _catBgCache: {},        // 카테고리별 배경 base64 데이터 메모리 캐시 (로컬 런타임 전용)
 };

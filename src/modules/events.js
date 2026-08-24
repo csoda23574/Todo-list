@@ -40,7 +40,8 @@ import {
     openAddModal, openEditModal, openConfirmModal, openConfirmCategoryModal,
     openClearAllModal, handleConfirmDelete, handleModalSave,
     openSettingsModal, saveSettingsFromModal,
-    tempSettings, applyCropResult, closeModal, addChecklistFormItem
+    tempSettings, applyCropResult, closeModal, addChecklistFormItem,
+    tempBgScope, tempCatBgMeta, switchBgScope
 } from './modals.js';
 import { switchCategory, startCategoryAdd, startCategoryRename, wasCategoryDragged, initCategoryDragSort } from './categories.js';
 import { updateTaskResetTypeUI, addYearlyDateEntry, updateResetNextInfo } from './reset.js';
@@ -267,6 +268,9 @@ function bindSettingsModalEvents() {
         setTimeout(() => openClearAllModal(), 200);
     });
 
+    DOM.bgScopeGlobal?.addEventListener('click', () => switchBgScope('global'));
+    DOM.bgScopeCategory?.addEventListener('click', () => switchBgScope('category'));
+
     // tempSettings와 DOM 동기화 (live binding으로 실시간 객체 참조)
     DOM.resetEnabled?.addEventListener('change', () => {
         tempSettings.resetEnabled = DOM.resetEnabled.checked;
@@ -349,13 +353,23 @@ function bindSettingsModalEvents() {
     });
 
     DOM.bgOpacity?.addEventListener('input', () => {
-        tempSettings.bgOpacity = parseInt(DOM.bgOpacity.value, 10);
-        if (DOM.bgOpacityValue) DOM.bgOpacityValue.textContent = `${tempSettings.bgOpacity}%`;
+        const val = parseInt(DOM.bgOpacity.value, 10);
+        if (tempBgScope === 'category') {
+            tempCatBgMeta.bgOpacity = val;
+        } else {
+            tempSettings.bgOpacity = val;
+        }
+        if (DOM.bgOpacityValue) DOM.bgOpacityValue.textContent = `${val}%`;
     });
 
     DOM.bgBlur?.addEventListener('input', () => {
-        tempSettings.bgBlur = parseInt(DOM.bgBlur.value, 10);
-        if (DOM.bgBlurValue) DOM.bgBlurValue.textContent = `${tempSettings.bgBlur}px`;
+        const val = parseInt(DOM.bgBlur.value, 10);
+        if (tempBgScope === 'category') {
+            tempCatBgMeta.bgBlur = val;
+        } else {
+            tempSettings.bgBlur = val;
+        }
+        if (DOM.bgBlurValue) DOM.bgBlurValue.textContent = `${val}px`;
     });
 
     // 팔레트 — 프리셋 스와치 클릭

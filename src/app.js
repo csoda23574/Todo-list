@@ -10,7 +10,7 @@ import {
     applyAppTitle, updateHeaderDate, renderTodos,
     applyBackground, applyUiPalette
 } from './modules/renderer.js';
-import { renderCategoryTabs, addCategory, switchCategory } from './modules/categories.js';
+import { renderCategoryTabs, addCategory, switchCategory, ensureCategoryBg } from './modules/categories.js';
 import { bindEvents, bindElectronEvents } from './modules/events.js';
 import {
     scheduleResetTimer,
@@ -141,8 +141,9 @@ function init() {
             const idbImage = await loadFromIDB(idbKey);
             if (idbImage) {
                 state.settings.bgImage = idbImage;
-                applyBackgroundTracked();
             }
+            await ensureCategoryBg(state.currentCategoryId);
+            applyBackgroundTracked();
 
             // Firestore 초기 병합 → 실시간 리스너 시작
             await initialMerge();

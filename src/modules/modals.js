@@ -8,7 +8,7 @@
 import { state } from './state.js';
 import { DOM } from './dom.js';
 import { showToast } from './utils.js';
-import { loadFromStorage, saveSettings } from './storage.js';
+import { loadFromStorage, saveSettings, saveCategoryBg, removeCategoryBg } from './storage.js';
 import { STORAGE_KEYS, getStorageKey } from './config.js';
 import { loadFromIDB } from './idb.js';
 import { updateBgPreview } from './renderer.js';
@@ -321,10 +321,20 @@ export let tempSettings = {};
 export let tempBgImage = null;
 export let tempBgImageChanged = false;
 
+// 카테고리별 배경 임시 상태
+export let tempBgScope = 'global'; // 'global' | 'category'
+export let tempCatBgImage = null;
+export let tempCatBgMeta = null;
+
 /** crop.js에서 크롭 결과를 반영할 때 사용하는 세터 */
 export function applyCropResult(cropped, fileName) {
-    tempBgImage = cropped;
-    tempSettings.bgFileName = fileName;
+    if (tempBgScope === 'category') {
+        tempCatBgImage = cropped;
+        tempCatBgMeta = { ...tempCatBgMeta, bgFileName: fileName, hasBg: !!cropped };
+    } else {
+        tempBgImage = cropped;
+        tempSettings.bgFileName = fileName;
+    }
     tempBgImageChanged = true;
     updateBgPreview(cropped, fileName);
 }
@@ -347,6 +357,20 @@ export async function openSettingsModal() {
     tempSettings = { ...state.settings };
     tempBgImage = state.settings.bgImage;
     tempBgImageChanged = false;
+
+    // 카테고리별 배경 초기화
+    tempBgScope = 'global';
+    const catId = state.currentCategoryId;
+    tempCatBgImage = state._catBgCache[catId] || null;
+    tempCatBgMeta = { ...(state.settings.categoryBgSettings?.[catId] || {}) };
+    
+    // UI 초기화
+    if (DOM.bgScopeGlobal) DOM.bgScopeGlobal.classList.add('active');
+    if (DOM.bgScopeCategory) DOM.bgScopeCategory.classList.remove('active');
+    if (DOM.bgScopeCategoryLabel) {
+        const cat = state.categories.find(c => c.id === catId);
+        DOM.bgScopeCategoryLabel.textContent = cat ? cat.name : '기본';
+    }
 
     _populateSettingsForm();
     openModal(DOM.settingsModal);
@@ -386,16 +410,40 @@ function _updateElectronSettingsSection() {
     }).catch(() => { });
 }
 
+export function populateBgSettings() {
+    if (tempBgScope === 'category') {
+        DOM.bgOpacity.value = tempCatBgMeta?.bgOpacity ?? 50;
+        DOM.bgOpacityValue.textContent = `${DOM.bgOpacity.value}%`;
+        DOM.bgBlur.value = tempCatBgMeta?.bgBlur ?? 0;
+        DOM.bgBlurValue.textContent = `${DOM.bgBlur.value}px`;
+        updateBgPreview(tempCatBgImage, tempCatBgMeta?.bgFileName);
+    } else {
+        DOM.bgOpacity.value = tempSettings.bgOpacity ?? 50;
+        DOM.bgOpacityValue.textContent = `${DOM.bgOpacity.value}%`;
+        DOM.bgBlur.value = tempSettings.bgBlur ?? 0;
+        DOM.bgBlurValue.textContent = `${DOM.bgBlur.value}px`;
+        updateBgPreview(tempBgImage, tempSettings.bgFileName);
+    }
+}
+
+export function switchBgScope(scope) {
+    tempBgScope = scope;
+    if (scope === 'global') {
+        DOM.bgScopeGlobal.classList.add('active');
+        DOM.bgScopeCategory.classList.remove('active');
+    } else {
+        DOM.bgScopeGlobal.classList.remove('active');
+        DOM.bgScopeCategory.classList.add('active');
+    }
+    populateBgSettings();
+}
+
 function _populateSettingsForm() {
     DOM.resetEnabled.checked = tempSettings.resetEnabled;
     DOM.resetTime.value = tempSettings.resetTime || '00:00';
     DOM.resetRepeat.value = tempSettings.resetRepeat || 'daily';
 
-    DOM.bgOpacity.value = tempSettings.bgOpacity;
-    DOM.bgOpacityValue.textContent = `${tempSettings.bgOpacity}%`;
-
-    DOM.bgBlur.value = tempSettings.bgBlur;
-    DOM.bgBlurValue.textContent = `${tempSettings.bgBlur}px`;
+    populateBgSettings();
 
     DOM.resetSubGroup.classList.toggle('hidden', !tempSettings.resetEnabled);
 
@@ -427,7 +475,6 @@ function _populateSettingsForm() {
     }
 
     updateResetNextInfo();
-    updateBgPreview(tempBgImage, tempSettings.bgFileName);
     _updateElectronSettingsSection();
 
     // 팔레트 복원
@@ -446,6 +493,22 @@ function _populateSettingsForm() {
 export async function saveSettingsFromModal() {
     const { bgImage: _ignored, ...restTemp } = tempSettings;
     state.settings = { ...state.settings, ...restTemp, bgImage: tempBgImage };
+
+    // 카테고리 배경 변경 반영
+    const catId = state.currentCategoryId;
+    const catBgChanged = tempCatBgMeta !== undefined && tempCatBgMeta !== null;
+    
+    if (catBgChanged) {
+        if (tempCatBgMeta.hasBg) {
+            saveCategoryBg(catId, tempCatBgImage, {
+                bgOpacity: tempCatBgMeta.bgOpacity ?? 50,
+                bgBlur: tempCatBgMeta.bgBlur ?? 0,
+                bgFileName: tempCatBgMeta.bgFileName ?? ''
+            });
+        } else {
+            removeCategoryBg(catId);
+        }
+    }
 
     if (DOM.appTitleInput) {
         state.settings.appTitle = DOM.appTitleInput.value.trim() || 'My Tasks';
