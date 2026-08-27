@@ -32,6 +32,7 @@ export function addTodo(text, note, priority, recurrence, checklist) {
         categoryId: state.currentCategoryId,
         order: minOrder,
         checklist: checklist?.length ? checklist : null,
+        archived: false,
     };
     state.todos.unshift(todo);
     saveTodos(todo);

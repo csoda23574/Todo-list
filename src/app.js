@@ -18,6 +18,7 @@ import {
 } from './modules/reset.js';
 import { on, emit } from './modules/bus.js';
 import { state } from './modules/state.js';
+import { archiveOldTodos } from './modules/todos.js';
 import { auth, db } from './modules/firebase.js';
 import { initialMerge, startListeners, stopListeners, getSettingsChangeFlags } from './modules/sync.js';
 import { DOM } from './modules/dom.js';
@@ -130,6 +131,8 @@ function init() {
 
             // uid 확정 후 localStorage에서 해당 계정 데이터 로드
             loadUserState();
+            archiveOldTodos();
+            
             emit('todos:changed');
             emit('categories:changed');
             emit('title:changed');
