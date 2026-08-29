@@ -232,12 +232,7 @@ export function bindCalendarEvents() {
     });
 }
 
-import { bus } from './events.js';
-bus.on('todosUpdated', () => {
-    if (!DOM.calendarView.classList.contains('hidden')) {
-        renderCalendar();
-    }
-});
+
 
 
 import { on } from './bus.js';
@@ -247,4 +242,5 @@ on('todos:changed', () => {
         renderCalendar();
     }
 });
+
 
