@@ -1,5 +1,5 @@
 import { DOM } from './dom.js';
-import { todos } from './state.js';
+import { state } from './state.js';
 
 let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth();
@@ -176,7 +176,7 @@ export function renderCalendar() {
         div.appendChild(dateSpan);
 
         // Find tasks for this day
-        const dayTasks = todos.filter(t => isDateMatch(t, cell.date));
+        const dayTasks = state.todos.filter(t => isDateMatch(t, cell.date));
         dayTasks.sort(sortTasks);
 
         const MAX_DISPLAY = 3;
@@ -242,5 +242,6 @@ on('todos:changed', () => {
         renderCalendar();
     }
 });
+
 
 
