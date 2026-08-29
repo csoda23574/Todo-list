@@ -3320,8 +3320,8 @@ input[type="datetime-local"].time-input {
    Calendar View
 =================================================== */
 .app-calendar-view {
-    position: absolute;
-    inset: 0;
+    position: relative;
+    flex: 1;
     display: flex;
     flex-direction: column;
     background: var(--color-bg);
@@ -3367,7 +3367,7 @@ input[type="datetime-local"].time-input {
     flex: 1;
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    grid-template-rows: repeat(auto-fill, minmax(60px, 1fr)); /* dynamically set from JS if needed */
+    grid-template-rows: repeat(6, 1fr);
     gap: 1px;
     background: var(--color-border);
     border: 1px solid var(--color-border);
@@ -3491,4 +3491,7 @@ input[type="datetime-local"].time-input {
     flex-direction: column;
     gap: 8px;
 }
+
+
+.app-container.has-bg .app-calendar-view { background: transparent; }
 
