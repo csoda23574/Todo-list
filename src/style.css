@@ -789,6 +789,23 @@ body {
     color: var(--color-text-secondary);
 }
 
+.todo-item.todo-inactive {
+    opacity: 0.55;
+    background: var(--color-surface);
+}
+
+.todo-item.todo-inactive .todo-checkbox,
+.todo-item.todo-inactive .checklist-item-check {
+    cursor: not-allowed;
+    background-color: var(--color-border);
+}
+
+.todo-item.todo-inactive .todo-text,
+.todo-item.todo-inactive .todo-note,
+.todo-item.todo-inactive .checklist-item-text {
+    color: var(--color-text-muted);
+}
+
 @keyframes slideIn {
     from {
         opacity: 0;
@@ -2014,13 +2031,45 @@ input[type="datetime-local"].time-input {
     transform: scale(1.2);
 }
 
-.range-value {
+.range-value-input-wrap {
+    display: flex;
+    align-items: center;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+    height: 28px;
+    box-sizing: border-box;
     font-size: 12px;
     font-weight: 600;
     color: var(--color-text-secondary);
-    min-width: 36px;
+}
+
+.range-value-input-wrap:focus-within {
+    border-color: var(--color-accent-light);
+    box-shadow: 0 0 0 2px rgba(var(--ui-fg-base), 0.1);
+}
+
+.range-value-input {
+    width: 32px;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
     text-align: right;
+    font-family: inherit;
+    padding: 0;
+    margin-right: 2px;
     font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+}
+
+.range-value-input::-webkit-outer-spin-button,
+.range-value-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 /* File Upload */
@@ -3054,5 +3103,107 @@ input[type="datetime-local"].time-input {
 
 .palette-hex-input::placeholder {
     color: var(--color-text-muted);
+}
+
+
+/* ===================================================
+   Custom Time Picker
+=================================================== */
+.custom-time-picker-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 4px 6px;
+    height: 36px;
+    box-sizing: border-box;
+}
+
+.custom-time-picker-wrap:focus-within {
+    border-color: var(--color-accent-light);
+    box-shadow: 0 0 0 2px rgba(var(--ui-fg-base), 0.1);
+}
+
+.ampm-toggle {
+    background: transparent;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    outline: none;
+}
+
+.ampm-toggle:hover {
+    background: rgba(var(--ui-fg-base), 0.1);
+}
+
+.time-sep {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--color-text-secondary);
+    user-select: none;
+}
+
+.time-part {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.time-part-input {
+    width: 26px;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    text-align: center;
+    color: var(--color-text);
+    font-family: inherit;
+    padding: 0;
+}
+
+.time-part-input::placeholder {
+    color: var(--color-text-muted);
+}
+
+.time-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 4px;
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    max-height: 150px;
+    overflow-y: auto;
+    z-index: 100;
+    display: none;
+    flex-direction: column;
+    padding: 4px 0;
+    min-width: 40px;
+}
+
+.time-dropdown.show {
+    display: flex;
+}
+
+.time-dropdown-item {
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--color-text);
+    text-align: center;
+    cursor: pointer;
+}
+
+.time-dropdown-item:hover {
+    background: rgba(var(--ui-fg-base), 0.1);
 }
 
