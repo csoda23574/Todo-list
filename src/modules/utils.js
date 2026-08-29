@@ -126,6 +126,26 @@ export function formatRecurrenceBadge(r) {
         const day = r.weekday != null ? WEEKDAY_NAMES[r.weekday] : '?';
         return `🔄 ${r.n}주마다 ${day} ${time}`;
     }
+    if (r.type === 'deadline') {
+        let isInactive = false;
+        if (r.startDate) {
+            const startT = r.startTime || '00:00';
+            const startObj = new Date(`${r.startDate}T${startT}:00`);
+            if (new Date() < startObj) {
+                isInactive = true;
+            }
+        }
+
+        if (isInactive) {
+            const sStr = r.startDate.replace(/-/g, '/');
+            const stStr = r.startTime ? ` ${r.startTime}` : '';
+            return `📅 ${sStr}${stStr} 시작`;
+        } else {
+            const dStr = r.date ? r.date.replace(/-/g, '/') : '';
+            const tStr = r.time ? ` ${r.time}` : '';
+            return `📅 ${dStr}${tStr} 마감`;
+        }
+    }
     if (r.type === 'calendar') return '🔄 1회';
     if (r.type === 'neverReset') return '⛔ 초기화 없음';
     return '';
