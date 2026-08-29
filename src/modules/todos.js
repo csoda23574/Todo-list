@@ -165,3 +165,45 @@ export function toggleChecklistItem(todoId, checklistId, done) {
     emit('todos:changed');
     if (parentDone) showToast('모든 항목 완료! 할 일이 완료 처리되었습니다 🎉', 'success');
 }
+/* ─────────────────────────── 아카이브 (자동 숨김) ─────────────────────────── */
+
+/**
+ * 완료된 지 7일이 지난 항목 및 archived 필드가 없는 항목을 마이그레이션/아카이브 처리합니다.
+ * 앱 구동 시 한 번 호출됩니다.
+ */
+export function archiveOldTodos() {
+    let changed = false;
+    const now = Date.now();
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+
+    state.todos = state.todos.map(todo => {
+        let needsUpdate = false;
+        let isArchived = todo.archived ?? false; // 필드가 없으면 false로 취급
+
+        if (todo.archived === undefined) {
+            needsUpdate = true; // 호환성 마이그레이션
+        }
+
+        if (todo.done && todo.completedAt && !isArchived) {
+            const compTime = new Date(todo.completedAt).getTime();
+            if (now - compTime > SEVEN_DAYS) {
+                isArchived = true;
+                needsUpdate = true;
+            }
+        }
+
+        if (needsUpdate) {
+            changed = true;
+            const updatedTodo = { ...todo, archived: isArchived };
+            // 원격에 단일 업데이트 전송 (비동기로 진행되므로 기다리지 않음)
+            saveTodos(updatedTodo);
+            return updatedTodo;
+        }
+        return todo;
+    });
+
+    if (changed) {
+        saveTodos(); // 로컬 스토리지에 전체 갱신
+        emit('todos:changed');
+    }
+}
