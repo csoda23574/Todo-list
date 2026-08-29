@@ -587,11 +587,12 @@ export function bindEvents() {
         openAddModal();
     });
 
-    // 캘린더 버튼 (기능 구현 대기)
+    // 캘린더 버튼
     DOM.fabCalendarBtn?.addEventListener('click', () => {
         DOM.fabWrap?.classList.remove('expanded');
-        // TODO: 캘린더 열기
-        console.log('캘린더 열기');
+        import('./calendar.js').then(module => {
+            module.openCalendar();
+        });
     });
 
     DOM.settingsBtn?.addEventListener('click', openSettingsModal);

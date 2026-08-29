@@ -125,7 +125,7 @@
             </div>
 
             <!-- Todo list -->
-            <div class="app-content">
+            <div class="app-content" id="mainContent">
                 <div class="bg-overlay" id="bgOverlay"></div>
 
                 <!-- Todo List -->
@@ -133,7 +133,7 @@
                     <ul class="todo-list" id="todoList">
                         <!-- Items rendered by JS -->
                     </ul>
-                    <div class="empty-state" id="emptyState">
+                    <div class="empty-state" id="emptyState" style="display:none">
                         <div class="empty-icon">
                             <svg viewBox="0 0 80 80" fill="none">
                                 <circle cx="40" cy="40" r="38" stroke="currentColor" stroke-width="2" stroke-dasharray="6 4"
@@ -181,6 +181,40 @@
                     </button>
                 </div>
             </div><!-- /.app-content -->
+
+            <div class="app-calendar-view hidden" id="calendarView">
+                <div class="bg-overlay" id="calBgOverlay"></div>
+                <div class="calendar-header">
+                    <button class="icon-btn" id="calPrevMonthBtn" title="이전 달">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    </button>
+                    <h2 class="calendar-title" id="calendarTitle">2023년 10월</h2>
+                    <button class="icon-btn" id="calNextMonthBtn" title="다음 달">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </button>
+                    <div style="flex-grow: 1;"></div>
+                    <button class="btn-text" id="calBackBtn">목록으로</button>
+                </div>
+                <div class="calendar-grid-header">
+                    <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+                </div>
+                <div class="calendar-grid-body" id="calendarGridBody">
+                    <!-- 달력 셀들이 동적으로 렌더링됨 -->
+                </div>
+            </div>
+            
+            <!-- 달력 상세 팝업 -->
+            <div class="cal-detail-popup hidden" id="calDetailPopup">
+                <div class="cal-detail-popup-header">
+                    <h3 id="calDetailDateTitle">10월 15일 일정</h3>
+                    <button class="icon-btn" id="calDetailCloseBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+                <div class="cal-detail-popup-content" id="calDetailContent">
+                    <!-- 상세 일정 목록 -->
+                </div>
+            </div>
         </div><!-- /.app-body -->
     </div>
 

@@ -3315,3 +3315,180 @@ input[type="datetime-local"].time-input {
     transform: rotate(45deg);
 }
 
+
+/* ===================================================
+   Calendar View
+=================================================== */
+.app-calendar-view {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg);
+    z-index: 5;
+    padding: var(--space-md);
+    overflow: hidden;
+}
+
+.app-calendar-view.hidden {
+    display: none;
+}
+
+.calendar-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+    z-index: 2;
+}
+
+.calendar-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.calendar-grid-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-xs);
+    z-index: 2;
+}
+
+.calendar-grid-header span:first-child { color: var(--color-danger); }
+.calendar-grid-header span:last-child { color: var(--color-accent); }
+
+.calendar-grid-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: repeat(auto-fill, minmax(60px, 1fr)); /* dynamically set from JS if needed */
+    gap: 1px;
+    background: var(--color-border);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    z-index: 2;
+}
+
+.calendar-cell {
+    background: var(--color-surface);
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.calendar-cell.other-month {
+    background: var(--color-bg);
+    opacity: 0.5;
+}
+
+.calendar-cell.is-today .calendar-date {
+    background: var(--color-accent);
+    color: white;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
+
+.calendar-date {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: 2px;
+    align-self: flex-start;
+}
+
+.calendar-cell:nth-child(7n+1) .calendar-date { color: var(--color-danger); }
+.calendar-cell:nth-child(7n) .calendar-date { color: var(--color-accent); }
+.calendar-cell.is-today .calendar-date { color: white !important; }
+
+/* Calendar Task Bar */
+.calendar-task-bar {
+    font-size: 10px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: var(--color-accent); /* overridden by JS inline style */
+    cursor: pointer;
+}
+
+.calendar-task-bar.is-done {
+    opacity: 0.4;
+    text-decoration: line-through;
+}
+
+.calendar-more-btn {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    padding: 2px;
+    margin-top: auto;
+}
+
+.calendar-more-btn:hover {
+    color: var(--color-accent);
+}
+
+/* Calendar Detail Popup */
+.cal-detail-popup {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 280px;
+    max-height: 80%;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    overflow: hidden;
+}
+
+.cal-detail-popup.hidden {
+    display: none;
+}
+
+.cal-detail-popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.cal-detail-popup-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: var(--color-text-primary);
+}
+
+.cal-detail-popup-content {
+    padding: var(--space-md);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+

@@ -16,6 +16,19 @@ export const DOM = {
     get fabCalendarBtn() { return document.getElementById('fabCalendarBtn'); },
     get fabAddTodoBtn() { return document.getElementById('fabAddTodoBtn'); },
 
+    // 캘린더 요소
+    get mainContent() { return document.getElementById('mainContent'); },
+    get calendarView() { return document.getElementById('calendarView'); },
+    get calPrevMonthBtn() { return document.getElementById('calPrevMonthBtn'); },
+    get calNextMonthBtn() { return document.getElementById('calNextMonthBtn'); },
+    get calBackBtn() { return document.getElementById('calBackBtn'); },
+    get calendarTitle() { return document.getElementById('calendarTitle'); },
+    get calendarGridBody() { return document.getElementById('calendarGridBody'); },
+    get calDetailPopup() { return document.getElementById('calDetailPopup'); },
+    get calDetailDateTitle() { return document.getElementById('calDetailDateTitle'); },
+    get calDetailCloseBtn() { return document.getElementById('calDetailCloseBtn'); },
+    get calDetailContent() { return document.getElementById('calDetailContent'); },
+
     // 헤더
     get headerDate() { return document.getElementById('headerDate'); },
     get headerTitle() { return document.getElementById('headerTitle'); },

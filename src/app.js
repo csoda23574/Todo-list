@@ -18,7 +18,6 @@ import {
 } from './modules/reset.js';
 import { on, emit } from './modules/bus.js';
 import { state } from './modules/state.js';
-import { archiveOldTodos } from './modules/todos.js';
 import { auth, db } from './modules/firebase.js';
 import { initialMerge, startListeners, stopListeners, getSettingsChangeFlags } from './modules/sync.js';
 import { DOM } from './modules/dom.js';
@@ -30,6 +29,8 @@ import {
     getRenderMetrics,
     resetRenderMetrics,
 } from './modules/perf.js';
+import { initCustomTimePickers } from './modules/timepicker.js';
+import { bindCalendarEvents } from './modules/calendar.js';
 
 /* ── Composition Root: 이벤트 버스 구독 ──────────────────────────────────
  * 데이터·도메인 레이어는 emit()만 호출하고, 실제 렌더러·타이머 함수는
@@ -100,7 +101,9 @@ export function showSyncDot(visible) {
 
 function init() {
     loadState();
+    initCustomTimePickers();
     bindEvents();
+    bindCalendarEvents();
     bindElectronEvents();
     updateHeaderDate();
     recordRender('categories');
@@ -131,8 +134,6 @@ function init() {
 
             // uid 확정 후 localStorage에서 해당 계정 데이터 로드
             loadUserState();
-            archiveOldTodos();
-            
             emit('todos:changed');
             emit('categories:changed');
             emit('title:changed');
@@ -197,3 +198,5 @@ if (typeof window !== 'undefined') {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+
