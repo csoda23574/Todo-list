@@ -10,10 +10,15 @@ export const DOM = {
     get todoList() { return document.getElementById('todoList'); },
     get emptyState() { return document.getElementById('emptyState'); },
 
+    // 메인 FAB
+    get fabWrap() { return document.getElementById('fabWrap'); },
+    get mainFab() { return document.getElementById('mainFab'); },
+    get fabCalendarBtn() { return document.getElementById('fabCalendarBtn'); },
+    get fabAddTodoBtn() { return document.getElementById('fabAddTodoBtn'); },
+
     // 헤더
     get headerDate() { return document.getElementById('headerDate'); },
     get headerTitle() { return document.getElementById('headerTitle'); },
-    get addBtn() { return document.getElementById('addBtn'); },
     get themeToggle() { return document.getElementById('themeToggle'); },
     get settingsBtn() { return document.getElementById('settingsBtn'); },
     get refreshBtn() { return document.getElementById('refreshBtn'); },

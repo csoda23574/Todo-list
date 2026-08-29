@@ -147,10 +147,34 @@
                     </div>
                 </div>
 
-                <!-- Add button -->
-                <div class="add-btn-wrap">
-                    <button class="add-fab" id="addBtn" title="항목 추가" aria-label="새 항목 추가">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <!-- Expandable FAB -->
+                <div class="add-btn-wrap" id="fabWrap">
+                    <div class="fab-menu">
+                        <!-- Calendar Button (Top) -->
+                        <div class="fab-item-wrap fab-item-up">
+                            <span class="fab-label">캘린더 보기</span>
+                            <button class="fab-sub-item" id="fabCalendarBtn" title="캘린더">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                                </svg>
+                            </button>
+                        </div>
+                        <!-- Add Item Button (Left) -->
+                        <div class="fab-item-wrap fab-item-left">
+                            <span class="fab-label">새 항목 추가</span>
+                            <button class="fab-sub-item" id="fabAddTodoBtn" title="항목 추가">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20h9"></path>
+                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button class="add-fab" id="mainFab" title="메뉴 열기" aria-label="메뉴 열기">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="fab-icon-main">
                             <line x1="12" y1="5" x2="12" y2="19" />
                             <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
@@ -194,16 +218,34 @@
                 <div class="form-group">
                     <label class="form-label">개별 초기화</label>
                     <select id="taskResetType" class="form-input select-input">
-                        <option value="none">기본 (전역 초기화 따름)</option>
                         <option value="neverReset">초기화 없음</option>
+                        <option value="deadline">날짜 지정</option>
                         <option value="daily">매일</option>
-                        <option value="weekday">평일만</option>
                         <option value="weekly">매주 요일</option>
                         <option value="monthly">매월 날짜</option>
                         <option value="yearly">매년 날짜</option>
                         <option value="everyN">N일마다</option>
                         <option value="everyNWeeks">N주마다</option>
                     </select>
+                    <!-- 특정 날짜 (마감일) -->
+                    <div class="task-reset-input-row hidden" id="taskResetDeadlineRow">
+                        <div style="display:flex; flex-direction:column; gap:12px;">
+                            <div>
+                                <label class="form-label" style="font-size:11px">시작일 및 시간 (선택)</label>
+                                <div style="display:flex; gap:6px;">
+                                    <input type="date" id="taskDeadlineStartDate" class="form-input" style="flex:1" />
+                                    <input type="time" id="taskDeadlineStartTime" class="form-input time-input custom-time-input" style="flex:0 0 auto" />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size:11px">목표일 및 시간</label>
+                                <div style="display:flex; gap:6px;">
+                                    <input type="date" id="taskDeadlineDate" class="form-input" style="flex:1" />
+                                    <input type="time" id="taskDeadlineTime" class="form-input time-input custom-time-input" style="flex:0 0 auto" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <!-- N일마다 -->
                     <div class="task-reset-input-row hidden" id="taskResetEveryNRow">
                         <div class="every-n-input-wrap">
@@ -214,7 +256,7 @@
                             <label class="form-label" style="font-size:11px">시작일 및 시간</label>
                             <div style="display:flex; gap:6px;">
                                 <input type="date" id="taskResetEveryNDate" class="form-input" style="flex:1" />
-                                <input type="time" id="taskResetEveryNTime" class="form-input time-input" style="flex:1" />
+                                <input type="time" id="taskResetEveryNTime" class="form-input time-input custom-time-input" style="flex:0 0 auto" />
                             </div>
                         </div>
                     </div>
@@ -237,13 +279,13 @@
                             <label class="form-label" style="font-size:11px">시작일 및 시간</label>
                             <div style="display:flex; gap:6px;">
                                 <input type="date" id="taskResetEveryNWeeksDate" class="form-input" style="flex:1" />
-                                <input type="time" id="taskResetEveryNWeeksTime" class="form-input time-input" style="flex:1" />
+                                <input type="time" id="taskResetEveryNWeeksTime" class="form-input time-input custom-time-input" style="flex:0 0 auto" />
                             </div>
                         </div>
                     </div>
                     <!-- 매일 -->
                     <div class="task-reset-input-row hidden" id="taskResetTimeRow">
-                        <input type="time" id="taskResetTime" class="form-input time-input" style="width:100%" />
+                        <input type="time" id="taskResetTime" class="form-input time-input custom-time-input" style="width:100%" />
                     </div>
                     <!-- 매주 요일 -->
                     <div class="task-reset-input-row hidden" id="taskResetWeeklyRow">
@@ -256,20 +298,20 @@
                             <button type="button" class="weekday-btn" data-day="5">금</button>
                             <button type="button" class="weekday-btn" data-day="6">토</button>
                         </div>
-                        <input type="time" id="taskResetWeeklyTime" class="form-input time-input"
+                        <input type="time" id="taskResetWeeklyTime" class="form-input time-input custom-time-input"
                             style="width:100%;margin-top:6px" />
                     </div>
                     <!-- 매월 날짜 -->
                     <div class="task-reset-input-row hidden" id="taskResetMonthlyRow">
                         <div class="day-number-grid" id="monthDayGrid"></div>
-                        <input type="time" id="taskResetMonthlyTime" class="form-input time-input"
+                        <input type="time" id="taskResetMonthlyTime" class="form-input time-input custom-time-input"
                             style="width:100%;margin-top:6px" />
                     </div>
                     <!-- 매년 날짜 -->
                     <div class="task-reset-input-row hidden" id="taskResetYearlyRow">
                         <div id="yearlyDateList"></div>
                         <button type="button" class="btn-add-entry" id="addYearlyDateBtn">+ 날짜 추가</button>
-                        <input type="time" id="taskResetYearlyTime" class="form-input time-input"
+                        <input type="time" id="taskResetYearlyTime" class="form-input time-input custom-time-input"
                             style="width:100%;margin-top:6px" />
                     </div>
                 </div>
@@ -320,7 +362,9 @@
                     </div>
                 </div>
 
-                <!-- App Title Section -->
+                
+                <!-- App Title Section (주석 처리된 코드 그대로 둠) -->
+                <!-- 필요 없어 보이는 기능
                 <div class="settings-section">
                     <div class="settings-section-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
@@ -328,100 +372,16 @@
                             <path d="M12 20h9" />
                             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                         </svg>
-                        앱 제목
+                        앱 타이틀
                     </div>
                     <div class="settings-row">
-                        <span class="settings-row-label">제목 텍스트</span>
+                        <span class="settings-row-label"></span>
                         <input type="text" id="appTitleInput" class="form-input"
                             style="width:160px;font-size:13px;padding:7px 10px;" placeholder="My Tasks" maxlength="30"
                             autocomplete="off" />
                     </div>
-                </div>
-
-                <!-- Reset Timer Section -->
-                <div class="settings-section">
-                    <div class="settings-section-title">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"
-                            height="18">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                        </svg>
-                        초기화 타이머
-                    </div>
-                    <div class="settings-row">
-                        <div class="settings-row-label">
-                            <span>자동 초기화</span>
-                            <span class="settings-row-sub">설정한 시간에 할 일 목록을 초기화합니다</span>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="resetEnabled" />
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                    <div class="settings-sub-group" id="resetSubGroup">
-                        <div class="settings-row">
-                            <span class="settings-row-label">초기화 시간</span>
-                            <input type="time" id="resetTime" class="form-input time-input" value="00:00" />
-                        </div>
-                        <div class="settings-row">
-                            <div class="settings-row-label">
-                                <span>반복 주기</span>
-                            </div>
-                            <select id="resetRepeat" class="form-input select-input">
-                                <option value="daily">매일</option>
-                                <option value="weekday">평일만</option>
-                                <option value="weekly">매주</option>
-                                <option value="monthly">매월</option>
-                                <option value="yearly">매년</option>
-                                <option value="everyN">N일마다</option>
-                                <option value="everyNWeeks">N주마다</option>
-                            </select>
-                        </div>
-                        <!-- N일마다: 숫자 입력 -->
-                        <div id="resetEveryNRow" class="settings-row hidden">
-                            <span class="settings-row-label">간격 (일)</span>
-                            <div class="every-n-input-wrap">
-                                <input type="number" id="resetEveryNDays" class="form-input number-input"
-                                    min="2" max="365" value="2" />
-                                <span class="every-n-suffix">일마다</span>
-                            </div>
-                        </div>
-                        <!-- N주마다: 숫자 입력 + 요일 선택 -->
-                        <div id="resetEveryNWeeksRow" class="settings-row-group hidden">
-                            <div class="settings-row">
-                                <span class="settings-row-label">간격 (주)</span>
-                                <div class="every-n-input-wrap">
-                                    <input type="number" id="resetEveryNWeeksInput" class="form-input number-input"
-                                        min="1" max="52" value="2" />
-                                    <span class="every-n-suffix">주마다</span>
-                                </div>
-                            </div>
-                            <div class="settings-row">
-                                <span class="settings-row-label">요일 선택</span>
-                                <div class="weekday-selector" id="resetEveryNWeekdaySelector">
-                                    <button type="button" class="weekday-btn" data-day="1">월</button>
-                                    <button type="button" class="weekday-btn" data-day="2">화</button>
-                                    <button type="button" class="weekday-btn" data-day="3">수</button>
-                                    <button type="button" class="weekday-btn" data-day="4">목</button>
-                                    <button type="button" class="weekday-btn" data-day="5">금</button>
-                                    <button type="button" class="weekday-btn" data-day="6">토</button>
-                                    <button type="button" class="weekday-btn" data-day="0">일</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="reset-next-info" id="resetNextInfo"></div>
-                        <div class="settings-row" style="margin-top:4px;">
-                            <div class="settings-row-label">
-                                <span>초기화 시간 표시</span>
-                                <span class="settings-row-sub">각 항목에 다음 초기화 예정 시간을 표시합니다</span>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="showNextResetTime" />
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
+                </div> 
+                -->
 
                 <!-- Palette Section -->
                 <div class="settings-section">
@@ -433,9 +393,11 @@
                         </svg>
                         상단바 색상
                     </div>
-                    <div class="settings-row" style="flex-direction: column; align-items: flex-start; gap: 10px;">
-                        <span class="settings-row-label" style="font-size: 12px; color: var(--color-text-secondary);">프리셋</span>
+                    
+                    <div class="settings-row" style="flex-direction: column; align-items: flex-start; gap: 0px;">
+                        <!--<span class="settings-row-label" style="font-size: 12px; color: var(--color-text-secondary);"></span>-->
                         <div class="palette-swatches" id="paletteSwatches">
+                             <!--
                             <button class="palette-swatch" data-color="#3a6491" title="오션 블루" style="background: #3a6491;"></button>
                             <button class="palette-swatch" data-color="#2d6a4f" title="포레스트 그린" style="background: #2d6a4f;"></button>
                             <button class="palette-swatch" data-color="#6a3d9a" title="딥 퍼플" style="background: #6a3d9a;"></button>
@@ -446,7 +408,9 @@
                             <button class="palette-swatch" data-color="#1e4d40" title="딥 틸" style="background: #1e4d40;"></button>
                             <button class="palette-swatch" data-color="#5d3a1a" title="초콜릿" style="background: #5d3a1a;"></button>
                             <button class="palette-swatch" data-color="#2e4057" title="슬레이트" style="background: #2e4057;"></button>
+                            -->
                         </div>
+
                         <div class="settings-row" style="width: 100%; padding: 0; margin-top: 4px;">
                             <span class="settings-row-label" style="font-size: 12px; color: var(--color-text-secondary);">직접 선택</span>
                             <div style="display: flex; align-items: center; gap: 8px;">
@@ -509,15 +473,19 @@
                     <div class="settings-row">
                         <span class="settings-row-label">배경 투명도</span>
                         <div class="range-wrap">
-                            <input type="range" id="bgOpacity" min="0" max="90" value="50" class="range-input" />
-                            <span class="range-value" id="bgOpacityValue">50%</span>
+                            <input type="range" id="bgOpacity" min="0" max="100" value="50" class="range-input" />
+                            <div class="range-value-input-wrap">
+                                <input type="number" id="bgOpacityValue" class="range-value-input" min="0" max="100" value="50" /><span>%</span>
+                            </div>
                         </div>
                     </div>
                     <div class="settings-row">
                         <span class="settings-row-label">배경 블러</span>
                         <div class="range-wrap">
                             <input type="range" id="bgBlur" min="0" max="20" value="0" class="range-input" />
-                            <span class="range-value" id="bgBlurValue">0px</span>
+                            <div class="range-value-input-wrap">
+                                <input type="number" id="bgBlurValue" class="range-value-input" min="0" max="20" value="0" /><span>px</span>
+                            </div>
                         </div>
                     </div>
                 </div>

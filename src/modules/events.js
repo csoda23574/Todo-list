@@ -44,7 +44,7 @@ import {
     tempBgScope, tempCatBgMeta, switchBgScope
 } from './modals.js';
 import { switchCategory, startCategoryAdd, startCategoryRename, wasCategoryDragged, initCategoryDragSort } from './categories.js';
-import { updateTaskResetTypeUI, addYearlyDateEntry, updateResetNextInfo } from './reset.js';
+import { updateTaskResetTypeUI, addYearlyDateEntry } from './reset.js';
 import { openCropModal, initCropModal } from './crop.js';
 import { toggleTheme, setFilter, toggleUI, updateWinMaximizeBtn } from './ui.js';
 import { updateBgPreview, applyUiPalette } from './renderer.js';
@@ -271,47 +271,6 @@ function bindSettingsModalEvents() {
     DOM.bgScopeGlobal?.addEventListener('click', () => switchBgScope('global'));
     DOM.bgScopeCategory?.addEventListener('click', () => switchBgScope('category'));
 
-    // tempSettings와 DOM 동기화 (live binding으로 실시간 객체 참조)
-    DOM.resetEnabled?.addEventListener('change', () => {
-        tempSettings.resetEnabled = DOM.resetEnabled.checked;
-        DOM.resetSubGroup?.classList.toggle('hidden', !DOM.resetEnabled.checked);
-        updateResetNextInfo();
-    });
-    DOM.resetTime?.addEventListener('change', () => {
-        tempSettings.resetTime = DOM.resetTime.value;
-        updateResetNextInfo();
-    });
-    DOM.resetRepeat?.addEventListener('change', () => {
-        tempSettings.resetRepeat = DOM.resetRepeat.value;
-        const val = DOM.resetRepeat.value;
-        document.getElementById('resetEveryNRow')?.classList.toggle('hidden', val !== 'everyN');
-        document.getElementById('resetEveryNWeeksRow')?.classList.toggle('hidden', val !== 'everyNWeeks');
-        updateResetNextInfo();
-    });
-
-    // N일마다 숫자 입력
-    document.getElementById('resetEveryNDays')?.addEventListener('input', () => {
-        tempSettings.resetEveryNDays = parseInt(document.getElementById('resetEveryNDays').value, 10) || 2;
-        updateResetNextInfo();
-    });
-
-    // N주마다 숫자 입력
-    document.getElementById('resetEveryNWeeksInput')?.addEventListener('input', () => {
-        tempSettings.resetEveryNWeeks = parseInt(document.getElementById('resetEveryNWeeksInput').value, 10) || 2;
-        updateResetNextInfo();
-    });
-
-    // N주마다 요일 선택 버튼 (단일 선택)
-    document.getElementById('resetEveryNWeekdaySelector')?.addEventListener('click', e => {
-        const btn = e.target.closest('.weekday-btn');
-        if (!btn) return;
-        // 다른 버튼 해제 후 이 버튼만 활성화 (라디오 방식)
-        document.querySelectorAll('#resetEveryNWeekdaySelector .weekday-btn')
-            .forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        tempSettings.resetEveryNWeekday = Number(btn.dataset.day);
-        updateResetNextInfo();
-    });
 
     // 배경 이미지 파일 선택 → 크롭 모달 열기
     DOM.bgFileInput?.addEventListener('change', async e => {
@@ -352,24 +311,65 @@ function bindSettingsModalEvents() {
         updateBgPreview(null, '');
     });
 
-    DOM.bgOpacity?.addEventListener('input', () => {
-        const val = parseInt(DOM.bgOpacity.value, 10);
+    function updateOpacitySetting(val) {
         if (tempBgScope === 'category') {
             tempCatBgMeta.bgOpacity = val;
         } else {
             tempSettings.bgOpacity = val;
         }
-        if (DOM.bgOpacityValue) DOM.bgOpacityValue.textContent = `${val}%`;
+        if (DOM.bgOpacity && document.activeElement !== DOM.bgOpacity) {
+            DOM.bgOpacity.value = val;
+        }
+        if (DOM.bgOpacityValue && document.activeElement !== DOM.bgOpacityValue) {
+            DOM.bgOpacityValue.value = val;
+        }
+    }
+
+    DOM.bgOpacity?.addEventListener('input', () => {
+        updateOpacitySetting(parseInt(DOM.bgOpacity.value, 10));
+    });
+    DOM.bgOpacityValue?.addEventListener('input', () => {
+        let val = parseInt(DOM.bgOpacityValue.value, 10) || 0;
+        if (val < 0) val = 0;
+        if (val > 100) val = 100;
+        updateOpacitySetting(val);
+    });
+    // 사용자가 입력 후 포커스를 잃었을 때 클램핑된 정확한 숫자로 다시 그려주기
+    DOM.bgOpacityValue?.addEventListener('change', () => {
+        let val = parseInt(DOM.bgOpacityValue.value, 10) || 0;
+        if (val < 0) val = 0;
+        if (val > 100) val = 100;
+        DOM.bgOpacityValue.value = val;
     });
 
-    DOM.bgBlur?.addEventListener('input', () => {
-        const val = parseInt(DOM.bgBlur.value, 10);
+    function updateBlurSetting(val) {
         if (tempBgScope === 'category') {
             tempCatBgMeta.bgBlur = val;
         } else {
             tempSettings.bgBlur = val;
         }
-        if (DOM.bgBlurValue) DOM.bgBlurValue.textContent = `${val}px`;
+        if (DOM.bgBlur && document.activeElement !== DOM.bgBlur) {
+            DOM.bgBlur.value = val;
+        }
+        if (DOM.bgBlurValue && document.activeElement !== DOM.bgBlurValue) {
+            DOM.bgBlurValue.value = val;
+        }
+    }
+
+    DOM.bgBlur?.addEventListener('input', () => {
+        updateBlurSetting(parseInt(DOM.bgBlur.value, 10));
+    });
+    DOM.bgBlurValue?.addEventListener('input', () => {
+        let val = parseInt(DOM.bgBlurValue.value, 10) || 0;
+        if (val < 0) val = 0;
+        if (val > 20) val = 20;
+        updateBlurSetting(val);
+    });
+    DOM.bgBlurValue?.addEventListener('change', () => {
+        let val = parseInt(DOM.bgBlurValue.value, 10) || 0;
+        if (val < 0) val = 0;
+        if (val > 20) val = 20;
+        DOM.bgBlurValue.value = val;
     });
 
     // 팔레트 — 프리셋 스와치 클릭
@@ -568,7 +568,32 @@ export function bindAuthEvents() {
 
 export function bindEvents() {
     DOM.themeToggle?.addEventListener('click', toggleTheme);
-    DOM.addBtn?.addEventListener('click', openAddModal);
+    
+    // FAB 토글
+    DOM.mainFab?.addEventListener('click', () => {
+        DOM.fabWrap?.classList.toggle('expanded');
+    });
+
+    // 외부 클릭 시 FAB 닫기
+    document.addEventListener('click', (e) => {
+        if (DOM.fabWrap && DOM.fabWrap.classList.contains('expanded') && !DOM.fabWrap.contains(e.target)) {
+            DOM.fabWrap.classList.remove('expanded');
+        }
+    });
+
+    // 항목 추가 버튼
+    DOM.fabAddTodoBtn?.addEventListener('click', () => {
+        DOM.fabWrap?.classList.remove('expanded');
+        openAddModal();
+    });
+
+    // 캘린더 버튼 (기능 구현 대기)
+    DOM.fabCalendarBtn?.addEventListener('click', () => {
+        DOM.fabWrap?.classList.remove('expanded');
+        // TODO: 캘린더 열기
+        console.log('캘린더 열기');
+    });
+
     DOM.settingsBtn?.addEventListener('click', openSettingsModal);
     DOM.uiToggleBtn?.addEventListener('click', toggleUI);
 
