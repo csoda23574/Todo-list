@@ -3366,14 +3366,16 @@ input[type="datetime-local"].time-input {
 
 .calendar-grid-body {
     flex: 1;
+    min-height: 0;
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    grid-template-rows: repeat(6, 1fr);
+    grid-template-rows: repeat(6, minmax(100px, 1fr));
     gap: 1px;
     background: var(--color-border);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     z-index: 2;
 }
 
