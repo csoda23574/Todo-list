@@ -275,7 +275,7 @@ function initCalendarFilter() {
     checkedCategories.clear();
     
     state.categories.forEach(cat => {
-        checkedCategories.add(cat.id);
+        // 초기에는 체크하지 않으므로 Set에 추가하지 않음
         
         const label = document.createElement('label');
         label.className = 'cal-filter-item';
@@ -283,7 +283,7 @@ function initCalendarFilter() {
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.value = cat.id;
-        checkbox.checked = true;
+        checkbox.checked = false; // 기본 체크 상태 해제
         
         checkbox.addEventListener('change', (e) => {
             if (e.target.checked) {
