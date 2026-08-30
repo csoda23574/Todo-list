@@ -477,7 +477,7 @@ body {
     padding: 0;
     flex-shrink: 0;
     background: transparent;
-    border: 1.5px solid rgba(var(--ui-fg-base), 0.3);
+    border: 1.5px solid transparent;
     border-radius: 50%;
     color: rgba(var(--ui-fg-base), 0.7);
     cursor: pointer;
@@ -510,7 +510,7 @@ body {
 }
 
 .category-tabs-nav:hover {
-    border-color: rgba(var(--ui-fg-base), 0.7);
+    border-color: transparent;
     color: white;
     background: rgba(var(--ui-fg-base), 0.15);
 }
@@ -543,7 +543,7 @@ body {
     font-family: var(--font-family);
     color: rgba(var(--ui-fg-base), 0.8);
     background: transparent;
-    border: 1.5px solid rgba(var(--ui-fg-base), 0.3);
+    border: 1.5px solid transparent;
     border-radius: var(--radius-full);
     cursor: pointer;
     white-space: nowrap;
@@ -554,14 +554,14 @@ body {
 
 .category-tab:hover {
     color: rgba(var(--ui-fg-base), 1);
-    border-color: rgba(var(--ui-fg-base), 0.7);
+    border-color: transparent;
     background: rgba(var(--ui-fg-base), 0.15);
 }
 
 .category-tab.active {
     color: rgba(var(--ui-fg-base), 1);
     background: rgba(var(--ui-fg-base), 0.22);
-    border-color: rgba(var(--ui-fg-base), 0.6);
+    border-color: transparent;
     font-weight: 600;
 }
 
@@ -579,7 +579,7 @@ body {
     margin-left: 6px;
     padding: 0;
     background: transparent;
-    border: 1.5px solid rgba(var(--ui-fg-base), 0.3);
+    border: 1.5px solid transparent;
     border-radius: 50%;
     color: rgba(var(--ui-fg-base), 0.6);
     cursor: pointer;
@@ -696,7 +696,7 @@ body {
 .filter-tab.active {
     color: rgba(var(--ui-fg-base), 1);
     background: rgba(var(--ui-fg-base), 0.22);
-    border-color: rgba(var(--ui-fg-base), 0.4);
+    border-color: transparent;
     font-weight: 600;
 }
 
@@ -3564,4 +3564,5 @@ input[type="datetime-local"].time-input {
 .calendar-grid-body::-webkit-scrollbar-thumb:hover {
     background-color: var(--color-text-tertiary);
 }
+
 
