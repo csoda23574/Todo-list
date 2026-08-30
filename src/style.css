@@ -579,7 +579,7 @@ body {
     margin-left: 6px;
     padding: 0;
     background: transparent;
-    border: 1.5px solid transparent;
+    border: 1.5px solid rgba(var(--ui-fg-base), 0.3);
     border-radius: 50%;
     color: rgba(var(--ui-fg-base), 0.6);
     cursor: pointer;
@@ -3564,5 +3564,7 @@ input[type="datetime-local"].time-input {
 .calendar-grid-body::-webkit-scrollbar-thumb:hover {
     background-color: var(--color-text-tertiary);
 }
+
+
 
 
