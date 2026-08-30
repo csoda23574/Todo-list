@@ -4,6 +4,7 @@ import { state } from './state.js';
 let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth();
 
+let checkedCategories = new Set();
 const HUE_MAP = new Map(); // Store hashed colors
 
 function getTaskColor(taskId) {
@@ -25,6 +26,7 @@ export function openCalendar() {
     const now = new Date();
     currentYear = now.getFullYear();
     currentMonth = now.getMonth();
+    initCalendarFilter();
     renderCalendar();
 }
 
@@ -73,6 +75,8 @@ function normalizeDate(d) {
 }
 
 function isDateMatch(todo, checkDate) {
+    if (!checkedCategories.has(todo.categoryId || 'default')) return false;
+
     const r = todo.recurrence;
     if (!r) return false;
     
@@ -230,12 +234,21 @@ export function bindCalendarEvents() {
     DOM.calDetailCloseBtn?.addEventListener('click', () => {
         DOM.calDetailPopup.classList.add('hidden');
     });
+    DOM.calFilterBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        DOM.calFilterDropdown?.classList.toggle('hidden');
+    });
 
     // 외부 클릭 시 팝업 닫기
     document.addEventListener('click', (e) => {
         if (!DOM.calDetailPopup.classList.contains('hidden')) {
             if (!DOM.calDetailPopup.contains(e.target) && !e.target.closest('.calendar-more-btn')) {
                 DOM.calDetailPopup.classList.add('hidden');
+            }
+        }
+        if (DOM.calFilterDropdown && !DOM.calFilterDropdown.classList.contains('hidden')) {
+            if (!DOM.calFilterDropdown.contains(e.target) && !e.target.closest('#calFilterBtn')) {
+                DOM.calFilterDropdown.classList.add('hidden');
             }
         }
     });
@@ -253,4 +266,40 @@ on('todos:changed', () => {
 });
 
 
+
+
+function initCalendarFilter() {
+    const dropdown = DOM.calFilterDropdown;
+    if (!dropdown) return;
+    dropdown.innerHTML = '';
+    checkedCategories.clear();
+    
+    state.categories.forEach(cat => {
+        checkedCategories.add(cat.id);
+        
+        const label = document.createElement('label');
+        label.className = 'cal-filter-item';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = cat.id;
+        checkbox.checked = true;
+        
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                checkedCategories.add(cat.id);
+            } else {
+                checkedCategories.delete(cat.id);
+            }
+            renderCalendar();
+        });
+        
+        const span = document.createElement('span');
+        span.textContent = cat.name;
+        
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        dropdown.appendChild(label);
+    });
+}
 

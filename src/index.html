@@ -193,6 +193,17 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </button>
                     <div style="flex-grow: 1;"></div>
+                    <div class="cal-filter-wrap">
+                        <button class="btn btn-ghost btn-sm" id="calFilterBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; margin-right:4px;">
+                                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                            </svg>
+                            필터
+                        </button>
+                        <div class="cal-filter-dropdown hidden" id="calFilterDropdown">
+                            <!-- 카테고리 체크박스 항목들이 동적으로 추가됨 -->
+                        </div>
+                    </div>
                     <button class="btn btn-ghost btn-sm" id="calBackBtn">목록으로</button>
                 </div>
                 <div class="calendar-grid-header">

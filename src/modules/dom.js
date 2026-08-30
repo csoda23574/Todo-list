@@ -24,6 +24,8 @@ export const DOM = {
     get calBackBtn() { return document.getElementById('calBackBtn'); },
     get calendarTitle() { return document.getElementById('calendarTitle'); },
     get calendarGridBody() { return document.getElementById('calendarGridBody'); },
+    get calFilterBtn() { return document.getElementById('calFilterBtn'); },
+    get calFilterDropdown() { return document.getElementById('calFilterDropdown'); },
     get calDetailPopup() { return document.getElementById('calDetailPopup'); },
     get calDetailDateTitle() { return document.getElementById('calDetailDateTitle'); },
     get calDetailCloseBtn() { return document.getElementById('calDetailCloseBtn'); },
