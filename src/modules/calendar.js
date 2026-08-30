@@ -5,6 +5,7 @@ let currentYear = new Date().getFullYear();
 let currentMonth = new Date().getMonth();
 
 let checkedCategories = new Set();
+let isCalFilterInitialized = false;
 const HUE_MAP = new Map(); // Store hashed colors
 
 function getTaskColor(taskId) {
@@ -272,18 +273,30 @@ function initCalendarFilter() {
     const dropdown = DOM.calFilterDropdown;
     if (!dropdown) return;
     dropdown.innerHTML = '';
-    checkedCategories.clear();
+    
+    // 초기 로드 시 한 번만 로컬 스토리지에서 이전 체크 상태를 불러옴
+    if (!isCalFilterInitialized) {
+        try {
+            const saved = localStorage.getItem('calCheckedCategories');
+            if (saved) {
+                checkedCategories = new Set(JSON.parse(saved));
+            } else {
+                checkedCategories.clear();
+            }
+        } catch(e) {
+            checkedCategories.clear();
+        }
+        isCalFilterInitialized = true;
+    }
     
     state.categories.forEach(cat => {
-        // 초기에는 체크하지 않으므로 Set에 추가하지 않음
-        
         const label = document.createElement('label');
         label.className = 'cal-filter-item';
         
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.value = cat.id;
-        checkbox.checked = false; // 기본 체크 상태 해제
+        checkbox.checked = checkedCategories.has(cat.id);
         
         checkbox.addEventListener('change', (e) => {
             if (e.target.checked) {
@@ -291,6 +304,8 @@ function initCalendarFilter() {
             } else {
                 checkedCategories.delete(cat.id);
             }
+            // 상태가 바뀔 때마다 로컬 스토리지에 저장
+            localStorage.setItem('calCheckedCategories', JSON.stringify(Array.from(checkedCategories)));
             renderCalendar();
         });
         
