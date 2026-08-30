@@ -1699,8 +1699,8 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    white-space: nowrap;
 }
-
 .btn-primary {
     background: linear-gradient(135deg, var(--color-accent), #9c88ff);
     color: white;
@@ -3000,8 +3000,8 @@ input[type="datetime-local"].time-input {
 }
 
 .btn-sm {
-    padding: 6px 14px;
-    font-size: 13.8px;
+    padding: 6px 10px;
+    font-size: clamp(12px, 3.5vw, 13.8px);
     border-radius: 6px;
 }
 
@@ -3337,17 +3337,19 @@ input[type="datetime-local"].time-input {
 .calendar-header {
     display: flex;
     align-items: center;
-    gap: var(--space-md);
+    gap: 8px;
     margin-bottom: var(--space-md);
     position: relative;
     z-index: 20;
+    flex-wrap: nowrap;
 }
 
 .calendar-title {
-    font-size: 20.7px;
+    font-size: clamp(16px, 4.5vw, 20.7px);
     font-weight: 700;
     color: var(--color-text-primary);
     margin: 0;
+    white-space: nowrap;
 }
 
 .calendar-grid-header {
@@ -3564,6 +3566,8 @@ input[type="datetime-local"].time-input {
 .calendar-grid-body::-webkit-scrollbar-thumb:hover {
     background-color: var(--color-text-tertiary);
 }
+
+
 
 
 
