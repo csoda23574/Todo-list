@@ -13,8 +13,8 @@ import { STORAGE_KEYS, getStorageKey } from './config.js';
 import { loadFromIDB } from './idb.js';
 import { updateBgPreview } from './renderer.js';
 import { emit } from './bus.js'; // renderer·reset 직접 의존 제거 — DIP
-import { updateResetNextInfo, initMonthDayGrid, addYearlyDateEntry, getYearlyDatesFromDOM, updateTaskResetTypeUI, applyResets } from './reset.js';
-import { settingsToRecurrence, calcNextDueAfter } from './recurrence.js';
+import { initMonthDayGrid, addYearlyDateEntry, getYearlyDatesFromDOM, updateTaskResetTypeUI, applyResets } from './reset.js';
+import { calcNextDueAfter } from './recurrence.js';
 import { addTodo, editTodo, deleteTodo, clearAllTodos } from './todos.js';
 import { generateId } from './utils.js';
 import { deleteCategory } from './categories.js';
@@ -60,7 +60,7 @@ export function openAddModal() {
     DOM.modalTitle.textContent = '새 할 일 추가';
     clearTaskForm();
     setSelectedPriority('medium');
-    updateTaskResetTypeUI('none');
+    updateTaskResetTypeUI('neverReset');
     openModal(DOM.taskModal);
     setTimeout(() => DOM.taskInput.focus(), 50);
 }
@@ -87,13 +87,23 @@ export function openEditModal(id) {
 /** 할 일의 초기화 설정을 폼에 채웁니다. */
 function _populateResetFields(todo) {
     const r = todo.recurrence;
-    if (!r) {
-        updateTaskResetTypeUI('none');
+    if (!r || r.type === 'none' || r.type === 'default' || r.type === 'neverReset') {
+        updateTaskResetTypeUI('neverReset');
         return;
     }
-    if (r.type === 'daily' || r.type === 'weekday') {
+    if (r.type === 'deadline') {
+        const elStart = document.getElementById('taskDeadlineStartDate');
+        const elStartTime = document.getElementById('taskDeadlineStartTime');
+        if (elStart) elStart.value = r.startDate || '';
+        if (elStartTime) { elStartTime.value = r.startTime || ''; if(elStartTime.syncCustomUI) elStartTime.syncCustomUI(); }
+        const elDate = document.getElementById('taskDeadlineDate');
+        const elTime = document.getElementById('taskDeadlineTime');
+        if (elDate) elDate.value = r.date || '';
+        if (elTime) { elTime.value = r.time || ''; if(elTime.syncCustomUI) elTime.syncCustomUI(); }
+        updateTaskResetTypeUI('deadline');
+    } else if (r.type === 'daily') {
         DOM.taskResetTime.value = r.time || '';
-        updateTaskResetTypeUI(r.type);
+        updateTaskResetTypeUI('daily');
     } else if (r.type === 'weekly') {
         updateTaskResetTypeUI('weekly');
         DOM.taskResetWeeklyTime.value = r.time || '';
@@ -119,7 +129,7 @@ function _populateResetFields(todo) {
         if (elDays) elDays.value = r.n || 2;
         if (elTime) elTime.value = r.time || state.settings.resetTime || '00:00';
         
-        const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const todayStr = new Date().toLocaleDateString('en-CA');
         if (elDate) {
             elDate.value = r.startDate 
                 ? new Date(r.startDate).toLocaleDateString('en-CA') 
@@ -146,11 +156,14 @@ function _populateResetFields(todo) {
             b.classList.toggle('active', Number(b.dataset.day) === weekday);
         });
         updateTaskResetTypeUI('everyNWeeks');
-    } else if (r.type === 'neverReset') {
-        updateTaskResetTypeUI('neverReset');
     } else {
-        updateTaskResetTypeUI('none');
+        updateTaskResetTypeUI('neverReset');
     }
+
+    // 모든 커스텀 타임피커 UI 수동 동기화
+    document.querySelectorAll('input[type="time"].custom-time-input').forEach(input => {
+        if (input.syncCustomUI) input.syncCustomUI();
+    });
 }
 
 /* ────────────────────── 할 일 모달 저장 ────────────────────────────────── */
@@ -185,8 +198,21 @@ function _buildRecurrenceFromForm(resetType) {
     if (resetType === 'neverReset') {
         return { type: 'neverReset' };
     }
-    if (resetType === 'daily' || resetType === 'weekday') {
-        return { type: resetType, time: DOM.taskResetTime.value || '00:00' };
+    if (resetType === 'deadline') {
+        const startVal = document.getElementById('taskDeadlineStartDate')?.value;
+        const startTimeVal = document.getElementById('taskDeadlineStartTime')?.value;
+        const dateVal = document.getElementById('taskDeadlineDate')?.value;
+        const timeVal = document.getElementById('taskDeadlineTime')?.value;
+        return { 
+            type: 'deadline', 
+            startDate: startVal || null, 
+            startTime: startTimeVal || null,
+            date: dateVal || null, 
+            time: timeVal || null 
+        };
+    }
+    if (resetType === 'daily') {
+        return { type: 'daily', time: DOM.taskResetTime.value || '00:00' };
     }
     if (resetType === 'weekly') {
         const weekdays = Array.from(document.querySelectorAll('.weekday-btn.active'))
@@ -398,7 +424,7 @@ function _updateElectronSettingsSection() {
 
         const titleEl = document.getElementById('electronSettingsTitle');
         const subEl = document.getElementById('autoLaunchSubLabel');
-        if (titleEl) titleEl.textContent = `${osName} 앛 설정`;
+        if (titleEl) titleEl.textContent = `${osName} 앱 설정`;
         if (subEl) subEl.textContent = `${osName} 로그인 시 자동으로 앱을 시작합니다`;
     }).catch(() => { });
 
@@ -413,15 +439,15 @@ function _updateElectronSettingsSection() {
 export function populateBgSettings() {
     if (tempBgScope === 'category') {
         DOM.bgOpacity.value = tempCatBgMeta?.bgOpacity ?? 50;
-        DOM.bgOpacityValue.textContent = `${DOM.bgOpacity.value}%`;
+        DOM.bgOpacityValue.value = DOM.bgOpacity.value;
         DOM.bgBlur.value = tempCatBgMeta?.bgBlur ?? 0;
-        DOM.bgBlurValue.textContent = `${DOM.bgBlur.value}px`;
+        DOM.bgBlurValue.value = DOM.bgBlur.value;
         updateBgPreview(tempCatBgImage, tempCatBgMeta?.bgFileName);
     } else {
         DOM.bgOpacity.value = tempSettings.bgOpacity ?? 50;
-        DOM.bgOpacityValue.textContent = `${DOM.bgOpacity.value}%`;
+        DOM.bgOpacityValue.value = DOM.bgOpacity.value;
         DOM.bgBlur.value = tempSettings.bgBlur ?? 0;
-        DOM.bgBlurValue.textContent = `${DOM.bgBlur.value}px`;
+        DOM.bgBlurValue.value = DOM.bgBlur.value;
         updateBgPreview(tempBgImage, tempSettings.bgFileName);
     }
 }
@@ -439,45 +465,15 @@ export function switchBgScope(scope) {
 }
 
 function _populateSettingsForm() {
-    DOM.resetEnabled.checked = tempSettings.resetEnabled;
-    DOM.resetTime.value = tempSettings.resetTime || '00:00';
-    DOM.resetRepeat.value = tempSettings.resetRepeat || 'daily';
-
     populateBgSettings();
-
-    DOM.resetSubGroup.classList.toggle('hidden', !tempSettings.resetEnabled);
-
-    // N일마다 / N주마다 조건부 UI 토글 + 값 복원
-    const repeat = tempSettings.resetRepeat || 'daily';
-    document.getElementById('resetEveryNRow')?.classList.toggle('hidden', repeat !== 'everyN');
-    document.getElementById('resetEveryNWeeksRow')?.classList.toggle('hidden', repeat !== 'everyNWeeks');
-
-    if (repeat === 'everyN') {
-        const el = document.getElementById('resetEveryNDays');
-        if (el) el.value = tempSettings.resetEveryNDays || 2;
-    }
-    if (repeat === 'everyNWeeks') {
-        const el = document.getElementById('resetEveryNWeeksInput');
-        if (el) el.value = tempSettings.resetEveryNWeeks || 2;
-        const weekday = tempSettings.resetEveryNWeekday ?? null;
-        document.querySelectorAll('#resetEveryNWeekdaySelector .weekday-btn').forEach(btn => {
-            btn.classList.toggle('active', Number(btn.dataset.day) === weekday);
-        });
-    }
 
     if (DOM.appTitleInput) {
         DOM.appTitleInput.value = tempSettings.appTitle || 'My Tasks';
     }
 
-    const showNextResetTimeEl = document.getElementById('showNextResetTime');
-    if (showNextResetTimeEl) {
-        showNextResetTimeEl.checked = tempSettings.showNextResetTime !== false;
-    }
-
-    updateResetNextInfo();
     _updateElectronSettingsSection();
 
-    // 팔레트 복원
+    // 파레트 선택
     const color = tempSettings.uiBaseColor || '#3a6491';
     const picker = document.getElementById('uiBaseColorPicker');
     const hexInput = document.getElementById('uiBaseColorHex');
@@ -486,6 +482,11 @@ function _populateSettingsForm() {
     document.querySelectorAll('.palette-swatch').forEach(s => {
         s.classList.toggle('active', s.dataset.color === color);
     });
+
+    const showNextResetTimeEl = document.getElementById('showNextResetTime');
+    if (showNextResetTimeEl) {
+        showNextResetTimeEl.checked = tempSettings.showNextResetTime ?? true;
+    }
 }
 
 /* ─────────────────────── 설정 모달 저장 ────────────────────────────────── */
@@ -519,24 +520,7 @@ export async function saveSettingsFromModal() {
         state.settings.showNextResetTime = showNextResetTimeEl.checked;
     }
 
-    // nextGlobalResetAt을 null로 지우지 않고, 새 설정 기준으로 다음 미래 시점을 계산하여 업데이트.
-    // null로 지우면 applyResets()에서 "최초 활성화" 케이스로 처리되어 즉시 초기화가 발동됨.
-    // 대신 미래 시점을 직접 계산해 두면 applyResets()에서 아직 시간이 안 됐다고 판단해 초기화를 건너뜀.
-    if (state.settings.resetEnabled) {
-        const newRecurrence = settingsToRecurrence(state.settings);
-        if (newRecurrence && newRecurrence.type !== 'calendar') {
-            const now = new Date();
-            const nextDate = calcNextDueAfter(newRecurrence, now, now);
-            state.settings.nextGlobalResetAt = nextDate ? nextDate.toISOString() : null;
-        } else if (newRecurrence?.type === 'calendar') {
-            // calendar 타입은 기존 nextGlobalResetAt 유지 (1회성이므로 건드리지 않음)
-        } else {
-            state.settings.nextGlobalResetAt = null;
-        }
-    } else {
-        // 자동 초기화 비활성화 시에는 null로
-        state.settings.nextGlobalResetAt = null;
-    }
+
 
     // 팔레트 저장
     const colorPicker = document.getElementById('uiBaseColorPicker');

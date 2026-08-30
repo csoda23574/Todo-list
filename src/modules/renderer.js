@@ -8,7 +8,7 @@
 import { state } from './state.js';
 import { DOM } from './dom.js';
 import { escapeHtml, formatRecurrenceBadge } from './utils.js';
-import { settingsToRecurrence } from './recurrence.js';
+
 
 /* ─────────────────────────── 팔레트 (상단바 색상) ─────────────────────── */
 
@@ -115,9 +115,8 @@ export function createTodoElement(todo) {
     const hasChecklist = clTotal > 0;
 
     // 다음 초기화 시간 배지 계산
-    const showBadge = state.settings.showNextResetTime !== false;
     let nextResetBadgeHtml = '';
-    if (showBadge && todo.done) {
+    if (todo.done) {
         const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
         const formatResetTime = (isoStr) => {
             if (!isoStr) return null;
@@ -131,20 +130,25 @@ export function createTodoElement(todo) {
             return `${m}/${day}(${wd}) ${hh}:${mm}`;
         };
 
-        // neverReset 항목은 초기화 시간 표시 안 함
-        const isNeverReset = todo.recurrence?.type === 'neverReset';
-        // 개별 초기화가 있으면 nextDue 우선, 없으면 전역 nextGlobalResetAt (neverReset 제외)
-        const timeStr = !isNeverReset && (todo.nextDue
-            ? formatResetTime(todo.nextDue)
-            : (state.settings.resetEnabled ? formatResetTime(state.settings.nextGlobalResetAt) : null));
+        const isNeverReset = !todo.recurrence || todo.recurrence.type === 'neverReset' || todo.recurrence.type === 'deadline';
+        const timeStr = (!isNeverReset && todo.nextDue && state.settings.showNextResetTime) ? formatResetTime(todo.nextDue) : null;
 
         if (timeStr) {
             nextResetBadgeHtml = `<div class="todo-next-reset-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>다음 초기화: ${timeStr}</div>`;
         }
     }
 
+    let isInactive = false;
+    if (todo.recurrence?.type === 'deadline' && todo.recurrence.startDate) {
+        const t = todo.recurrence.startTime || '00:00';
+        const startObj = new Date(`${todo.recurrence.startDate}T${t}:00`);
+        if (new Date() < startObj) {
+            isInactive = true;
+        }
+    }
+
     const li = document.createElement('li');
-    li.className = `todo-item${todo.done ? ' done' : ''}`;
+    li.className = `todo-item${todo.done ? ' done' : ''}${isInactive ? ' todo-inactive' : ''}`;
     li.dataset.id = todo.id;
     li.dataset.priority = priority;
     li.draggable = true;
@@ -152,7 +156,7 @@ export function createTodoElement(todo) {
     li.innerHTML = `
     <div class="todo-checkbox-wrap">
       <input type="checkbox" class="todo-checkbox" aria-label="완료 표시"
-        ${todo.done ? 'checked' : ''} />
+        ${todo.done ? 'checked' : ''} ${isInactive ? 'disabled title="시작일이 지나야 체크할 수 있습니다"' : ''} />
     </div>
     <div class="todo-content">
       <div class="todo-text">${escapeHtml(todo.text)}</div>
@@ -160,8 +164,8 @@ export function createTodoElement(todo) {
       ${nextResetBadgeHtml}
       <div class="todo-meta">
         <span class="todo-priority-badge ${priority}">${priorityLabels[priority] || '보통'}</span>
-        ${(todo.recurrence || (state.settings.resetEnabled ? settingsToRecurrence(state.settings) : null))
-            ? `<span class="todo-reset-badge">${escapeHtml(formatRecurrenceBadge(todo.recurrence || settingsToRecurrence(state.settings)))}</span>`
+        ${(todo.recurrence && todo.recurrence.type !== 'neverReset')
+            ? `<span class="todo-reset-badge">${escapeHtml(formatRecurrenceBadge(todo.recurrence))}</span>`
             : ''}
         ${hasChecklist
             ? `<span class="checklist-progress-badge ${clDone === clTotal ? 'all-done' : ''}">✓ ${clDone}/${clTotal}</span>`
@@ -194,7 +198,7 @@ export function createTodoElement(todo) {
     <div class="checklist-area" role="list" aria-label="체크리스트">
       ${checklist.map(item => `
         <div class="checklist-item ${item.done ? 'done' : ''}" data-checklist-id="${item.id}" role="listitem">
-          <input type="checkbox" class="checklist-item-check" ${item.done ? 'checked' : ''}
+          <input type="checkbox" class="checklist-item-check" ${item.done ? 'checked' : ''} ${isInactive ? 'disabled' : ''}
             aria-label="${escapeHtml(item.text)}" />
           <span class="checklist-item-text">${escapeHtml(item.text)}</span>
         </div>
