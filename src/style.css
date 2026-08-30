@@ -3549,3 +3549,19 @@ input[type="datetime-local"].time-input {
 }
 
 
+
+.calendar-grid-body::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.calendar-grid-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+.calendar-grid-body::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: var(--radius-full);
+}
+.calendar-grid-body::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-text-tertiary);
+}
+
