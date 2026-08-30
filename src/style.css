@@ -69,12 +69,12 @@
     --ui-stats-shadow: color-mix(in srgb, var(--ui-base-color) 50%, transparent 50%);
 
     /* 탭 영역: 베이스 컬러를 한 톤 어둡게(검은색 25% 덧댐) */
-    --ui-tabs-bg: color-mix(in srgb, var(--ui-base-color) 75%, black 25%);
+    --ui-tabs-bg: var(--ui-base-color);
     --ui-tabs-shadow: color-mix(in srgb, var(--ui-base-color) 30%, transparent 70%);
 
     /* 배경 이미지 있을 때의 유리 효과용 색상 (불투명 처리) */
     --ui-stats-glass: color-mix(in srgb, var(--ui-base-color) 90%, white 10%);
-    --ui-tabs-glass: color-mix(in srgb, var(--ui-base-color) 75%, black 25%);
+    --ui-tabs-glass: var(--ui-base-color);
 }
 
 
@@ -3564,6 +3564,7 @@ input[type="datetime-local"].time-input {
 .calendar-grid-body::-webkit-scrollbar-thumb:hover {
     background-color: var(--color-text-tertiary);
 }
+
 
 
 
