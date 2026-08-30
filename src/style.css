@@ -3339,7 +3339,8 @@ input[type="datetime-local"].time-input {
     align-items: center;
     gap: var(--space-md);
     margin-bottom: var(--space-md);
-    z-index: 2;
+    position: relative;
+    z-index: 20;
 }
 
 .calendar-title {
