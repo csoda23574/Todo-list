@@ -230,6 +230,15 @@ export function bindCalendarEvents() {
     DOM.calDetailCloseBtn?.addEventListener('click', () => {
         DOM.calDetailPopup.classList.add('hidden');
     });
+
+    // 외부 클릭 시 팝업 닫기
+    document.addEventListener('click', (e) => {
+        if (!DOM.calDetailPopup.classList.contains('hidden')) {
+            if (!DOM.calDetailPopup.contains(e.target) && !e.target.closest('.calendar-more-btn')) {
+                DOM.calDetailPopup.classList.add('hidden');
+            }
+        }
+    });
 }
 
 

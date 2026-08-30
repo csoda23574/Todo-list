@@ -3403,7 +3403,7 @@ input[type="datetime-local"].time-input {
 }
 
 .calendar-date {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--color-text-primary);
     margin-bottom: 2px;
