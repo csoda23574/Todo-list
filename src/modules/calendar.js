@@ -219,7 +219,7 @@ function showDetailPopup(date, dayTasks) {
         if (task.done) bar.classList.add('is-done');
         bar.style.backgroundColor = getTaskColor(task.id);
         bar.style.padding = '6px 8px';
-        bar.style.fontSize = '12px';
+        bar.style.fontSize = '13.8px';
         bar.textContent = task.text;
         DOM.calDetailContent.appendChild(bar);
     });
