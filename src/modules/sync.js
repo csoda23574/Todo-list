@@ -177,7 +177,7 @@ export function startListeners() {
     stopListeners(); // 혹시 이전 리스너가 남아있으면 정리
 
     // ── Todos 리스너 ──
-    _unsubTodos = todosRef().where('archived', '==', false).onSnapshot(snap => {
+    _unsubTodos = todosRef().onSnapshot(snap => {
         if (_localWritePending()) return; // 자기 변경 무시
 
         const remoteTodos = snap.docs.map(doc => {

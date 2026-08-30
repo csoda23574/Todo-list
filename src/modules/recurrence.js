@@ -25,16 +25,13 @@ export function calcNextDue(recurrence, fromDate) {
     if (!recurrence) return null;
     const [h, m] = (recurrence.time || '00:00').split(':').map(Number);
 
-    if (recurrence.type === 'calendar') return null; // 1회성 — 다음 없음
+    if (recurrence.type === 'calendar' || recurrence.type === 'deadline') return null; // 1회성 — 다음 없음
     if (recurrence.type === 'neverReset') return null; // 초기화 없음
 
-    if (recurrence.type === 'daily' || recurrence.type === 'weekday') {
+    if (recurrence.type === 'daily') {
         const next = new Date(fromDate);
         next.setDate(next.getDate() + 1);
         next.setHours(h, m, 0, 0);
-        if (recurrence.type === 'weekday') {
-            while (next.getDay() === 0 || next.getDay() === 6) next.setDate(next.getDate() + 1);
-        }
         return next;
     }
 
@@ -167,29 +164,7 @@ export function calcNextDueAfter(recurrence, fromDate, now) {
     return null;
 }
 
-/**
- * 전역 초기화 settings를 recurrence 객체로 변환합니다.
- * @param {{ resetRepeat: string, resetTime: string, resetCalendarDate?: string }} settings
- * @returns {object|null}
- */
-export function settingsToRecurrence(settings) {
-    const { resetRepeat, resetTime, resetCalendarDate } = settings;
-    if (resetRepeat === 'calendar') return { type: 'calendar', date: resetCalendarDate };
-    if (resetRepeat === 'everyNWeeks') {
-        return {
-            type: 'everyNWeeks',
-            n: settings.resetEveryNWeeks || 2,
-            weekday: settings.resetEveryNWeekday ?? null,
-            time: resetTime,
-        };
-    }
-    if (resetRepeat === 'everyN') {
-        return { type: 'everyN', n: settings.resetEveryNDays || 2, time: resetTime };
-    }
-    // weekly, daily, weekday, monthly, yearly — 모두 기본 분기 처리
-    // (weekly는 매주 같은 요일이 아닌 단순 7일 주기로 동작)
-    return { type: resetRepeat || 'daily', time: resetTime };
-}
+
 
 /**
  * 기존 형식(itemResetTime / itemResetSchedule)을 가진 todo를

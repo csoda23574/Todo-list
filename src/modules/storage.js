@@ -10,7 +10,7 @@ import { state } from './state.js';
 import { emit } from './bus.js';
 import { saveToIDB, loadFromIDB, removeFromIDB } from './idb.js';
 import { pushTodo, pushCategories, pushSettings, setLocalWritePending } from './sync.js';
-import { migrateToRecurrence, calcNextDueAfter, settingsToRecurrence } from './recurrence.js';
+import { migrateToRecurrence, calcNextDueAfter } from './recurrence.js';
 
 /* ─────────────────────── LocalStorage 기본 헬퍼 ───────────────────────── */
 
@@ -130,23 +130,7 @@ export function loadUserState() {
     const savedSettings = loadFromStorage(STORAGE_KEYS.SETTINGS, {});
     state.settings = { ...state.settings, ...savedSettings };
 
-    // 구버전 lastGlobalResetAt → nextGlobalResetAt 마이그레이션
-    if ('lastGlobalResetAt' in state.settings) {
-        delete state.settings.lastGlobalResetAt;
-        if (state.settings.resetEnabled) {
-            const recurrence = settingsToRecurrence(state.settings);
-            if (recurrence && recurrence.type !== 'calendar') {
-                const now = new Date();
-                const nextDate = calcNextDueAfter(recurrence, now, now);
-                state.settings.nextGlobalResetAt = nextDate ? nextDate.toISOString() : null;
-            } else {
-                state.settings.nextGlobalResetAt = null;
-            }
-        } else {
-            state.settings.nextGlobalResetAt = null;
-        }
-    }
-
+    // 구버전 lastGlobalResetAt 마이그레이션 삭제 (전역 리셋 기능 제거)
     // Set an initial null state so the UI doesn't break
     state.settings.bgImage = null;
 

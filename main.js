@@ -364,7 +364,7 @@ ipcMain.handle('app:getSettings', () => {
     const loginSettings = app.getLoginItemSettings();
     const saved = loadPersistedSettings();
     return {
-        autoLaunch: loginSettings.openAtLogin,
+        autoLaunch: saved.autoLaunch ?? loginSettings.openAtLogin,
         alwaysOnTop: saved.alwaysOnTop ?? (mainWindow?.isAlwaysOnTop() ?? false),
     };
 });
