@@ -3417,6 +3417,7 @@ input[type="datetime-local"].time-input {
 /* Calendar Task Bar */
 .calendar-task-bar {
     font-size: 10px;
+    font-weight: 600;
     padding: 2px 4px;
     border-radius: 3px;
     color: white;
@@ -3434,18 +3435,21 @@ input[type="datetime-local"].time-input {
 
 .calendar-more-btn {
     font-size: 10px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    background: transparent;
-    border: none;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
     cursor: pointer;
-    text-align: left;
-    padding: 2px;
+    text-align: center;
+    padding: 3px;
     margin-top: auto;
+    transition: all 0.2s;
 }
 
 .calendar-more-btn:hover {
     color: var(--color-accent);
+    border-color: var(--color-accent);
 }
 
 /* Calendar Detail Popup */

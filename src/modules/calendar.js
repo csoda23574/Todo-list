@@ -14,7 +14,7 @@ function getTaskColor(taskId) {
         hash = taskId.charCodeAt(i) + ((hash << 5) - hash);
     }
     const hue = Math.abs(hash) % 360;
-    const color = `hsl(${hue}, 65%, 60%)`;
+    const color = `hsl(${hue}, 65%, 45%)`;
     HUE_MAP.set(taskId, color);
     return color;
 }
