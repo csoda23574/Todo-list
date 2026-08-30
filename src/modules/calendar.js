@@ -58,7 +58,7 @@ function getPriority(todo) {
     if (r.type === 'deadline') return 1;
     if (r.type === 'yearly' || r.type === 'monthly') return 2;
     if (r.type === 'everyN' || r.type === 'everyNWeeks' || r.type === 'weekly') return 3;
-    if (r.type === 'time' || r.type === 'calendar') return 4;
+    if (r.type === 'daily' || r.type === 'calendar') return 4;
     return 5;
 }
 
@@ -110,8 +110,8 @@ function isDateMatch(todo, checkDate) {
             if (!r.weekdays) return false;
             return r.weekdays.includes(checkW);
         }
-        case 'time': {
-            return true; // daily
+        case 'daily': {
+            return true;
         }
         case 'everyN': {
             if (!r.startDate || !r.n) return false;
