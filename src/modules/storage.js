@@ -10,7 +10,7 @@ import { state } from './state.js';
 import { emit } from './bus.js';
 import { saveToIDB, loadFromIDB, removeFromIDB } from './idb.js';
 import { pushTodo, pushCategories, pushSettings, setLocalWritePending } from './sync.js';
-import { migrateToRecurrence, calcNextDueAfter } from './recurrence.js';
+import { calcNextDueAfter } from './recurrence.js';
 
 /* ─────────────────────── LocalStorage 기본 헬퍼 ───────────────────────── */
 
@@ -113,18 +113,13 @@ export function loadState() {
 export function loadUserState() {
     const rawTodos = loadFromStorage(STORAGE_KEYS.TODOS, []);
 
-    // 구버전 itemResetTime/itemResetSchedule → recurrence + nextDue 마이그레이션
-    // order 필드 없으면 배열 인덱스 기준으로 부여
-    const now = new Date();
+    // order 필드 배열 인덱스 기반 부여 및 과거(deprecated) 필드 삭제
     state.todos = rawTodos.map((todo, i) => {
         const withOrder = todo.order !== undefined ? todo : { ...todo, order: i };
-        if (withOrder.recurrence !== undefined) return withOrder; // 이미 신규 포맷
-        if (!withOrder.itemResetTime && !withOrder.itemResetSchedule) return withOrder; // 반복 없는 항목
-        const migrated = migrateToRecurrence(withOrder); // 반환값: recurrence 필드 포함한 완전한 todo
-        if (migrated.recurrence && !migrated.nextDue) {
-            migrated.nextDue = calcNextDueAfter(migrated.recurrence, now, now)?.toISOString() ?? null;
-        }
-        return migrated;
+        if ('itemResetTime' in withOrder) delete withOrder.itemResetTime;
+        if ('itemResetSchedule' in withOrder) delete withOrder.itemResetSchedule;
+        if ('itemResetDatetime' in withOrder) delete withOrder.itemResetDatetime;
+        return withOrder;
     });
 
     const savedSettings = loadFromStorage(STORAGE_KEYS.SETTINGS, {});
@@ -160,4 +155,5 @@ export function loadUserState() {
     // 앱 시작 시 항상 첫 번째(가장 왼쪽) 카테고리를 선택
     state.currentCategoryId = state.categories[0]?.id ?? 'default';
 }
+
 
