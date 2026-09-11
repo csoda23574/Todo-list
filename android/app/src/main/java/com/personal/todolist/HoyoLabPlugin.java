@@ -3,7 +3,8 @@ package com.personal.todolist;
 import android.app.Dialog;
 import android.graphics.Color;
 import android.os.Build;
-import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Base64;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -35,7 +36,6 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -58,14 +58,16 @@ public class HoyoLabPlugin extends Plugin {
     private static final String CONNECTIONS_KEY = "connections";
     private static final String CREDENTIAL_PREFIX = "credential_";
     private static final String KEY_ALIAS = "todo_hoyolab_credentials";
-    private static final String LOGIN_URL = "https://www.hoyolab.com/accountCenter/postList";
+    private static final String LOGIN_URL = "https://account.hoyoverse.com/#/login?cb_route=%2Faccount%2FaccountInfo";
     private static final String DS_SALT = "6s25p5ox5y14umn1p61aqyyvbvvl3lrt";
     private static final String[] COOKIE_URLS = {
         "https://www.hoyolab.com/",
         "https://bbs-api-os.hoyolab.com/",
         "https://act.hoyolab.com/",
         "https://account.hoyolab.com/",
-        "https://api-os-takumi.mihoyo.com/"
+        "https://account.hoyoverse.com/",
+        "https://api-os-takumi.mihoyo.com/",
+        "https://api-os-takumi.hoyoverse.com/"
     };
 
     private final Map<String, String> temporaryCookies = new ConcurrentHashMap<>();
@@ -78,7 +80,14 @@ public class HoyoLabPlugin extends Plugin {
         volatile String cookieHeader = "";
         volatile boolean windowOpen;
         volatile boolean loginNotified;
+        volatile boolean accountLookupInProgress;
+        volatile int accountLookupAttempts;
+        volatile boolean loginFormRequested;
+        volatile boolean authCookieCheckScheduled;
+        volatile int authCookieCheckAttempts;
+        volatile JSONObject account;
         Dialog dialog;
+        WebView webView;
 
         PendingAuthentication(String game, boolean rememberLogin) {
             this.game = game;
@@ -137,14 +146,16 @@ public class HoyoLabPlugin extends Plugin {
     public void completeHoyoConnection(PluginCall call) {
         String connectionId = call.getString("connectionId");
         PendingAuthentication pending = pendingAuthentications.get(connectionId);
-        if (pending == null || !hasLoginCookies(pending.cookieHeader)) {
+        if (pending == null || !hasAuthenticatedCookies(pending.cookieHeader)) {
             resolveError(call, "authentication", "HoYoLAB 연결 창에서 로그인한 뒤 다시 시도해 주세요.");
             return;
         }
 
         execute(() -> {
             try {
-                JSONObject account = findGameAccount(pending.game, pending.cookieHeader);
+                JSONObject account = pending.account != null
+                    ? pending.account
+                    : findGameAccount(pending.game, pending.cookieHeader);
                 JSONObject connection = new JSONObject();
                 connection.put("id", connectionId);
                 connection.put("game", pending.game);
@@ -190,7 +201,7 @@ public class HoyoLabPlugin extends Plugin {
             if (pending != null && pending.dialog != null && pending.dialog.isShowing()) pending.dialog.dismiss();
             if (pending != null && !pending.rememberLogin) clearWebCookies(null);
         });
-        call.resolve();
+        call.resolve(new JSObject());
     }
 
     @PluginMethod
@@ -200,7 +211,7 @@ public class HoyoLabPlugin extends Plugin {
         String cookies = pending != null ? pending.cookieHeader : getStoredCookies(connectionId);
         JSObject result = new JSObject();
         result.put("connectionId", connectionId);
-        result.put("signedIn", hasLoginCookies(cookies));
+        result.put("signedIn", hasAuthenticatedCookies(cookies));
         result.put("windowOpen", pending != null && pending.windowOpen);
         call.resolve(result);
     }
@@ -214,7 +225,7 @@ public class HoyoLabPlugin extends Plugin {
             return;
         }
         String cookies = getStoredCookies(connectionId);
-        if (!hasLoginCookies(cookies)) {
+        if (!hasAuthenticatedCookies(cookies)) {
             resolveError(call, "authentication", "HoYoLAB 연결 창에서 다시 로그인해 주세요.");
             return;
         }
@@ -247,12 +258,28 @@ public class HoyoLabPlugin extends Plugin {
         settings.setUseWideViewPort(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.setBackgroundColor(Color.WHITE);
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onProgressChanged(WebView view, int progress) {
+                super.onProgressChanged(view, progress);
+                if (progress == 100) {
+                    PendingAuthentication pending = pendingAuthentications.get(connectionId);
+                    if (pending != null && isAccountSite(view.getUrl()) && !pending.loginFormRequested) {
+                        requestLoginForm(pending);
+                    }
+                    captureAuthenticationCookies(connectionId, view.getUrl());
+                }
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                captureAuthenticationCookies(connectionId);
+                PendingAuthentication pending = pendingAuthentications.get(connectionId);
+                if (pending != null && isAccountSite(url) && !pending.loginFormRequested) {
+                    requestLoginForm(pending);
+                }
+                captureAuthenticationCookies(connectionId, url);
             }
         });
 
@@ -261,27 +288,91 @@ public class HoyoLabPlugin extends Plugin {
             PendingAuthentication current = pendingAuthentications.get(connectionId);
             if (current == null) return;
             current.windowOpen = false;
-            emitAuthenticationState(connectionId, hasLoginCookies(current.cookieHeader), false);
+            emitAuthenticationState(connectionId, hasAuthenticatedCookies(current.cookieHeader), false);
         });
         dialog.show();
         if (dialog.getWindow() != null) {
             dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         }
         pending.dialog = dialog;
+        pending.webView = webView;
         pending.windowOpen = true;
         webView.loadUrl(LOGIN_URL);
+        scheduleAuthenticationCookieCheck(connectionId, pending);
     }
 
-    private void captureAuthenticationCookies(String connectionId) {
+    private void captureAuthenticationCookies(String connectionId, String currentUrl) {
         PendingAuthentication pending = pendingAuthentications.get(connectionId);
         if (pending == null) return;
-        String cookies = collectWebCookies();
-        if (!hasLoginCookies(cookies)) return;
+        String cookies = collectWebCookies(currentUrl);
+        if (!hasAccountSessionCookies(cookies)) return;
         pending.cookieHeader = cookies;
-        if (!pending.loginNotified) {
-            pending.loginNotified = true;
-            emitAuthenticationState(connectionId, true, pending.windowOpen);
+
+        if (!hasAuthenticatedCookies(cookies)) {
+            return;
         }
+        verifyGameAccountBeforeConnecting(connectionId, pending);
+    }
+
+    private boolean isAccountSite(String url) {
+        return url != null && (
+            url.contains("://account.hoyolab.com/")
+            || url.contains("://account.hoyoverse.com/")
+        );
+    }
+
+    private void requestLoginForm(PendingAuthentication pending) {
+        if (pending.webView == null) return;
+        pending.loginFormRequested = true;
+        pending.webView.evaluateJavascript(
+            "(function(){var tries=0;function openLogin(){"
+                + "if(document.querySelector('input[type=password]'))return;"
+                + "var controls=Array.prototype.slice.call(document.querySelectorAll('button,a,[role=button]'));"
+                + "var login=controls.find(function(control){return /(log\\s*in|로그인)/i.test((control.textContent||'').trim());});"
+                + "if(login){login.click();return;}"
+                + "if(++tries<10)setTimeout(openLogin,300);"
+                + "}openLogin();})()",
+            null
+        );
+    }
+
+    private void scheduleAuthenticationCookieCheck(String connectionId, PendingAuthentication pending) {
+        if (pending.authCookieCheckScheduled || !pending.windowOpen || pending.loginNotified) return;
+        if (pending.authCookieCheckAttempts >= 300) return;
+        pending.authCookieCheckScheduled = true;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            pending.authCookieCheckScheduled = false;
+            if (!pending.windowOpen || pending.loginNotified) return;
+            pending.authCookieCheckAttempts += 1;
+            captureAuthenticationCookies(connectionId,
+                pending.webView != null ? pending.webView.getUrl() : null);
+            scheduleAuthenticationCookieCheck(connectionId, pending);
+        }, 1000);
+    }
+
+    private void verifyGameAccountBeforeConnecting(String connectionId, PendingAuthentication pending) {
+        if (pending.loginNotified || pending.accountLookupInProgress) return;
+        pending.accountLookupInProgress = true;
+        execute(() -> {
+            try {
+                pending.account = findGameAccount(pending.game, pending.cookieHeader);
+                pending.loginNotified = true;
+                emitAuthenticationState(connectionId, true, pending.windowOpen);
+            } catch (Exception ignored) {
+                pending.accountLookupInProgress = false;
+                pending.accountLookupAttempts += 1;
+                if (pending.windowOpen && pending.accountLookupAttempts < 8) {
+                    new Handler(Looper.getMainLooper()).postDelayed(
+                        () -> captureAuthenticationCookies(connectionId,
+                            pending.webView != null ? pending.webView.getUrl() : null), 1500
+                    );
+                } else if (pending.windowOpen) {
+                    // 로그인 쿠키만 생긴 상태에서는 연결을 시도하지 않는다. 계정 선택·보안 검사가
+                    // 끝난 뒤 페이지가 다시 로드되면 위 콜백이 재시도한다.
+                    pending.accountLookupAttempts = 0;
+                }
+            }
+        });
     }
 
     private void emitAuthenticationState(String connectionId, boolean signedIn, boolean windowOpen) {
@@ -293,7 +384,7 @@ public class HoyoLabPlugin extends Plugin {
     }
 
     private JSONObject findGameAccount(String game, String cookies) throws Exception {
-        JSONObject data = requestJson("https://bbs-api-os.hoyolab.com/binding/api/getUserGameRolesByCookie", cookies);
+        JSONObject data = requestJson("https://api-os-takumi.hoyoverse.com/binding/api/getUserGameRolesByCookie", cookies);
         JSONArray accounts = data.optJSONArray("list");
         String gameMarker = game.equals("genshin") ? "hk4e" : game.equals("starrail") ? "hkrpg" : "nap";
         JSONObject selected = null;
@@ -430,16 +521,12 @@ public class HoyoLabPlugin extends Plugin {
         return timestamp + "," + random + "," + hash;
     }
 
-    private String collectWebCookies() {
+    private String collectWebCookies(String currentUrl) {
         CookieManager cookieManager = CookieManager.getInstance();
         Map<String, String> cookies = new LinkedHashMap<>();
+        addWebCookies(cookies, currentUrl == null ? null : cookieManager.getCookie(currentUrl));
         for (String url : COOKIE_URLS) {
-            String cookieHeader = cookieManager.getCookie(url);
-            if (cookieHeader == null) continue;
-            for (String part : cookieHeader.split(";")) {
-                String[] pair = part.trim().split("=", 2);
-                if (pair.length == 2 && !pair[0].isEmpty() && !pair[1].isEmpty()) cookies.put(pair[0], pair[1]);
-            }
+            addWebCookies(cookies, cookieManager.getCookie(url));
         }
         StringBuilder result = new StringBuilder();
         for (Map.Entry<String, String> cookie : cookies.entrySet()) {
@@ -447,6 +534,14 @@ public class HoyoLabPlugin extends Plugin {
             result.append(cookie.getKey()).append("=").append(cookie.getValue());
         }
         return result.toString();
+    }
+
+    private void addWebCookies(Map<String, String> cookies, String cookieHeader) {
+        if (cookieHeader == null) return;
+        for (String part : cookieHeader.split(";")) {
+            String[] pair = part.trim().split("=", 2);
+            if (pair.length == 2 && !pair[0].isEmpty() && !pair[1].isEmpty()) cookies.put(pair[0], pair[1]);
+        }
     }
 
     private void clearWebCookies(Runnable done) {
@@ -457,16 +552,30 @@ public class HoyoLabPlugin extends Plugin {
         });
     }
 
+    private boolean hasAccountSessionCookies(String header) {
+        return hasAuthenticatedCookies(header)
+            || hasCookie(header, "login_ticket")
+            || hasCookie(header, "login_ticket_v2");
+    }
+
+    private boolean hasAuthenticatedCookies(String header) {
+        return hasLoginCookies(header)
+            || (hasCookie(header, "account_id") && hasCookie(header, "cookie_token"))
+            || (hasCookie(header, "account_id_v2") && hasCookie(header, "cookie_token_v2"));
+    }
+
     private boolean hasLoginCookies(String header) {
+        return (hasCookie(header, "ltuid") || hasCookie(header, "ltuid_v2"))
+            && (hasCookie(header, "ltoken") || hasCookie(header, "ltoken_v2"));
+    }
+
+    private boolean hasCookie(String header, String expectedName) {
         if (header == null || header.isEmpty()) return false;
-        boolean hasUser = false;
-        boolean hasToken = false;
         for (String part : header.split(";")) {
-            String name = part.trim().split("=", 2)[0];
-            if (name.equals("ltuid") || name.equals("ltuid_v2")) hasUser = true;
-            if (name.equals("ltoken") || name.equals("ltoken_v2")) hasToken = true;
+            String[] pair = part.trim().split("=", 2);
+            if (pair.length == 2 && pair[0].equals(expectedName) && !pair[1].isEmpty()) return true;
         }
-        return hasUser && hasToken;
+        return false;
     }
 
     private String getStoredCookies(String connectionId) {

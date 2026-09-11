@@ -674,7 +674,12 @@ export function bindElectronEvents() {
                 }
                 authenticatedConnections.add(authState.connectionId);
                 authenticatedConnections.add(result.connection.id);
-                await hoyoAPI.closeHoyoAuthentication(authState.connectionId);
+                try {
+                    await hoyoAPI.closeHoyoAuthentication(authState.connectionId);
+                } catch (error) {
+                    // 연결 저장은 이미 끝났으므로 인증 창 정리 실패가 성공 결과를 덮지 않게 한다.
+                    console.warn('HoYoLAB 인증 창 닫기 실패:', error);
+                }
                 refreshExternalCompletionConnections(result.connection.id);
                 const gameName = {
                     genshin: '원신',
@@ -684,8 +689,12 @@ export function bindElectronEvents() {
                 const accountName = result.account?.nickname ? ` (${result.account.nickname})` : '';
                 showToast(`HoYoLAB ${gameName} 계정이 자동 연결되었습니다${accountName}`, 'success');
                 refreshHoyoStatus({ connectionIds: [result.connection.id] });
-            } catch {
-                showToast('HoYoLAB 게임 계정을 자동 연결하지 못했습니다', 'error');
+            } catch (error) {
+                console.error('HoYoLAB 게임 계정 자동 연결 실패:', error);
+                const detail = typeof error?.message === 'string' && error.message
+                    ? `: ${error.message}`
+                    : '';
+                showToast(`HoYoLAB 게임 계정을 자동 연결하지 못했습니다${detail}`, 'error');
             } finally {
                 completingConnections.delete(authState.connectionId);
             }
