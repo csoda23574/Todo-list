@@ -20,6 +20,10 @@ function expectContains(description, source, snippet) {
     expect(description, source.includes(snippet));
 }
 
+function expectMatches(description, source, pattern) {
+    expect(description, pattern.test(source));
+}
+
 function expectNotContains(description, source, snippet) {
     expect(description, !source.includes(snippet));
 }
@@ -42,16 +46,16 @@ function run() {
         smokePolicy.prod.renderBudget.categorySwitch.todos <= smokePolicy.dev.renderBudget.categorySwitch.todos
     );
 
-    expectContains(
+    expectMatches(
         'app composition root subscribes reset:reschedule',
         appJs,
-        "on('reset:reschedule', scheduleResetTimer);"
+        /on\(\s*['"]reset:reschedule['"]\s*,\s*scheduleResetTimer\s*\)/
     );
 
-    expectContains(
+    expectMatches(
         'render metrics wrapper is used for todos render',
         appJs,
-        'const renderTodosTracked = withRenderMetric(\'todos\', renderTodos);'
+        /const\s+renderTodosTracked\s*=\s*withRenderMetric\(\s*['"]todos['"]\s*,\s*renderTodos\s*\)/
     );
 
     expectContains(
@@ -60,10 +64,10 @@ function run() {
         'window.todoDebug'
     );
 
-    expectContains(
+    expectMatches(
         'reset timer uses nextDue-based scheduling',
         resetJs,
-        'function _scheduleNext()'
+        /function\s+_scheduleNext\s*\(\s*\)/
     );
 
     expectContains(
@@ -78,14 +82,14 @@ function run() {
         'setInterval'
     );
 
-    expectContains(
+    expectMatches(
         'sync settings listener can reschedule reset timer when settings change',
         syncJs,
-        "if (resetChanged) emit('reset:reschedule');"
+        /if\s*\(\s*resetChanged\s*\)\s*(?:\{\s*)?emit\(\s*['"]reset:reschedule['"]\s*\)/
     );
 
     const settingsListenerStart = syncJs.indexOf('_unsubSettings = settingsRef().onSnapshot');
-    const settingsListenerEnd = syncJs.indexOf("}, err => console.error('[Sync] settings 리스너 오류:', err));", settingsListenerStart);
+    const settingsListenerEnd = syncJs.indexOf('export function stopListeners', settingsListenerStart);
     expect('sync settings listener block exists', settingsListenerStart >= 0 && settingsListenerEnd > settingsListenerStart);
     const settingsListenerBlock = syncJs.slice(settingsListenerStart, settingsListenerEnd);
 

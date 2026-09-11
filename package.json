@@ -7,9 +7,10 @@
     "private": true,
     "scripts": {
         "start": "electron .",
+        "test:unit": "node scripts/recurrence-test.js && node scripts/hoyo-conditions-test.js",
         "test:smoke:static": "node scripts/smoke-test.js",
         "test:smoke:runtime": "electron scripts/runtime-smoke.js",
-        "test:smoke": "npm run test:smoke:static && npm run test:smoke:runtime",
+        "test:smoke": "node scripts/smoke-suite.js",
         "test:smoke:ci": "node scripts/smoke-ci.js",
         "build-icon": "node scripts/generate-icon.js",
         "clean": "node -e \"const fs=require('fs');if(fs.existsSync('todo-dist')){fs.rmSync('todo-dist',{recursive:true,force:true});}\"",
@@ -43,6 +44,10 @@
         "copyright": "Personal Use Only",
         "publish": null,
         "asar": true,
+        "asarUnpack": [
+            "호요 일퀘 수령/daily_commission_status.py",
+            "호요 일퀘 수령/requirements.txt"
+        ],
         "directories": {
             "output": "todo-dist"
         },
@@ -94,6 +99,8 @@
             "!scripts/**",
             "!todo-dist/**",
             "!node_modules/**",
+            "!호요 일퀘 수령/.venv/**",
+            "!호요 일퀘 수령/settings.json",
             "!*.md",
             "!.git/**"
         ]

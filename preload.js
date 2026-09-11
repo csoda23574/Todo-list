@@ -26,6 +26,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setAutoLaunch: (value) => ipcRenderer.invoke('app:setAutoLaunch', value),
     setAlwaysOnTop: (value) => ipcRenderer.invoke('app:setAlwaysOnTop', value),
 
+    // ── HoYoLAB (기기 로컬 설정·상태 확인) ─────────────────────────────────
+    getHoyoConnections: () => ipcRenderer.invoke('hoyo:getConnections'),
+    getHoyoCredentialStorageStatus: () => ipcRenderer.invoke('hoyo:getCredentialStorageStatus'),
+    beginHoyoAuthentication: (game, rememberLogin) => ipcRenderer.invoke('hoyo:beginAuthentication', game, rememberLogin),
+    completeHoyoConnection: (connectionId) => ipcRenderer.invoke('hoyo:completeConnection', connectionId),
+    closeHoyoAuthentication: (connectionId) => ipcRenderer.invoke('hoyo:closeAuthentication', connectionId),
+    getHoyoAuthState: (connectionId) => ipcRenderer.invoke('hoyo:getAuthState', connectionId),
+    checkHoyoStatus: (connectionId) => ipcRenderer.invoke('hoyo:checkStatus', connectionId),
+    onHoyoAuthState: (callback) => {
+        const handler = (_, value) => callback(value);
+        ipcRenderer.on('hoyo:authState', handler);
+        return () => ipcRenderer.removeListener('hoyo:authState', handler);
+    },
+
     // ── Notifications ────────────────────────────────────────────────────────
     showNotification: (title, body) => ipcRenderer.invoke('app:showNotification', title, body),
 

@@ -134,6 +134,8 @@ function _sameTodo(a, b) {
         && (a.updatedAt ?? null) === (b.updatedAt ?? null)
         && (a.categoryId ?? 'default') === (b.categoryId ?? 'default')
         && JSON.stringify(a.recurrence ?? null) === JSON.stringify(b.recurrence ?? null)
+        && JSON.stringify(a.checklist ?? null) === JSON.stringify(b.checklist ?? null)
+        && JSON.stringify(a.externalCompletion ?? null) === JSON.stringify(b.externalCompletion ?? null)
         && (a.nextDue ?? null) === (b.nextDue ?? null);
 }
 

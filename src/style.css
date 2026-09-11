@@ -329,6 +329,15 @@ body {
     height: 18px;
 }
 
+/* HoYoLAB 상태 조회는 로컬 브라우저 쿠키를 읽을 수 있는 Electron에서만 제공 */
+#refreshBtn {
+    display: none;
+}
+
+.electron-mode #refreshBtn {
+    display: flex;
+}
+
 .icon-moon {
     display: none;
 }
@@ -2382,6 +2391,18 @@ input[type="datetime-local"].time-input {
     backdrop-filter: blur(16px);
     animation: toastIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     white-space: nowrap;
+}
+
+.toast.toast-multiline {
+    align-items: flex-start;
+    max-width: min(640px, calc(100vw - 32px));
+    border-radius: var(--radius-lg);
+    line-height: 1.5;
+    white-space: pre-line;
+}
+
+.toast.toast-multiline .toast-dot {
+    margin-top: 0.45em;
 }
 
 .toast.toast-success .toast-dot {

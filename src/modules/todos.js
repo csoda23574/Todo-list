@@ -10,10 +10,11 @@ import { emit } from './bus.js';
 import { showToast, generateId } from './utils.js';
 import { deleteTodoRemote } from './sync.js';
 import { calcNextDueAfter } from './recurrence.js';
+import { applyHoyoStatusToTodos } from './hoyo-conditions.js';
 
 /* ──────────────────────────── 추가 ────────────────────────────────────── */
 
-export function addTodo(text, note, priority, recurrence, checklist) {
+export function addTodo(text, note, priority, recurrence, checklist, externalCompletion = null) {
     const nextDue = recurrence
         ? calcNextDueAfter(recurrence, new Date(), new Date())?.toISOString() ?? null
         : null;
@@ -32,6 +33,7 @@ export function addTodo(text, note, priority, recurrence, checklist) {
         categoryId: state.currentCategoryId,
         order: minOrder,
         checklist: checklist?.length ? checklist : null,
+        externalCompletion,
     };
     state.todos.unshift(todo);
     saveTodos(todo);
@@ -41,7 +43,7 @@ export function addTodo(text, note, priority, recurrence, checklist) {
 
 /* ──────────────────────────── 수정 ────────────────────────────────────── */
 
-export function editTodo(id, text, note, priority, recurrence, checklist) {
+export function editTodo(id, text, note, priority, recurrence, checklist, externalCompletion = null) {
     const idx = state.todos.findIndex(t => t.id === id);
     if (idx === -1) return;
 
@@ -56,6 +58,7 @@ export function editTodo(id, text, note, priority, recurrence, checklist) {
         recurrence: recurrence || null,
         nextDue,
         checklist: checklist?.length ? checklist : null,
+        externalCompletion,
     };
     saveTodos(state.todos[idx]);
     emit('todos:changed');
@@ -163,4 +166,20 @@ export function toggleChecklistItem(todoId, checklistId, done) {
     saveTodos(state.todos[idx]);
     emit('todos:changed');
     if (parentDone) showToast('모든 항목 완료! 할 일이 완료 처리되었습니다 🎉', 'success');
+}
+
+/* ──────────────────── 외부 완료 조건 적용 ──────────────────────────────── */
+
+export function applyHoyoCompletionStatus(connectionId, status) {
+    const result = applyHoyoStatusToTodos(
+        state.todos,
+        { connectionId, status },
+        new Date().toISOString()
+    );
+    if (result.completed.length === 0) return result;
+
+    state.todos = result.todos;
+    saveTodos();
+    emit('todos:changed');
+    return result;
 }

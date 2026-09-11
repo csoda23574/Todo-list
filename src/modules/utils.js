@@ -71,13 +71,15 @@ export function generateId() {
 /* ───────────────────────────── 토스트 알림 ─────────────────────────────── */
 
 export function showToast(message, type = 'info') {
+    const text = String(message);
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
+    if (text.includes('\n')) toast.classList.add('toast-multiline');
     // innerHTML 대신 DOM API 사용 — XSS 원체 차단
     const dot = document.createElement('span');
     dot.className = 'toast-dot';
     toast.appendChild(dot);
-    toast.appendChild(document.createTextNode(message));
+    toast.appendChild(document.createTextNode(text));
     const container = DOM.toastContainer;
     if (!container) return;
     container.appendChild(toast);
@@ -85,7 +87,7 @@ export function showToast(message, type = 'info') {
     setTimeout(() => {
         toast.classList.add('leaving');
         toast.addEventListener('animationend', () => toast.remove());
-    }, 2400);
+    }, text.includes('\n') ? 5000 : 2400);
 }
 
 /* ──────────────────────────── HTML 이스케이프 ──────────────────────────── */

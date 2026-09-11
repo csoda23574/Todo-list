@@ -31,6 +31,7 @@ import {
 } from './modules/perf.js';
 import { initCustomTimePickers } from './modules/timepicker.js';
 import { bindCalendarEvents } from './modules/calendar.js';
+import { refreshHoyoPolling, startHoyoPolling, stopHoyoPolling } from './modules/hoyo.js';
 
 /* ── Composition Root: 이벤트 버스 구독 ──────────────────────────────────
  * 데이터·도메인 레이어는 emit()만 호출하고, 실제 렌더러·타이머 함수는
@@ -40,7 +41,10 @@ const renderTodosTracked = withRenderMetric('todos', renderTodos);
 const applyBackgroundTracked = withRenderMetric('bg', applyBackground);
 const applyAppTitleTracked = withRenderMetric('title', applyAppTitle);
 
-on('todos:changed', renderTodosTracked);
+on('todos:changed', () => {
+    renderTodosTracked();
+    refreshHoyoPolling();
+});
 on('categories:changed', () => {
     recordRender('categories');
     renderCategoryTabs();
@@ -154,9 +158,11 @@ function init() {
             startListeners();
             // Firestore 데이터 수신 후 소급 초기화 적용
             applyResets(new Date());
+            startHoyoPolling();
         } else {
             // ── 로그아웃 ──
             stopListeners();
+            stopHoyoPolling();
 
             state.uid        = 'guest';
             state.user       = null;

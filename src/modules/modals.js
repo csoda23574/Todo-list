@@ -17,11 +17,18 @@ import { initMonthDayGrid, addYearlyDateEntry, getYearlyDatesFromDOM, updateTask
 import { calcNextDueAfter } from './recurrence.js';
 import { addTodo, editTodo, deleteTodo, clearAllTodos } from './todos.js';
 import { generateId } from './utils.js';
+import {
+    HOYO_CATHERINE_REWARD_CONDITION,
+    getHoyoConditionDetails,
+} from './hoyo-conditions.js';
+import { refreshHoyoPolling } from './hoyo.js';
 import { deleteCategory } from './categories.js';
 import { openModal, closeModal } from './modal-base.js';
 
 // 공개 re-export (events.js 등에서 import)
 export { openModal, closeModal };
+
+let hoyoConnections = [];
 
 /* ────────────────── 할 일 모달 — 우선순위 선택 ─────────────────────────── */
 
@@ -51,6 +58,7 @@ function clearTaskForm() {
     // 체크리스트 초기화
     const formList = document.getElementById('checklistFormList');
     if (formList) formList.innerHTML = '';
+    _populateExternalCompletion(null);
 }
 
 /* ──────────────────────── 할 일 추가 모달 ───────────────────────────────── */
@@ -80,6 +88,7 @@ export function openEditModal(id) {
 
     _populateResetFields(todo);
     _populateChecklist(todo.checklist || []);
+    _populateExternalCompletion(todo.externalCompletion || null);
     openModal(DOM.taskModal);
     setTimeout(() => DOM.taskInput.focus(), 50);
 }
@@ -184,12 +193,18 @@ export function handleModalSave() {
     const resetType = DOM.taskResetType.value;
     const recurrence = _buildRecurrenceFromForm(resetType);
     const checklist = _getChecklistFromForm();
+    const external = _buildExternalCompletion(recurrence, checklist);
+    if (external.error) {
+        showToast(external.error, 'error');
+        return;
+    }
 
     if (state.editingId) {
-        editTodo(state.editingId, text, note, priority, recurrence, checklist);
+        editTodo(state.editingId, text, note, priority, recurrence, checklist, external.value);
     } else {
-        addTodo(text, note, priority, recurrence, checklist);
+        addTodo(text, note, priority, recurrence, checklist, external.value);
     }
+    refreshHoyoPolling();
     closeModal(DOM.taskModal);
     state.editingId = null;
 }
@@ -245,6 +260,121 @@ function _buildRecurrenceFromForm(resetType) {
         return { type: 'everyNWeeks', n, weekday, time, startDate };
     }
     return null;
+}
+
+function _isResettableRecurrence(recurrence) {
+    return recurrence && recurrence.type !== 'neverReset' && recurrence.type !== 'deadline';
+}
+
+function _buildExternalCompletion(recurrence, checklist) {
+    const condition = document.getElementById('taskExternalCondition')?.value;
+    const details = getHoyoConditionDetails(condition);
+    if (!details) return { value: null };
+    if (!_isResettableRecurrence(recurrence)) {
+        return { error: '외부 완료 조건은 개별 초기화가 설정된 항목에만 연결할 수 있습니다' };
+    }
+
+    const connectionId = document.getElementById('taskExternalConnection')?.value || '';
+    const connection = hoyoConnections.find(item => item.id === connectionId);
+    if (!connection || connection.game !== details.game) {
+        return { error: '선택한 조건에 맞는 HoYoLAB 연동을 먼저 추가해 주세요' };
+    }
+
+    const target = document.getElementById('taskExternalTarget')?.value || 'todo';
+    if (target.startsWith('checklist:')) {
+        const checklistId = target.slice('checklist:'.length);
+        if (!checklist.some(item => item.id === checklistId)) {
+            return { error: '연결할 체크리스트 항목을 선택해 주세요' };
+        }
+        return {
+            value: {
+                condition,
+                connectionId,
+                target: 'checklist',
+                checklistId,
+            },
+        };
+    }
+    return { value: { condition, connectionId, target: 'todo' } };
+}
+
+export async function refreshExternalCompletionConnections(selectedId = null) {
+    const condition = document.getElementById('taskExternalCondition');
+    const connection = document.getElementById('taskExternalConnection');
+    const wrap = document.getElementById('taskExternalConnectionWrap');
+    if (!condition || !connection || !wrap) return;
+
+    const details = getHoyoConditionDetails(condition.value);
+    wrap.classList.toggle('hidden', !details);
+    if (!details) return;
+
+    try {
+        hoyoConnections = window.electronAPI ? await window.electronAPI.getHoyoConnections() : [];
+    } catch {
+        hoyoConnections = [];
+    }
+    const previous = selectedId || connection.value;
+    connection.innerHTML = '';
+    const matching = hoyoConnections.filter(item => item.game === details.game);
+    if (matching.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'HoYoLAB 연결에서 이 게임 UID를 추가해 주세요';
+        connection.appendChild(option);
+        return;
+    }
+    matching.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        const gameName = {
+            genshin: '원신',
+            starrail: '붕괴: 스타레일',
+            zzz: '젠레스 존 제로',
+        }[item.game] || 'HoYoLAB';
+        option.textContent = `${gameName} · UID ${item.uid}`;
+        connection.appendChild(option);
+    });
+    connection.value = matching.some(item => item.id === previous)
+        ? previous
+        : matching[0].id;
+}
+
+export function refreshExternalCompletionTargets() {
+    const target = document.getElementById('taskExternalTarget');
+    if (!target) return;
+
+    const selected = target.value;
+    target.innerHTML = '';
+    const todoOption = document.createElement('option');
+    todoOption.value = 'todo';
+    todoOption.textContent = '이 할 일';
+    target.appendChild(todoOption);
+
+    document.querySelectorAll('#checklistFormList .checklist-form-item').forEach((row, index) => {
+        const text = row.querySelector('.checklist-form-input')?.value.trim() || `체크리스트 ${index + 1}`;
+        const option = document.createElement('option');
+        option.value = `checklist:${row.dataset.id}`;
+        option.textContent = `체크리스트: ${text}`;
+        target.appendChild(option);
+    });
+    target.value = Array.from(target.options).some(option => option.value === selected) ? selected : 'todo';
+}
+
+function _populateExternalCompletion(link) {
+    const condition = document.getElementById('taskExternalCondition');
+    const targetWrap = document.getElementById('taskExternalTargetWrap');
+    const target = document.getElementById('taskExternalTarget');
+    if (!condition || !targetWrap || !target) return;
+
+    condition.value = getHoyoConditionDetails(link?.condition) ? link.condition : '';
+    targetWrap.classList.toggle('hidden', !condition.value);
+    refreshExternalCompletionTargets();
+    refreshExternalCompletionConnections(
+        link?.connectionId || (link?.condition === HOYO_CATHERINE_REWARD_CONDITION ? 'genshin-default' : null)
+    );
+    target.value = link?.target === 'checklist' && link.checklistId
+        ? `checklist:${link.checklistId}`
+        : 'todo';
 }
 
 /* ────────────────── 체크리스트 폼 헬퍼 ────────────────────────────────── */
@@ -416,6 +546,8 @@ function _updateElectronSettingsSection() {
     if (!electronSection || !window.electronAPI) return;
 
     electronSection.style.display = '';
+    const hoyoSection = document.getElementById('hoyoSettingsSection');
+    if (hoyoSection) hoyoSection.style.display = '';
 
     window.electronAPI.getPlatform().then(platform => {
         const osName = platform === 'linux' ? 'Linux'
@@ -434,6 +566,7 @@ function _updateElectronSettingsSection() {
         if (autoEl) autoEl.checked = s.autoLaunch;
         if (topEl) topEl.checked = s.alwaysOnTop;
     }).catch(() => { });
+
 }
 
 export function populateBgSettings() {
@@ -490,6 +623,65 @@ function _populateSettingsForm() {
 }
 
 /* ─────────────────────── 설정 모달 저장 ────────────────────────────────── */
+
+function readHoyoConnectionFromForm() {
+    const game = document.getElementById('hoyoConnectGame')?.value;
+    const rememberLogin = document.getElementById('hoyoRememberLogin')?.checked === true;
+    return game === 'genshin' || game === 'starrail' || game === 'zzz' ? { game, rememberLogin } : null;
+}
+
+export async function openHoyoConnectModal() {
+    if (!window.electronAPI) return;
+    const modal = document.getElementById('hoyoConnectModal');
+    const gameEl = document.getElementById('hoyoConnectGame');
+    const rememberLoginEl = document.getElementById('hoyoRememberLogin');
+    const rememberLoginHint = document.getElementById('hoyoRememberLoginHint');
+    if (!modal || !gameEl) return;
+    gameEl.value = 'genshin';
+    if (rememberLoginEl) {
+        rememberLoginEl.checked = false;
+        rememberLoginEl.disabled = false;
+    }
+    openModal(modal);
+    setTimeout(() => gameEl.focus(), 50);
+    try {
+        const storage = await window.electronAPI.getHoyoCredentialStorageStatus?.();
+        if (!storage) return;
+        if (rememberLoginEl) rememberLoginEl.disabled = !storage.available;
+        if (rememberLoginHint) rememberLoginHint.textContent = storage.message;
+    } catch {
+        if (rememberLoginEl) rememberLoginEl.disabled = true;
+        if (rememberLoginHint) rememberLoginHint.textContent = '이 기기에서는 안전한 로그인 저장을 사용할 수 없습니다.';
+    }
+}
+
+export async function startHoyoConnection() {
+    if (!window.electronAPI) return;
+    if (
+        typeof window.electronAPI.beginHoyoAuthentication !== 'function'
+        || typeof window.electronAPI.completeHoyoConnection !== 'function'
+    ) {
+        showToast('새 HoYoLAB 연동을 적용하려면 Todo 앱을 완전히 종료한 뒤 다시 시작해 주세요', 'info');
+        return;
+    }
+    const hoyoConnection = readHoyoConnectionFromForm();
+    if (!hoyoConnection) return null;
+    try {
+        const result = await window.electronAPI.beginHoyoAuthentication(
+            hoyoConnection.game,
+            hoyoConnection.rememberLogin,
+        );
+        if (!result.ok) {
+            showToast(result.message || 'HoYoLAB 인증 창을 열지 못했습니다', 'error');
+            return;
+        }
+        closeModal(document.getElementById('hoyoConnectModal'));
+        showToast('HoYoLAB 연결 창에서 로그인해 주세요. UID는 자동으로 가져옵니다.', 'info');
+    } catch (error) {
+        console.error('HoYoLAB 연결 시작 실패:', error);
+        showToast('HoYoLAB 연결을 시작하지 못했습니다. 앱을 다시 시작한 뒤 재시도해 주세요', 'error');
+    }
+}
 
 export async function saveSettingsFromModal() {
     const { bgImage: _ignored, ...restTemp } = tempSettings;

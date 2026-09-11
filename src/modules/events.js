@@ -14,6 +14,7 @@ import { DOM } from './dom.js';
 import { showToast } from './utils.js';
 import { toggleTodo, reorderTodo, toggleChecklistItem } from './todos.js';
 import { signInWithGoogle, signOut } from './firebase.js';
+import { refreshHoyoStatus, refreshHoyoPolling } from './hoyo.js';
 
 /* ────────────────────── 파일 매직 바이트 검증 ────────────────────── */
 
@@ -39,9 +40,10 @@ async function validateImageMagicBytes(file) {
 import {
     openAddModal, openEditModal, openConfirmModal, openConfirmCategoryModal,
     openClearAllModal, handleConfirmDelete, handleModalSave,
-    openSettingsModal, saveSettingsFromModal,
+    openSettingsModal, saveSettingsFromModal, openHoyoConnectModal, startHoyoConnection,
     tempSettings, applyCropResult, closeModal, addChecklistFormItem,
-    tempBgScope, tempCatBgMeta, switchBgScope
+    tempBgScope, tempCatBgMeta, switchBgScope,
+    refreshExternalCompletionTargets, refreshExternalCompletionConnections
 } from './modals.js';
 import { switchCategory, startCategoryAdd, startCategoryRename, wasCategoryDragged, initCategoryDragSort } from './categories.js';
 import { updateTaskResetTypeUI, addYearlyDateEntry } from './reset.js';
@@ -224,12 +226,22 @@ function bindTaskModalEvents() {
     // 체크리스트 항목 추가 버튼
     document.getElementById('addChecklistItemBtn')?.addEventListener('click', () => {
         addChecklistFormItem();
+        refreshExternalCompletionTargets();
     });
 
     // 체크리스트 폼 항목 삭제 (이벤트 위임)
     document.getElementById('checklistFormList')?.addEventListener('click', e => {
         const removeBtn = e.target.closest('.checklist-form-remove');
-        if (removeBtn) removeBtn.closest('.checklist-form-item')?.remove();
+        if (removeBtn) {
+            removeBtn.closest('.checklist-form-item')?.remove();
+            refreshExternalCompletionTargets();
+        }
+    });
+
+    document.getElementById('taskExternalCondition')?.addEventListener('change', e => {
+        document.getElementById('taskExternalTargetWrap')?.classList.toggle('hidden', !e.target.value);
+        refreshExternalCompletionTargets();
+        refreshExternalCompletionConnections();
     });
 
     // 매주 요일 선택 (다중 선택 - 토글)
@@ -262,6 +274,10 @@ function bindSettingsModalEvents() {
     DOM.settingsClose?.addEventListener('click', () => closeModal(DOM.settingsModal));
     DOM.settingsCancelBtn?.addEventListener('click', () => closeModal(DOM.settingsModal));
     DOM.settingsSaveBtn?.addEventListener('click', saveSettingsFromModal);
+    document.getElementById('hoyoOpenConnectBtn')?.addEventListener('click', openHoyoConnectModal);
+    document.getElementById('hoyoConnectClose')?.addEventListener('click', () => closeModal(document.getElementById('hoyoConnectModal')));
+    document.getElementById('hoyoConnectCancel')?.addEventListener('click', () => closeModal(document.getElementById('hoyoConnectModal')));
+    document.getElementById('hoyoConnectStart')?.addEventListener('click', startHoyoConnection);
 
     DOM.clearAllBtn?.addEventListener('click', () => {
         closeModal(DOM.settingsModal);
@@ -596,6 +612,18 @@ export function bindEvents() {
     });
 
     DOM.settingsBtn?.addEventListener('click', openSettingsModal);
+    DOM.refreshBtn?.addEventListener('click', async () => {
+        const button = DOM.refreshBtn;
+        if (!button) return;
+        button.disabled = true;
+        button.classList.add('spinning');
+        try {
+            await refreshHoyoStatus({ manual: true });
+        } finally {
+            button.disabled = false;
+            button.classList.remove('spinning');
+        }
+    });
     DOM.uiToggleBtn?.addEventListener('click', toggleUI);
 
     bindTodoListEvents();
@@ -620,4 +648,51 @@ export function bindElectronEvents() {
 
     window.electronAPI.onMaximizeChange(updateWinMaximizeBtn);
     window.electronAPI.isMaximized().then(updateWinMaximizeBtn).catch(() => { });
+
+    const authenticatedConnections = new Set();
+    const completingConnections = new Set();
+    const handleHoyoAuthState = async authState => {
+        if (!authState?.connectionId) return;
+        if (authState.signedIn && !authenticatedConnections.has(authState.connectionId)) {
+            if (!authState.windowOpen) {
+                authenticatedConnections.add(authState.connectionId);
+                refreshHoyoPolling();
+                return;
+            }
+            if (completingConnections.has(authState.connectionId)) return;
+            completingConnections.add(authState.connectionId);
+            try {
+                const result = await window.electronAPI.completeHoyoConnection(authState.connectionId);
+                if (!result?.ok) {
+                    await window.electronAPI.closeHoyoAuthentication(authState.connectionId);
+                    showToast(result?.message || 'HoYoLAB 게임 계정을 찾지 못했습니다', 'error');
+                    return;
+                }
+                authenticatedConnections.add(authState.connectionId);
+                authenticatedConnections.add(result.connection.id);
+                await window.electronAPI.closeHoyoAuthentication(authState.connectionId);
+                refreshExternalCompletionConnections(result.connection.id);
+                const gameName = {
+                    genshin: '원신',
+                    starrail: '붕괴: 스타레일',
+                    zzz: '젠레스 존 제로',
+                }[result.connection.game] || 'HoYoLAB';
+                const accountName = result.account?.nickname ? ` (${result.account.nickname})` : '';
+                showToast(`HoYoLAB ${gameName} 계정이 자동 연결되었습니다${accountName}`, 'success');
+                refreshHoyoStatus({ connectionIds: [result.connection.id] });
+            } catch {
+                showToast('HoYoLAB 게임 계정을 자동 연결하지 못했습니다', 'error');
+            } finally {
+                completingConnections.delete(authState.connectionId);
+            }
+        } else if (!authState.signedIn && authenticatedConnections.delete(authState.connectionId)) {
+            refreshHoyoPolling();
+        }
+    };
+    window.electronAPI.onHoyoAuthState(handleHoyoAuthState);
+    window.electronAPI.getHoyoConnections()
+        .then(connections => Promise.all(connections.map(connection =>
+            window.electronAPI.getHoyoAuthState(connection.id).then(handleHoyoAuthState)
+        )))
+        .catch(() => { });
 }

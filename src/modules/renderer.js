@@ -8,6 +8,7 @@
 import { state } from './state.js';
 import { DOM } from './dom.js';
 import { escapeHtml, formatRecurrenceBadge } from './utils.js';
+import { getHoyoConditionDetails } from './hoyo-conditions.js';
 
 
 /* ─────────────────────────── 팔레트 (상단바 색상) ─────────────────────── */
@@ -113,6 +114,7 @@ export function createTodoElement(todo) {
     const clTotal = checklist.length;
     const clDone = checklist.filter(c => c.done).length;
     const hasChecklist = clTotal > 0;
+    const hoyoCondition = getHoyoConditionDetails(todo.externalCompletion?.condition);
 
     // 다음 초기화 시간 배지 계산
     let nextResetBadgeHtml = '';
@@ -166,6 +168,9 @@ export function createTodoElement(todo) {
         <span class="todo-priority-badge ${priority}">${priorityLabels[priority] || '보통'}</span>
         ${(todo.recurrence && todo.recurrence.type !== 'neverReset')
             ? `<span class="todo-reset-badge">${escapeHtml(formatRecurrenceBadge(todo.recurrence))}</span>`
+            : ''}
+        ${hoyoCondition
+            ? `<span class="todo-reset-badge" title="${escapeHtml(hoyoCondition.label)} 시 자동 완료">HoYoLAB: ${escapeHtml(hoyoCondition.label)}</span>`
             : ''}
         ${hasChecklist
             ? `<span class="checklist-progress-badge ${clDone === clTotal ? 'all-done' : ''}">✓ ${clDone}/${clTotal}</span>`

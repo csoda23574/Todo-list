@@ -1,7 +1,13 @@
 /* eslint-disable no-console */
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, safeStorage } = require('electron');
+
+const smokeDataDir = path.join(os.tmpdir(), 'todo-app-runtime-smoke');
+fs.mkdirSync(smokeDataDir, { recursive: true });
+app.setPath('userData', smokeDataDir);
+app.commandLine.appendSwitch('disk-cache-dir', path.join(smokeDataDir, 'cache'));
 
 function loadPolicy() {
     const policyPath = path.join(__dirname, 'smoke-policy.json');
@@ -31,6 +37,15 @@ async function waitForDebugApi(win, timeoutMs = 10000) {
 async function run() {
     const { env: policyEnv, policy } = loadPolicy();
 
+    const safeStorageAvailable = safeStorage.isEncryptionAvailable()
+        && (process.platform !== 'linux' || safeStorage.getSelectedStorageBackend() !== 'basic_text');
+    if (safeStorageAvailable) {
+        const encrypted = safeStorage.encryptString('hoyo-runtime-smoke');
+        assert(safeStorage.decryptString(encrypted) === 'hoyo-runtime-smoke', 'OS credential encryption round trip');
+    } else {
+        console.log('SKIP: OS credential encryption is unavailable on this platform');
+    }
+
     const win = new BrowserWindow({
         show: false,
         width: 1100,
@@ -49,7 +64,6 @@ async function run() {
         const dbg = window.todoDebug;
         const login = dbg.simulateLoginRenderScenario();
         const categorySwitch = dbg.simulateCategorySwitchScenario();
-        const minuteTick = dbg.minuteTickScenario(new Date().toISOString());
 
         const settingsOnlyReset = dbg.settingsChangeScenario(
             {
@@ -59,7 +73,7 @@ async function run() {
                 resetEnabled: false,
                 resetTime: '00:00',
                 resetRepeat: 'daily',
-                lastGlobalResetAt: null,
+                nextGlobalResetAt: null,
                 resetCalendarDate: null,
             },
             {
@@ -69,7 +83,7 @@ async function run() {
                 resetEnabled: true,
                 resetTime: '06:30',
                 resetRepeat: 'every3',
-                lastGlobalResetAt: '2026-05-29T00:00:00.000Z',
+                nextGlobalResetAt: '2026-09-04T06:30:00.000Z',
                 resetCalendarDate: null,
             }
         );
@@ -82,7 +96,7 @@ async function run() {
                 resetEnabled: true,
                 resetTime: '06:30',
                 resetRepeat: 'every3',
-                lastGlobalResetAt: '2026-05-29T00:00:00.000Z',
+                nextGlobalResetAt: '2026-09-04T06:30:00.000Z',
                 resetCalendarDate: null,
             },
             {
@@ -92,12 +106,29 @@ async function run() {
                 resetEnabled: true,
                 resetTime: '06:30',
                 resetRepeat: 'every3',
-                lastGlobalResetAt: '2026-05-29T00:00:00.000Z',
+                nextGlobalResetAt: '2026-09-04T06:30:00.000Z',
                 resetCalendarDate: null,
             }
         );
 
-        return { login, categorySwitch, minuteTick, settingsOnlyReset, settingsBgTitle };
+        const hoyoAuth = {
+            hasNoConnectUid: !document.getElementById('hoyoConnectUid'),
+            hasGamePicker: document.getElementById('hoyoConnectGame')?.value === 'genshin',
+            hasStarRailOption: Array.from(document.getElementById('hoyoConnectGame')?.options || [])
+                .some(option => option.value === 'starrail'),
+            hasZenlessZoneZeroOption: Array.from(document.getElementById('hoyoConnectGame')?.options || [])
+                .some(option => option.value === 'zzz'),
+            hasZenlessZoneZeroCondition: Array.from(document.getElementById('taskExternalCondition')?.options || [])
+                .some(option => option.value === 'hoyolab.zzz.dailyEngagementCompleted'),
+            hasTaskConnectionPicker: Boolean(document.getElementById('taskExternalConnection')),
+            hasNoBrowserPicker: !document.getElementById('hoyoBrowser'),
+            hasSettingsConnectButton: Boolean(document.getElementById('hoyoOpenConnectBtn')),
+            hasNoVerifyButton: !document.getElementById('hoyoVerifyBtn'),
+            hasRememberLoginOption: Boolean(document.getElementById('hoyoRememberLogin')),
+            rememberLoginDefaultsOff: document.getElementById('hoyoRememberLogin')?.checked === false,
+        };
+
+        return { login, categorySwitch, settingsOnlyReset, settingsBgTitle, hoyoAuth };
     })()`);
 
     const loginBudget = policy.renderBudget.login;
@@ -112,9 +143,6 @@ async function run() {
     assert(result.categorySwitch.bg <= switchBudget.bg, `category switch budget(${policyEnv}): bg <= ${switchBudget.bg}`);
     assert(result.categorySwitch.title <= switchBudget.title, `category switch budget(${policyEnv}): title <= ${switchBudget.title}`);
 
-    assert(result.minuteTick.first === true, 'same-minute scenario: first tick is handled');
-    assert(result.minuteTick.second === false, 'same-minute scenario: second tick is blocked');
-
     assert(result.settingsOnlyReset.resetChanged === true, 'remote settings: reset change detected');
     assert(result.settingsOnlyReset.bgChanged === false, 'remote settings: bg unchanged detected');
     assert(result.settingsOnlyReset.titleChanged === false, 'remote settings: title unchanged detected');
@@ -122,6 +150,18 @@ async function run() {
     assert(result.settingsBgTitle.resetChanged === false, 'remote settings: reset unchanged detected');
     assert(result.settingsBgTitle.bgChanged === true, 'remote settings: bg change detected');
     assert(result.settingsBgTitle.titleChanged === true, 'remote settings: title change detected');
+
+    assert(result.hoyoAuth.hasNoConnectUid, 'HoYoLAB connection dialog gets UID after login');
+    assert(result.hoyoAuth.hasGamePicker, 'HoYoLAB connection dialog has a game picker');
+    assert(result.hoyoAuth.hasStarRailOption, 'HoYoLAB connection dialog supports Star Rail');
+    assert(result.hoyoAuth.hasZenlessZoneZeroOption, 'HoYoLAB connection dialog supports Zenless Zone Zero');
+    assert(result.hoyoAuth.hasZenlessZoneZeroCondition, 'Todo external-condition UI supports Zenless Zone Zero');
+    assert(result.hoyoAuth.hasTaskConnectionPicker, 'Todo external-condition UI selects a HoYoLAB connection');
+    assert(result.hoyoAuth.hasNoBrowserPicker, 'HoYoLAB auth UI does not read an external browser');
+    assert(result.hoyoAuth.hasSettingsConnectButton, 'HoYoLAB settings UI has only a connect button');
+    assert(result.hoyoAuth.hasNoVerifyButton, 'HoYoLAB auth UI does not require manual verification');
+    assert(result.hoyoAuth.hasRememberLoginOption, 'HoYoLAB auth UI offers encrypted login retention');
+    assert(result.hoyoAuth.rememberLoginDefaultsOff, 'HoYoLAB login retention is opt-in');
 
     await win.close();
     console.log(`\nRuntime smoke checks passed. policy=${policyEnv}`);

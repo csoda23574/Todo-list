@@ -92,6 +92,13 @@
                                 d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                         </svg>
                     </button>
+                    <button class="icon-btn" id="refreshBtn" title="HoYoLAB 상태 새로고침" aria-label="HoYoLAB 상태 새로고침">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10" />
+                            <polyline points="1 20 1 14 7 14" />
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                        </svg>
+                    </button>
                     <button class="icon-btn" id="themeToggle" title="테마 전환" aria-label="다크모드 전환">
                         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="5" />
@@ -370,6 +377,28 @@
                         <!-- JS로 동적 삽입 -->
                     </div>
                 </div>
+                <div class="form-group">
+                    <label class="form-label" for="taskExternalCondition">외부 완료 조건</label>
+                    <select id="taskExternalCondition" class="form-input select-input">
+                        <option value="">연동 안 함</option>
+                        <option value="hoyolab.genshin.catherineRewardClaimed">HoYoLAB · 원신 · 캐서린 보상 수령 완료</option>
+                        <option value="hoyolab.starrail.dailyTrainingCompleted">HoYoLAB · 붕괴: 스타레일 · 일일 훈련 최대치 도달</option>
+                        <option value="hoyolab.zzz.dailyEngagementCompleted">HoYoLAB · 젠레스 존 제로 · 일일 활약도 최대치 도달</option>
+                    </select>
+                    <div id="taskExternalConnectionWrap" class="task-reset-input-row hidden" style="margin-top:8px">
+                        <label class="form-label" for="taskExternalConnection" style="font-size:11px">HoYoLAB 연동</label>
+                        <select id="taskExternalConnection" class="form-input select-input">
+                            <option value="">연동을 먼저 추가해 주세요</option>
+                        </select>
+                    </div>
+                    <div id="taskExternalTargetWrap" class="task-reset-input-row hidden" style="margin-top:8px">
+                        <label class="form-label" for="taskExternalTarget" style="font-size:11px">완료 처리 대상</label>
+                        <select id="taskExternalTarget" class="form-input select-input">
+                            <option value="todo">이 할 일</option>
+                        </select>
+                        <p class="form-hint">개별 초기화가 설정된 항목에만 연결할 수 있습니다.</p>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-ghost" id="modalCancel">취소</button>
@@ -446,6 +475,15 @@
                             <input type="checkbox" id="showNextResetTime" />
                             <span class="toggle-slider"></span>
                         </label>
+                    </div>
+                    <div id="hoyoSettingsSection" style="display:none">
+                        <div class="settings-row">
+                            <div class="settings-row-label">
+                                <span>HoYoLAB 연동</span>
+                                <span class="settings-row-sub">로그인 유지를 선택한 연결만 이 기기에서 암호화해 보관합니다</span>
+                            </div>
+                            <button type="button" class="btn btn-primary" id="hoyoOpenConnectBtn">HoYoLAB 연결</button>
+                        </div>
                     </div>
                 </div>
 
@@ -680,6 +718,41 @@
             <div class="modal-footer">
                 <button class="btn btn-ghost" id="settingsCancelBtn">취소</button>
                 <button class="btn btn-primary" id="settingsSaveBtn">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HoYoLAB Connection Modal -->
+    <div class="modal-backdrop" id="hoyoConnectModal" role="dialog" aria-modal="true" aria-labelledby="hoyoConnectTitle">
+        <div class="modal-card" style="max-width:420px">
+            <div class="modal-header">
+                <h2 class="modal-title" id="hoyoConnectTitle">HoYoLAB 연결</h2>
+                <button class="modal-close" id="hoyoConnectClose" aria-label="닫기">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label" for="hoyoConnectGame">게임</label>
+                    <select id="hoyoConnectGame" class="form-input select-input">
+                        <option value="genshin">원신</option>
+                        <option value="starrail">붕괴: 스타레일</option>
+                        <option value="zzz">젠레스 존 제로</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="hoyoRememberLogin">
+                        <input type="checkbox" id="hoyoRememberLogin" /> 이 기기에서 로그인 유지
+                    </label>
+                </div>
+                <p class="form-hint">로그인 유지를 선택하지 않으면 앱 종료 시 로그인 정보가 지워집니다</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" id="hoyoConnectCancel">취소</button>
+                <button type="button" class="btn btn-primary" id="hoyoConnectStart">연결 시작</button>
             </div>
         </div>
     </div>

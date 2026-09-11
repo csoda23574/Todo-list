@@ -2,11 +2,13 @@
 
 const {
     app, BrowserWindow, ipcMain,
-    Tray, Menu, nativeImage, shell, Notification,
+    Tray, Menu, nativeImage, shell, Notification, session, safeStorage,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const { spawn } = require('child_process');
+const { randomUUID } = require('crypto');
 
 // ─── Local File Server ───────────────────────────────────────────────────────
 // file:// 프로토콜 대신 localhost HTTP 서버로 서빙하여 로컬 스토리지 일관성을 보장합니다.
@@ -106,6 +108,10 @@ if (!app.requestSingleInstanceLock()) {
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
+const hoyoAuthWindows = new Map();
+const hoyoAuthSessions = new Map();
+const hoyoAuthPopups = new Map();
+const hoyoPendingConnections = new Map();
 
 // ─── Paths ──────────────────────────────────────────────────────────────────
 const IS_LINUX = process.platform === 'linux';
@@ -115,19 +121,107 @@ const ICON_PATH = IS_LINUX
 const WIN_STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
 const FIRST_RUN_FLAG = path.join(app.getPath('userData'), '.autolaunch-set');
 const APP_SETTINGS_FILE = path.join(app.getPath('userData'), 'app-settings.json');
+const HOYO_REFRESH_INTERVALS = new Set([0, 15, 30, 60]);
+const HOYOLAB_AUTH_URL = 'https://www.hoyolab.com/accountCenter/postList';
+const HOYO_GAMES = new Set(['genshin', 'starrail', 'zzz']);
+const HOYO_CONNECTION_ID_PATTERN = /^[a-z0-9-]{1,80}$/i;
+const HOYO_ENCRYPTED_CREDENTIAL_VERSION = 1;
+const HOYO_ENCRYPTED_CREDENTIAL_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+const HOYO_ENCRYPTED_CREDENTIAL_MAX_LENGTH = 32 * 1024;
+const HOYO_AUTH_COOKIE_NAMES = new Set([
+    'ltuid', 'ltuid_v2', 'ltoken', 'ltoken_v2',
+    'ltmid', 'ltmid_v2', 'account_id', 'account_id_v2',
+    'cookie_token', 'cookie_token_v2', 'account_mid_v2',
+]);
+
+function createHoyoConnectionId() {
+    return `hoyo-${randomUUID()}`;
+}
+
+function getHoyoAuthPartition(connectionId) {
+    // 단일 원신 연동에서 업그레이드한 실행 중 세션은 끊지 않고 이어받는다.
+    return connectionId === 'genshin-default' ? 'hoyo-auth' : `hoyo-auth-${connectionId}`;
+}
+
+function sanitizeHoyoConnection(value, fallbackId = null) {
+    const game = value?.game;
+    const uid = Number(value?.uid);
+    const id = typeof value?.id === 'string' && HOYO_CONNECTION_ID_PATTERN.test(value.id)
+        ? value.id
+        : fallbackId;
+    if (!id || !HOYO_GAMES.has(game) || !Number.isSafeInteger(uid) || uid <= 0) return null;
+    return {
+        id,
+        game,
+        uid,
+        rememberLogin: value?.rememberLogin === true,
+        refreshInterval: HOYO_REFRESH_INTERVALS.has(Number(value?.refreshInterval))
+            ? Number(value.refreshInterval)
+            : 15,
+    };
+}
+
+function sanitizeHoyoAuthCookies(value) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+    const cookies = Object.create(null);
+    for (const [name, cookieValue] of Object.entries(value)) {
+        if (!HOYO_AUTH_COOKIE_NAMES.has(name) || typeof cookieValue !== 'string') continue;
+        if (cookieValue.length === 0 || cookieValue.length > 8192) continue;
+        cookies[name] = cookieValue;
+    }
+    return cookies;
+}
+
+function sanitizeHoyoEncryptedCredentials(value, connections) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+    const availableIds = new Set(connections
+        .filter(connection => connection.rememberLogin)
+        .map(connection => connection.id));
+    const credentials = Object.create(null);
+    for (const [connectionId, credential] of Object.entries(value)) {
+        if (!availableIds.has(connectionId) || typeof credential !== 'object' || credential === null) continue;
+        const ciphertext = credential.ciphertext;
+        if (credential.version !== HOYO_ENCRYPTED_CREDENTIAL_VERSION || typeof ciphertext !== 'string') continue;
+        if (ciphertext.length === 0 || ciphertext.length > HOYO_ENCRYPTED_CREDENTIAL_MAX_LENGTH) continue;
+        if (ciphertext.length % 4 !== 0 || !HOYO_ENCRYPTED_CREDENTIAL_PATTERN.test(ciphertext)) continue;
+        credentials[connectionId] = { version: HOYO_ENCRYPTED_CREDENTIAL_VERSION, ciphertext };
+    }
+    return credentials;
+}
+
+function sanitizeHoyoSettings(value) {
+    const rawConnections = Array.isArray(value?.connections)
+        ? value.connections
+        : (value?.uid ? [{ ...value, id: 'genshin-default', game: 'genshin' }] : []);
+    const ids = new Set();
+    const connections = [];
+    for (const rawConnection of rawConnections) {
+        const connection = sanitizeHoyoConnection(rawConnection, createHoyoConnectionId());
+        if (!connection || ids.has(connection.id)) continue;
+        ids.add(connection.id);
+        connections.push(connection);
+    }
+    return {
+        connections,
+        encryptedCredentials: sanitizeHoyoEncryptedCredentials(value?.encryptedCredentials, connections),
+    };
+}
 
 // ─── Persistent App Settings (alwaysOnTop etc.) ──────────────────────────────
 function loadPersistedSettings() {
     try {
         const raw = JSON.parse(fs.readFileSync(APP_SETTINGS_FILE, 'utf8'));
-        if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
+        if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+            return { hoyo: sanitizeHoyoSettings(null) };
+        }
         // 허용 속성만 명시적으로 추출 (prototype pollution 및 임의 속성 주입 방지)
         return {
             alwaysOnTop: raw.alwaysOnTop === true,
             autoLaunch: raw.autoLaunch === true,
+            hoyo: sanitizeHoyoSettings(raw.hoyo),
         };
     } catch {
-        return {};
+        return { hoyo: sanitizeHoyoSettings(null) };
     }
 }
 
@@ -136,6 +230,333 @@ function persistSettings(updates) {
         const current = loadPersistedSettings();
         fs.writeFileSync(APP_SETTINGS_FILE, JSON.stringify({ ...current, ...updates }, null, 2));
     } catch { /* ignore write errors */ }
+}
+
+function getHoyoConnection(connectionId) {
+    if (typeof connectionId !== 'string') return null;
+    return loadPersistedSettings().hoyo.connections.find(connection => connection.id === connectionId) || null;
+}
+
+function getHoyoProfile(connectionId) {
+    return getHoyoConnection(connectionId) || hoyoPendingConnections.get(connectionId) || null;
+}
+
+function getHoyoCredentialStorageStatus() {
+    try {
+        if (!safeStorage.isEncryptionAvailable()) {
+            return { available: false, message: '이 기기에서는 안전한 로그인 저장을 사용할 수 없습니다.' };
+        }
+        if (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text') {
+            return { available: false, message: '이 Linux 환경에서는 안전한 로그인 저장을 사용할 수 없습니다.' };
+        }
+        return { available: true, message: '로그인 정보는 이 기기의 운영체제 계정으로 암호화됩니다.' };
+    } catch {
+        return { available: false, message: '이 기기에서는 안전한 로그인 저장을 사용할 수 없습니다.' };
+    }
+}
+
+function getSavedHoyoAuthCookies(connectionId) {
+    const credential = loadPersistedSettings().hoyo.encryptedCredentials[connectionId];
+    if (!credential || !getHoyoCredentialStorageStatus().available) return {};
+    try {
+        const stored = JSON.parse(safeStorage.decryptString(Buffer.from(credential.ciphertext, 'base64')));
+        if (stored?.version !== HOYO_ENCRYPTED_CREDENTIAL_VERSION) return {};
+        return sanitizeHoyoAuthCookies(stored.cookies);
+    } catch {
+        return {};
+    }
+}
+
+function encryptHoyoAuthCookies(cookies) {
+    const safeCookies = sanitizeHoyoAuthCookies(cookies);
+    if (!isHoyoAuthenticated(safeCookies) || !getHoyoCredentialStorageStatus().available) return null;
+    try {
+        return {
+            version: HOYO_ENCRYPTED_CREDENTIAL_VERSION,
+            ciphertext: safeStorage.encryptString(JSON.stringify({
+                version: HOYO_ENCRYPTED_CREDENTIAL_VERSION,
+                cookies: safeCookies,
+            })).toString('base64'),
+        };
+    } catch {
+        return null;
+    }
+}
+
+function beginHoyoAuthentication(game, rememberLogin = false) {
+    if (!HOYO_GAMES.has(game)) {
+        return { ok: false, code: 'invalid_game', message: '지원하지 않는 HoYoLAB 게임입니다.' };
+    }
+    if (rememberLogin && !getHoyoCredentialStorageStatus().available) {
+        return { ok: false, code: 'credential_storage_unavailable', message: getHoyoCredentialStorageStatus().message };
+    }
+    const connectionId = createHoyoConnectionId();
+    hoyoPendingConnections.set(connectionId, { id: connectionId, game, rememberLogin: rememberLogin === true });
+    return openHoyoAuthWindow(connectionId);
+}
+
+async function saveHoyoConnection(connectionId, account) {
+    const profile = getHoyoProfile(connectionId);
+    const uid = Number(account?.uid);
+    if (!profile || !Number.isSafeInteger(uid) || uid <= 0) return null;
+
+    const settings = loadPersistedSettings();
+    const existing = settings.hoyo.connections.find(connection => connection.game === profile.game && connection.uid === uid);
+    const connection = sanitizeHoyoConnection(existing
+        ? { ...existing, rememberLogin: profile.rememberLogin === true }
+        : { id: connectionId, game: profile.game, uid, refreshInterval: 15, rememberLogin: profile.rememberLogin === true });
+    if (!connection) return null;
+
+    if (connection.rememberLogin) {
+        const credential = encryptHoyoAuthCookies(await getHoyoAuthCookies(connectionId));
+        if (!credential) return null;
+        settings.hoyo.encryptedCredentials[connection.id] = credential;
+    } else {
+        delete settings.hoyo.encryptedCredentials[connection.id];
+    }
+    if (existing) {
+        settings.hoyo.connections = settings.hoyo.connections.map(item => item.id === connection.id ? connection : item);
+    } else {
+        settings.hoyo.connections.push(connection);
+    }
+    persistSettings({ hoyo: settings.hoyo });
+
+    const authSession = hoyoAuthSessions.get(connectionId);
+    if (authSession && connection.id !== connectionId) {
+        hoyoAuthSessions.set(connection.id, authSession);
+        authSession.cookies.on('changed', () => { broadcastHoyoAuthState(connection.id); });
+    }
+    hoyoPendingConnections.delete(connectionId);
+    return connection;
+}
+
+function getHoyoAuthSession(connectionId) {
+    const existing = hoyoAuthSessions.get(connectionId);
+    if (existing) return existing;
+    // `persist:` 접두사 없는 partition은 앱 실행 중에만 존재하며 디스크에 저장되지 않는다.
+    const authSession = session.fromPartition(getHoyoAuthPartition(connectionId));
+    authSession.cookies.on('changed', () => { broadcastHoyoAuthState(connectionId); });
+    hoyoAuthSessions.set(connectionId, authSession);
+    return authSession;
+}
+
+async function getHoyoAuthCookies(connectionId) {
+    const sessionCookies = await getHoyoAuthSession(connectionId).cookies.get({});
+    const cookies = {};
+    for (const cookie of sessionCookies) {
+        if (!HOYO_AUTH_COOKIE_NAMES.has(cookie.name)) continue;
+        if (!/(^|\.)(hoyolab|hoyoverse|mihoyo)\.com$/.test(cookie.domain)) continue;
+        cookies[cookie.name] = cookie.value;
+    }
+    return isHoyoAuthenticated(cookies) ? cookies : getSavedHoyoAuthCookies(connectionId);
+}
+
+function isHoyoAuthenticated(cookies) {
+    return Boolean(
+        (cookies.ltuid || cookies.ltuid_v2)
+        && (cookies.ltoken || cookies.ltoken_v2)
+    );
+}
+
+async function getHoyoAuthState(connectionId) {
+    const cookies = await getHoyoAuthCookies(connectionId);
+    return {
+        connectionId,
+        signedIn: isHoyoAuthenticated(cookies),
+        windowOpen: Boolean(hoyoAuthWindows.get(connectionId) && !hoyoAuthWindows.get(connectionId).isDestroyed()),
+    };
+}
+
+function closeHoyoAuthWindows(connectionId) {
+    const popups = hoyoAuthPopups.get(connectionId);
+    if (popups) {
+        for (const popup of popups) {
+            if (!popup.isDestroyed()) popup.close();
+        }
+        hoyoAuthPopups.delete(connectionId);
+    }
+    const authWindow = hoyoAuthWindows.get(connectionId);
+    if (authWindow && !authWindow.isDestroyed()) authWindow.close();
+}
+
+async function broadcastHoyoAuthState(connectionId) {
+    try {
+        const authState = await getHoyoAuthState(connectionId);
+        mainWindow?.webContents.send('hoyo:authState', authState);
+    } catch {
+        /* 로그인 상태 표시는 상태 조회를 방해하지 않는다. */
+    }
+}
+
+async function openHoyoAuthWindow(connectionId) {
+    if (!getHoyoProfile(connectionId)) {
+        return { ok: false, code: 'not_configured', message: 'HoYoLAB 연동 정보를 찾지 못했습니다.' };
+    }
+    const existingWindow = hoyoAuthWindows.get(connectionId);
+    if (existingWindow && !existingWindow.isDestroyed()) {
+        existingWindow.show();
+        existingWindow.focus();
+        return { ok: true, ...(await getHoyoAuthState(connectionId)) };
+    }
+
+    const authWindow = new BrowserWindow({
+        width: 480,
+        height: 760,
+        minWidth: 420,
+        minHeight: 600,
+        parent: mainWindow || undefined,
+        title: 'HoYoLAB 인증',
+        autoHideMenuBar: true,
+        show: false,
+        webPreferences: {
+            partition: getHoyoAuthPartition(connectionId),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+
+    hoyoAuthWindows.set(connectionId, authWindow);
+    authWindow.once('ready-to-show', () => authWindow.show());
+    authWindow.webContents.on('did-finish-load', () => broadcastHoyoAuthState(connectionId));
+    authWindow.webContents.on('did-navigate', () => broadcastHoyoAuthState(connectionId));
+    authWindow.webContents.on('did-create-window', popup => {
+        const popups = hoyoAuthPopups.get(connectionId) || new Set();
+        popups.add(popup);
+        hoyoAuthPopups.set(connectionId, popups);
+        popup.on('closed', () => {
+            popups.delete(popup);
+            if (popups.size === 0) hoyoAuthPopups.delete(connectionId);
+        });
+        popup.webContents.on('did-finish-load', () => broadcastHoyoAuthState(connectionId));
+        popup.webContents.on('did-navigate', () => broadcastHoyoAuthState(connectionId));
+    });
+    authWindow.on('closed', () => {
+        if (hoyoAuthWindows.get(connectionId) === authWindow) hoyoAuthWindows.delete(connectionId);
+        if (!getHoyoConnection(connectionId)) hoyoPendingConnections.delete(connectionId);
+        broadcastHoyoAuthState(connectionId);
+    });
+    authWindow.loadURL(HOYOLAB_AUTH_URL).catch(() => {
+        if (!authWindow.isDestroyed()) authWindow.close();
+    });
+
+    return { ok: true, ...(await getHoyoAuthState(connectionId)) };
+}
+
+function getHoyoHelperDir() {
+    return app.isPackaged
+        ? path.join(process.resourcesPath, 'app.asar.unpacked', '호요 일퀘 수령')
+        : path.join(__dirname, '호요 일퀘 수령');
+}
+
+function getHoyoPythonPath(helperDir) {
+    const candidates = process.platform === 'win32'
+        ? [path.join(helperDir, '.venv', 'Scripts', 'python.exe')]
+        : [path.join(helperDir, '.venv', 'bin', 'python3')];
+    const virtualEnvPython = candidates.find(candidate => fs.existsSync(candidate));
+    if (virtualEnvPython) return virtualEnvPython;
+    // 패키지에는 개인 가상환경을 넣지 않는다. 사용자가 준비한 시스템 Python만 보조 수단으로 사용한다.
+    return app.isPackaged ? (process.platform === 'win32' ? 'python' : 'python3') : null;
+}
+
+async function runHoyoHelper(connectionId, game, argumentsList) {
+    const cookies = await getHoyoAuthCookies(connectionId);
+    if (!isHoyoAuthenticated(cookies)) {
+        return {
+            ok: false,
+            code: 'authentication',
+            message: 'HoYoLAB 연결 창에서 다시 로그인해 주세요.',
+        };
+    }
+
+    const helperDir = getHoyoHelperDir();
+    const scriptPath = path.join(helperDir, 'daily_commission_status.py');
+    const pythonPath = getHoyoPythonPath(helperDir);
+    if (!pythonPath || !fs.existsSync(scriptPath)) {
+        return {
+            ok: false,
+            code: 'helper_unavailable',
+            message: 'HoYoLAB 확인기를 찾지 못했습니다.',
+        };
+    }
+
+    return new Promise(resolve => {
+        const child = spawn(pythonPath, [
+            scriptPath, '--json', '--game', game, ...argumentsList, '--cookies-stdin',
+        ], {
+            cwd: helperDir,
+            // Windows Python의 콘솔 코드페이지 대신 UTF-8로 JSON 오류 메시지를 전달한다.
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
+            windowsHide: true,
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+        const maxOutputLength = 16 * 1024;
+        const append = (target, chunk) => (target + chunk.toString()).slice(0, maxOutputLength);
+        const timeout = setTimeout(() => child.kill(), 30_000);
+
+        child.stdout.on('data', chunk => { stdout = append(stdout, chunk); });
+        child.stderr.on('data', chunk => { stderr = append(stderr, chunk); });
+        child.stdin.on('error', () => { /* 자식 종료 중 stdin 오류는 무시한다. */ });
+        child.stdin.end(JSON.stringify({ cookies }));
+        child.on('error', () => {
+            clearTimeout(timeout);
+            resolve({ ok: false, code: 'helper_unavailable', message: 'HoYoLAB 확인기를 실행하지 못했습니다.' });
+        });
+        child.on('close', code => {
+            clearTimeout(timeout);
+            try {
+                if (code === 0) {
+                    resolve({ ok: true, value: JSON.parse(stdout) });
+                    return;
+                }
+                const error = JSON.parse(stderr);
+                resolve({ ok: false, code: error.code || 'check_failed', message: error.message || 'HoYoLAB 상태를 확인하지 못했습니다.' });
+            } catch {
+                resolve({ ok: false, code: 'check_failed', message: 'HoYoLAB 응답을 해석하지 못했습니다.' });
+            }
+        });
+    });
+}
+
+async function runHoyoStatusCheck(connectionId) {
+    const config = getHoyoConnection(connectionId);
+    if (!config) {
+        return { ok: false, code: 'not_configured', message: 'HoYoLAB 연동 정보를 찾지 못했습니다.' };
+    }
+    const result = await runHoyoHelper(connectionId, config.game, ['--uid', String(config.uid)]);
+    if (!result.ok) return result;
+
+    const status = result.value;
+    const condition = config.game === 'genshin'
+        ? status?.conditions?.catherine_reward_claimed
+        : config.game === 'starrail'
+            ? status?.conditions?.daily_training_completed
+            : status?.conditions?.daily_engagement_completed;
+    if (status?.game !== config.game || typeof condition !== 'boolean') {
+        return { ok: false, code: 'check_failed', message: 'HoYoLAB 응답을 해석하지 못했습니다.' };
+    }
+    return { ok: true, status };
+}
+
+async function completeHoyoConnection(connectionId) {
+    const profile = getHoyoProfile(connectionId);
+    if (!profile) {
+        return { ok: false, code: 'not_configured', message: 'HoYoLAB 연동 정보를 찾지 못했습니다.' };
+    }
+    const result = await runHoyoHelper(connectionId, profile.game, ['--account']);
+    if (!result.ok) return result;
+
+    const account = result.value;
+    if (!Number.isSafeInteger(Number(account?.uid)) || Number(account.uid) <= 0) {
+        return { ok: false, code: 'check_failed', message: 'HoYoLAB 계정 정보를 해석하지 못했습니다.' };
+    }
+    const connection = await saveHoyoConnection(connectionId, account);
+    if (!connection) {
+        return { ok: false, code: 'save_failed', message: 'HoYoLAB 연동 정보를 저장하지 못했습니다.' };
+    }
+    return { ok: true, connection, account };
 }
 
 // ─── Auto-Launch on First Run ────────────────────────────────────────────────
@@ -382,6 +803,15 @@ ipcMain.handle('app:setAlwaysOnTop', (_, enabled) => {
     persistSettings({ alwaysOnTop: !!enabled });
 });
 
+// ─── IPC: HoYoLAB temporary-session integration ────────────────────────────
+ipcMain.handle('hoyo:getConnections', () => loadPersistedSettings().hoyo.connections);
+ipcMain.handle('hoyo:getCredentialStorageStatus', () => getHoyoCredentialStorageStatus());
+ipcMain.handle('hoyo:beginAuthentication', (_, game, rememberLogin) => beginHoyoAuthentication(game, rememberLogin));
+ipcMain.handle('hoyo:completeConnection', (_, connectionId) => completeHoyoConnection(connectionId));
+ipcMain.handle('hoyo:closeAuthentication', (_, connectionId) => closeHoyoAuthWindows(connectionId));
+ipcMain.handle('hoyo:getAuthState', (_, connectionId) => getHoyoAuthState(connectionId));
+ipcMain.handle('hoyo:checkStatus', (_, connectionId) => runHoyoStatusCheck(connectionId));
+
 // ─── IPC: Notifications ──────────────────────────────────────────────────────
 ipcMain.handle('app:showNotification', (_, title, body) => {
     if (!Notification.isSupported()) return;
@@ -458,4 +888,7 @@ app.on('before-quit', () => {
     isQuitting = true;
     saveWindowState();
     localServer?.close();
+    for (const authSession of hoyoAuthSessions.values()) {
+        authSession.clearStorageData({ storages: ['cookies'] }).catch(() => { });
+    }
 });
