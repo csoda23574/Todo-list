@@ -1,9 +1,10 @@
-/** HoYoLAB 상태 조회, 프로필별 백오프, Todo 완료 연결. Electron에서만 동작합니다. */
+/** HoYoLAB 상태 조회, 프로필별 백오프, Todo 완료 연결. */
 
 import { state } from './state.js';
 import { applyHoyoCompletionStatus } from './todos.js';
 import { getHoyoConditionDetails, getLinkedHoyoConnections } from './hoyo-conditions.js';
 import { showSystemNotification, showToast } from './utils.js';
+import { getHoyoAPI } from './hoyo-api.js';
 
 const checkTimers = new Map();
 const failedChecks = new Map();
@@ -24,11 +25,12 @@ function nextDelayMinutes(connection) {
 async function scheduleNextChecks({ immediate = false } = {}) {
     clearCheckTimers();
     const version = ++scheduleVersion;
-    if (!window.electronAPI || !state.isSignedIn) return;
+    const hoyoAPI = getHoyoAPI();
+    if (!hoyoAPI || !state.isSignedIn) return;
 
     let connections;
     try {
-        const allConnections = await window.electronAPI.getHoyoConnections();
+        const allConnections = await hoyoAPI.getHoyoConnections();
         connections = getLinkedHoyoConnections(state.todos, allConnections);
     } catch {
         return;
@@ -37,7 +39,7 @@ async function scheduleNextChecks({ immediate = false } = {}) {
 
     await Promise.all(connections.map(async connection => {
         if (connection.refreshInterval === 0) return;
-        const authState = await window.electronAPI.getHoyoAuthState(connection.id);
+        const authState = await hoyoAPI.getHoyoAuthState(connection.id);
         if (version !== scheduleVersion || !authState.signedIn) return;
         const delay = immediate ? 0 : nextDelayMinutes(connection) * 60_000;
         checkTimers.set(connection.id, setTimeout(() => {
@@ -103,8 +105,9 @@ function statusMessage(status) {
 }
 
 export async function refreshHoyoStatus({ manual = false, connectionIds = null } = {}) {
-    if (!window.electronAPI) {
-        if (manual) showToast('HoYoLAB 상태 확인은 데스크톱 앱에서 사용할 수 있습니다', 'info');
+    const hoyoAPI = getHoyoAPI();
+    if (!hoyoAPI) {
+        if (manual) showToast('이 기기에서는 HoYoLAB 상태 확인을 사용할 수 없습니다', 'info');
         return { ok: false, code: 'unsupported' };
     }
     if (!state.isSignedIn) {
@@ -115,7 +118,7 @@ export async function refreshHoyoStatus({ manual = false, connectionIds = null }
     let linkedConnections;
     let allConnections;
     try {
-        allConnections = await window.electronAPI.getHoyoConnections();
+        allConnections = await hoyoAPI.getHoyoConnections();
         linkedConnections = getLinkedHoyoConnections(state.todos, allConnections);
     } catch {
         if (manual) showToast('HoYoLAB 연동 정보를 읽지 못했습니다', 'error');
@@ -135,7 +138,7 @@ export async function refreshHoyoStatus({ manual = false, connectionIds = null }
         if (checksInProgress.has(connection.id)) return { connection, skipped: true };
         checksInProgress.add(connection.id);
         try {
-            return { connection, result: await window.electronAPI.checkHoyoStatus(connection.id) };
+            return { connection, result: await hoyoAPI.checkHoyoStatus(connection.id) };
         } finally {
             checksInProgress.delete(connection.id);
         }
@@ -154,7 +157,7 @@ export async function refreshHoyoStatus({ manual = false, connectionIds = null }
         }
         failedChecks.delete(connection.id);
         successful.push({ connection, status: result.status });
-        completed.push(...applyHoyoCompletionStatus(connection.id, result.status).completed);
+        completed.push(...applyHoyoCompletionStatus(connection, result.status).completed);
     }
 
     if (completed.length > 0) {

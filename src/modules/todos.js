@@ -170,10 +170,12 @@ export function toggleChecklistItem(todoId, checklistId, done) {
 
 /* ──────────────────── 외부 완료 조건 적용 ──────────────────────────────── */
 
-export function applyHoyoCompletionStatus(connectionId, status) {
+export function applyHoyoCompletionStatus(connection, status) {
+    const connectionId = typeof connection === 'string' ? connection : connection.id;
+    const connectionUid = typeof connection === 'string' ? null : connection.uid;
     const result = applyHoyoStatusToTodos(
         state.todos,
-        { connectionId, status },
+        { connectionId, connectionUid, status },
         new Date().toISOString()
     );
     if (result.completed.length === 0) return result;

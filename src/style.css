@@ -329,12 +329,12 @@ body {
     height: 18px;
 }
 
-/* HoYoLAB 상태 조회는 로컬 브라우저 쿠키를 읽을 수 있는 Electron에서만 제공 */
+/* HoYoLAB 연결이 가능한 데스크톱·Android에서만 상태 새로고침을 표시합니다. */
 #refreshBtn {
     display: none;
 }
 
-.electron-mode #refreshBtn {
+.hoyo-mode #refreshBtn {
     display: flex;
 }
 

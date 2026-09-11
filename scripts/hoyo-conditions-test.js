@@ -105,6 +105,28 @@ async function run() {
         'game-specific HoYoLAB links select their own connections',
         getLinkedHoyoConnections([...todos, ...starrailTodo, ...zzzTodo], connections).length === 3
     );
+
+    const crossDeviceTodo = [{
+        id: 'cross-device', text: '다른 기기 원신 일퀘', done: false,
+        externalCompletion: {
+            condition: HOYO_CATHERINE_REWARD_CONDITION,
+            connectionId: 'desktop-genshin', connectionUid: '800000000', target: 'todo',
+        },
+    }];
+    const androidConnection = { id: 'android-genshin', game: 'genshin', uid: 800000000 };
+    expect(
+        'matching game UID selects a cross-device HoYoLAB connection',
+        getLinkedHoyoConnections(crossDeviceTodo, [androidConnection])[0]?.id === 'android-genshin'
+    );
+    const crossDeviceApplied = applyHoyoStatusToTodos(
+        crossDeviceTodo,
+        {
+            connectionId: 'android-genshin', connectionUid: 800000000,
+            status: { game: 'genshin', conditions: { catherine_reward_claimed: true } },
+        },
+        '2026-09-10T00:00:00.000Z'
+    );
+    expect('matching game UID completes the cross-device linked Todo', crossDeviceApplied.todos[0].done === true);
 }
 
 run().catch(err => {

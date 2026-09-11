@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { spawn } = require('child_process');
-const { randomUUID } = require('crypto');
+const { createHash, randomUUID } = require('crypto');
 
 // ─── Local File Server ───────────────────────────────────────────────────────
 // file:// 프로토콜 대신 localhost HTTP 서버로 서빙하여 로컬 스토리지 일관성을 보장합니다.
@@ -112,6 +112,7 @@ const hoyoAuthWindows = new Map();
 const hoyoAuthSessions = new Map();
 const hoyoAuthPopups = new Map();
 const hoyoPendingConnections = new Map();
+let hoyoPythonEnvironmentPromise = null;
 
 // ─── Paths ──────────────────────────────────────────────────────────────────
 const IS_LINUX = process.platform === 'linux';
@@ -449,14 +450,135 @@ function getHoyoHelperDir() {
         : path.join(__dirname, '호요 일퀘 수령');
 }
 
+function getHoyoVirtualEnvPythonPath(virtualEnvDir) {
+    return process.platform === 'win32'
+        ? path.join(virtualEnvDir, 'Scripts', 'python.exe')
+        : path.join(virtualEnvDir, 'bin', 'python3');
+}
+
+function getHoyoPythonEnvironmentDir() {
+    return path.join(app.getPath('userData'), 'hoyo-python');
+}
+
 function getHoyoPythonPath(helperDir) {
-    const candidates = process.platform === 'win32'
-        ? [path.join(helperDir, '.venv', 'Scripts', 'python.exe')]
-        : [path.join(helperDir, '.venv', 'bin', 'python3')];
+    const candidates = [
+        getHoyoVirtualEnvPythonPath(getHoyoPythonEnvironmentDir()),
+        getHoyoVirtualEnvPythonPath(path.join(helperDir, '.venv')),
+    ];
     const virtualEnvPython = candidates.find(candidate => fs.existsSync(candidate));
     if (virtualEnvPython) return virtualEnvPython;
-    // 패키지에는 개인 가상환경을 넣지 않는다. 사용자가 준비한 시스템 Python만 보조 수단으로 사용한다.
+    // 가상환경을 처음 만들 때만 시스템 Python을 사용한다.
     return app.isPackaged ? (process.platform === 'win32' ? 'python' : 'python3') : null;
+}
+
+function getHoyoRequirementsHash(requirementsPath) {
+    return createHash('sha256').update(fs.readFileSync(requirementsPath)).digest('hex');
+}
+
+function readHoyoPythonEnvironmentMarker(markerPath) {
+    try {
+        const marker = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+        return typeof marker?.requirementsHash === 'string' ? marker : null;
+    } catch {
+        return null;
+    }
+}
+
+function runHoyoPythonCommand(command, argumentsList, options) {
+    return new Promise(resolve => {
+        const child = spawn(command, argumentsList, {
+            cwd: options.cwd,
+            env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
+            windowsHide: true,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let output = '';
+        let settled = false;
+        const finish = result => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeout);
+            resolve(result);
+        };
+        const append = chunk => { output = (output + chunk.toString()).slice(-8 * 1024); };
+        const timeout = setTimeout(() => {
+            child.kill();
+            finish({ ok: false, timedOut: true, output });
+        }, 120_000);
+
+        child.stdout.on('data', append);
+        child.stderr.on('data', append);
+        child.on('error', () => finish({ ok: false, output }));
+        child.on('close', code => finish({ ok: code === 0, output }));
+    });
+}
+
+async function installHoyoPythonEnvironment(helperDir, requirementsPath, requirementsHash) {
+    const virtualEnvDir = getHoyoPythonEnvironmentDir();
+    const virtualEnvPython = getHoyoVirtualEnvPythonPath(virtualEnvDir);
+    const markerPath = path.join(virtualEnvDir, 'requirements.json');
+    const marker = readHoyoPythonEnvironmentMarker(markerPath);
+    if (fs.existsSync(virtualEnvPython) && marker?.requirementsHash === requirementsHash) {
+        return { ok: true };
+    }
+
+    if (!fs.existsSync(virtualEnvPython)) {
+        const bootstrapPython = process.platform === 'win32' ? 'python' : 'python3';
+        const createResult = await runHoyoPythonCommand(bootstrapPython, ['-m', 'venv', virtualEnvDir], { cwd: helperDir });
+        if (!createResult.ok || !fs.existsSync(virtualEnvPython)) {
+            return {
+                ok: false,
+                code: 'python_unavailable',
+                message: 'HoYoLAB 기능을 준비하지 못했습니다. Python 3를 설치한 뒤 앱을 다시 실행해 주세요.',
+            };
+        }
+    }
+
+    const installResult = await runHoyoPythonCommand(
+        virtualEnvPython,
+        ['-m', 'pip', 'install', '--disable-pip-version-check', '--no-input', '--upgrade', '-r', requirementsPath],
+        { cwd: helperDir }
+    );
+    if (!installResult.ok) {
+        return {
+            ok: false,
+            code: 'dependency_install_failed',
+            message: 'HoYoLAB 기능을 준비하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        };
+    }
+
+    try {
+        fs.writeFileSync(markerPath, JSON.stringify({ requirementsHash }, null, 2));
+    } catch {
+        return {
+            ok: false,
+            code: 'dependency_install_failed',
+            message: 'HoYoLAB 기능 준비 정보를 저장하지 못했습니다.',
+        };
+    }
+    return { ok: true };
+}
+
+async function ensureHoyoPythonEnvironment(helperDir) {
+    if (!app.isPackaged) return { ok: true };
+
+    const requirementsPath = path.join(helperDir, 'requirements.txt');
+    if (!fs.existsSync(requirementsPath)) {
+        return { ok: false, code: 'helper_unavailable', message: 'HoYoLAB 확인기를 찾지 못했습니다.' };
+    }
+
+    let requirementsHash;
+    try {
+        requirementsHash = getHoyoRequirementsHash(requirementsPath);
+    } catch {
+        return { ok: false, code: 'helper_unavailable', message: 'HoYoLAB 확인기를 읽지 못했습니다.' };
+    }
+
+    if (!hoyoPythonEnvironmentPromise) {
+        hoyoPythonEnvironmentPromise = installHoyoPythonEnvironment(helperDir, requirementsPath, requirementsHash)
+            .finally(() => { hoyoPythonEnvironmentPromise = null; });
+    }
+    return hoyoPythonEnvironmentPromise;
 }
 
 async function runHoyoHelper(connectionId, game, argumentsList) {
@@ -471,6 +593,8 @@ async function runHoyoHelper(connectionId, game, argumentsList) {
 
     const helperDir = getHoyoHelperDir();
     const scriptPath = path.join(helperDir, 'daily_commission_status.py');
+    const environment = await ensureHoyoPythonEnvironment(helperDir);
+    if (!environment.ok) return environment;
     const pythonPath = getHoyoPythonPath(helperDir);
     if (!pythonPath || !fs.existsSync(scriptPath)) {
         return {
@@ -870,6 +994,9 @@ app.whenReady().then(async () => {
 
     // Register auto-start on Windows (first run only)
     ensureAutoLaunchOnFirstRun();
+
+    // 업데이트로 requirements.txt가 바뀌면 전용 Python 환경도 백그라운드에서 갱신한다.
+    ensureHoyoPythonEnvironment(getHoyoHelperDir()).catch(() => { });
 
     // 로컬 파일 서버 시작 후 윈도우 생성
     const port = await startLocalServer();

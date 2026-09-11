@@ -52,6 +52,11 @@ export function getLinkedHoyoConnections(todos, connections) {
         if (link.connectionId) {
             const connection = connections.find(item => item.id === link.connectionId);
             if (connection?.game === details.game) linkedIds.add(connection.id);
+            else if (link.connectionUid) {
+                const crossDeviceConnection = connections.find(item =>
+                    item.game === details.game && String(item.uid) === String(link.connectionUid));
+                if (crossDeviceConnection) linkedIds.add(crossDeviceConnection.id);
+            }
         } else if (details.game === 'genshin') {
             // 이전 원신 연동 항목은 마이그레이션된 기본 연결로 계속 동작한다.
             const legacyConnection = connections.find(item => item.id === 'genshin-default');
@@ -61,8 +66,10 @@ export function getLinkedHoyoConnections(todos, connections) {
     return connections.filter(connection => linkedIds.has(connection.id));
 }
 
-function isLinkedToConnection(link, connectionId) {
-    if (link.connectionId) return link.connectionId === connectionId;
+function isLinkedToConnection(link, connectionId, connectionUid) {
+    if (link.connectionId === connectionId) return true;
+    if (link.connectionId && !link.connectionUid) return false;
+    if (link.connectionUid) return String(link.connectionUid) === String(connectionUid);
     return link.condition === HOYO_CATHERINE_REWARD_CONDITION && connectionId === 'genshin-default';
 }
 
@@ -70,6 +77,7 @@ export function applyHoyoStatusToTodos(todos, result, completedAt) {
     // 기존 원신 호출 형식(status만 전달)도 기본 연결로 해석해 이전 데이터와 테스트를 보존한다.
     const status = result?.status || result;
     const connectionId = result?.connectionId || 'genshin-default';
+    const connectionUid = result?.connectionUid;
     const condition = status?.game === 'genshin'
         ? HOYO_CATHERINE_REWARD_CONDITION
         : status?.game === 'starrail'
@@ -85,7 +93,7 @@ export function applyHoyoStatusToTodos(todos, result, completedAt) {
     const completed = [];
     const nextTodos = todos.map(todo => {
         const link = todo.externalCompletion;
-        if (link?.condition !== condition || !isLinkedToConnection(link, connectionId)) return todo;
+        if (link?.condition !== condition || !isLinkedToConnection(link, connectionId, connectionUid)) return todo;
 
         if (link.target === 'checklist' && link.checklistId) {
             const checklist = todo.checklist || [];

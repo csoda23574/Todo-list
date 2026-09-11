@@ -31,7 +31,15 @@ import {
 } from './modules/perf.js';
 import { initCustomTimePickers } from './modules/timepicker.js';
 import { bindCalendarEvents } from './modules/calendar.js';
-import { refreshHoyoPolling, startHoyoPolling, stopHoyoPolling } from './modules/hoyo.js';
+import { refreshHoyoStatus, refreshHoyoPolling, startHoyoPolling, stopHoyoPolling } from './modules/hoyo.js';
+
+function bindHoyoForegroundRefresh() {
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || !state.isSignedIn) return;
+        refreshHoyoStatus();
+        refreshHoyoPolling();
+    });
+}
 
 /* ── Composition Root: 이벤트 버스 구독 ──────────────────────────────────
  * 데이터·도메인 레이어는 emit()만 호출하고, 실제 렌더러·타이머 함수는
@@ -109,6 +117,7 @@ function init() {
     bindEvents();
     bindCalendarEvents();
     bindElectronEvents();
+    bindHoyoForegroundRefresh();
     updateHeaderDate();
     recordRender('categories');
     renderCategoryTabs();

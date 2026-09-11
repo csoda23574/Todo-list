@@ -15,6 +15,7 @@ import { showToast } from './utils.js';
 import { toggleTodo, reorderTodo, toggleChecklistItem } from './todos.js';
 import { signInWithGoogle, signOut } from './firebase.js';
 import { refreshHoyoStatus, refreshHoyoPolling } from './hoyo.js';
+import { getHoyoAPI } from './hoyo-api.js';
 
 /* ────────────────────── 파일 매직 바이트 검증 ────────────────────── */
 
@@ -639,15 +640,18 @@ export function bindEvents() {
 /* ──────────────────── Electron 창 버튼 이벤트 ──────────────────────────── */
 
 export function bindElectronEvents() {
-    if (!window.electronAPI) return;
-    document.body.classList.add('electron-mode');
+    if (window.electronAPI) {
+        document.body.classList.add('electron-mode');
+        document.getElementById('winMinimize')?.addEventListener('click', () => window.electronAPI.minimize());
+        document.getElementById('winMaximize')?.addEventListener('click', () => window.electronAPI.maximize());
+        document.getElementById('winClose')?.addEventListener('click', () => window.electronAPI.close());
+        window.electronAPI.onMaximizeChange(updateWinMaximizeBtn);
+        window.electronAPI.isMaximized().then(updateWinMaximizeBtn).catch(() => { });
+    }
 
-    document.getElementById('winMinimize')?.addEventListener('click', () => window.electronAPI.minimize());
-    document.getElementById('winMaximize')?.addEventListener('click', () => window.electronAPI.maximize());
-    document.getElementById('winClose')?.addEventListener('click', () => window.electronAPI.close());
-
-    window.electronAPI.onMaximizeChange(updateWinMaximizeBtn);
-    window.electronAPI.isMaximized().then(updateWinMaximizeBtn).catch(() => { });
+    const hoyoAPI = getHoyoAPI();
+    if (!hoyoAPI) return;
+    document.body.classList.add('hoyo-mode');
 
     const authenticatedConnections = new Set();
     const completingConnections = new Set();
@@ -662,15 +666,15 @@ export function bindElectronEvents() {
             if (completingConnections.has(authState.connectionId)) return;
             completingConnections.add(authState.connectionId);
             try {
-                const result = await window.electronAPI.completeHoyoConnection(authState.connectionId);
+                const result = await hoyoAPI.completeHoyoConnection(authState.connectionId);
                 if (!result?.ok) {
-                    await window.electronAPI.closeHoyoAuthentication(authState.connectionId);
+                    await hoyoAPI.closeHoyoAuthentication(authState.connectionId);
                     showToast(result?.message || 'HoYoLAB 게임 계정을 찾지 못했습니다', 'error');
                     return;
                 }
                 authenticatedConnections.add(authState.connectionId);
                 authenticatedConnections.add(result.connection.id);
-                await window.electronAPI.closeHoyoAuthentication(authState.connectionId);
+                await hoyoAPI.closeHoyoAuthentication(authState.connectionId);
                 refreshExternalCompletionConnections(result.connection.id);
                 const gameName = {
                     genshin: '원신',
@@ -689,10 +693,10 @@ export function bindElectronEvents() {
             refreshHoyoPolling();
         }
     };
-    window.electronAPI.onHoyoAuthState(handleHoyoAuthState);
-    window.electronAPI.getHoyoConnections()
+    hoyoAPI.onHoyoAuthState(handleHoyoAuthState);
+    hoyoAPI.getHoyoConnections()
         .then(connections => Promise.all(connections.map(connection =>
-            window.electronAPI.getHoyoAuthState(connection.id).then(handleHoyoAuthState)
+            hoyoAPI.getHoyoAuthState(connection.id).then(handleHoyoAuthState)
         )))
         .catch(() => { });
 }

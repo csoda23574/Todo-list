@@ -60,4 +60,4 @@ Todo 앱의 Electron 데스크톱 연동은 설정의 **HoYoLAB 연결** 버튼�
 .\.venv\Scripts\python.exe .\daily_commission_status.py --json --uid 800000000 --browser edge
 ```
 
-패키지 버전의 Todo 앱은 개인 `settings.json`과 `.venv`를 포함하지 않습니다. 시스템 Python에 `requirements.txt`의 의존성을 설치하거나, 앱과 함께 제공되는 별도 확인 환경을 준비해야 합니다.
+패키지 버전의 Todo 앱은 처음 실행할 때 앱 데이터 폴더에 전용 Python 가상환경을 만들고, `requirements.txt`의 라이브러리를 자동으로 설치합니다. 이후 앱 업데이트로 요구사항 파일이 바뀌면 다음 실행 시 자동으로 갱신합니다. 컴퓨터에 Python 3가 전혀 설치되어 있지 않은 경우에만 Python 설치 후 앱을 다시 실행해야 합니다.

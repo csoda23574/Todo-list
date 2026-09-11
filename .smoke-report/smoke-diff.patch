@@ -27,8 +27,8 @@ index 7ac42ae..d3e0a13 100644
 --- a/src/modules/sync.js
 +++ b/src/modules/sync.js
 @@ -281,8 +281,14 @@ export function stopListeners() {
-  * - 서버가 비어있고 로컬에 데이터가 있으면 → 로컬을 서버로 업로드
-  */
+ * - 서버가 비어있고 로컬에 데이터가 있으면 → 로컬을 서버로 업로드
+ */
  export async function initialMerge() {
 +    // 앱 시작 직후 Firestore WebSocket 연결이 확립되기 전에 .get()이 호출되면
 +    // 오프라인으로 간주되어 스테일 캐시를 반환할 수 있음.

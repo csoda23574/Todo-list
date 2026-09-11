@@ -22,6 +22,7 @@ import {
     getHoyoConditionDetails,
 } from './hoyo-conditions.js';
 import { refreshHoyoPolling } from './hoyo.js';
+import { getHoyoAPI } from './hoyo-api.js';
 import { deleteCategory } from './categories.js';
 import { openModal, closeModal } from './modal-base.js';
 
@@ -281,6 +282,7 @@ function _buildExternalCompletion(recurrence, checklist) {
     }
 
     const target = document.getElementById('taskExternalTarget')?.value || 'todo';
+    const connectionUid = String(connection.uid);
     if (target.startsWith('checklist:')) {
         const checklistId = target.slice('checklist:'.length);
         if (!checklist.some(item => item.id === checklistId)) {
@@ -290,12 +292,13 @@ function _buildExternalCompletion(recurrence, checklist) {
             value: {
                 condition,
                 connectionId,
+                connectionUid,
                 target: 'checklist',
                 checklistId,
             },
         };
     }
-    return { value: { condition, connectionId, target: 'todo' } };
+    return { value: { condition, connectionId, connectionUid, target: 'todo' } };
 }
 
 export async function refreshExternalCompletionConnections(selectedId = null) {
@@ -309,7 +312,7 @@ export async function refreshExternalCompletionConnections(selectedId = null) {
     if (!details) return;
 
     try {
-        hoyoConnections = window.electronAPI ? await window.electronAPI.getHoyoConnections() : [];
+        hoyoConnections = await getHoyoAPI()?.getHoyoConnections() || [];
     } catch {
         hoyoConnections = [];
     }
@@ -541,13 +544,13 @@ export async function openSettingsModal() {
     if (toggleBtn) toggleBtn.style.display = '';
 }
 
-function _updateElectronSettingsSection() {
+function _updatePlatformSettingsSections() {
     const electronSection = document.getElementById('electronSettingsSection');
+    const hoyoSection = document.getElementById('hoyoSettingsSection');
+    if (hoyoSection && getHoyoAPI()) hoyoSection.style.display = '';
     if (!electronSection || !window.electronAPI) return;
 
     electronSection.style.display = '';
-    const hoyoSection = document.getElementById('hoyoSettingsSection');
-    if (hoyoSection) hoyoSection.style.display = '';
 
     window.electronAPI.getPlatform().then(platform => {
         const osName = platform === 'linux' ? 'Linux'
@@ -604,7 +607,7 @@ function _populateSettingsForm() {
         DOM.appTitleInput.value = tempSettings.appTitle || 'My Tasks';
     }
 
-    _updateElectronSettingsSection();
+    _updatePlatformSettingsSections();
 
     // 파레트 선택
     const color = tempSettings.uiBaseColor || '#3a6491';
@@ -631,7 +634,8 @@ function readHoyoConnectionFromForm() {
 }
 
 export async function openHoyoConnectModal() {
-    if (!window.electronAPI) return;
+    const hoyoAPI = getHoyoAPI();
+    if (!hoyoAPI) return;
     const modal = document.getElementById('hoyoConnectModal');
     const gameEl = document.getElementById('hoyoConnectGame');
     const rememberLoginEl = document.getElementById('hoyoRememberLogin');
@@ -645,7 +649,7 @@ export async function openHoyoConnectModal() {
     openModal(modal);
     setTimeout(() => gameEl.focus(), 50);
     try {
-        const storage = await window.electronAPI.getHoyoCredentialStorageStatus?.();
+        const storage = await hoyoAPI.getHoyoCredentialStorageStatus?.();
         if (!storage) return;
         if (rememberLoginEl) rememberLoginEl.disabled = !storage.available;
         if (rememberLoginHint) rememberLoginHint.textContent = storage.message;
@@ -656,10 +660,11 @@ export async function openHoyoConnectModal() {
 }
 
 export async function startHoyoConnection() {
-    if (!window.electronAPI) return;
+    const hoyoAPI = getHoyoAPI();
+    if (!hoyoAPI) return;
     if (
-        typeof window.electronAPI.beginHoyoAuthentication !== 'function'
-        || typeof window.electronAPI.completeHoyoConnection !== 'function'
+        typeof hoyoAPI.beginHoyoAuthentication !== 'function'
+        || typeof hoyoAPI.completeHoyoConnection !== 'function'
     ) {
         showToast('새 HoYoLAB 연동을 적용하려면 Todo 앱을 완전히 종료한 뒤 다시 시작해 주세요', 'info');
         return;
@@ -667,7 +672,7 @@ export async function startHoyoConnection() {
     const hoyoConnection = readHoyoConnectionFromForm();
     if (!hoyoConnection) return null;
     try {
-        const result = await window.electronAPI.beginHoyoAuthentication(
+        const result = await hoyoAPI.beginHoyoAuthentication(
             hoyoConnection.game,
             hoyoConnection.rememberLogin,
         );
