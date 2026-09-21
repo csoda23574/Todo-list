@@ -112,7 +112,7 @@ export function formatRecurrenceBadge(r) {
     if (r.type === 'daily')   return `⏰ 매일 ${time}`;
     if (r.type === 'weekday') return `⏰ 평일 ${time}`;
     if (r.type === 'weekly') {
-        const days = (r.weekdays || []).map(d => WEEKDAY_NAMES[d]).join('·');
+        const days = [...new Set(r.weekdays || [])].map(d => WEEKDAY_NAMES[d]).join('·');
         return `🔄 매주 ${days} ${time}`;
     }
     if (r.type === 'monthly') {

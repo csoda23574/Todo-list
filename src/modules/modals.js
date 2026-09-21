@@ -49,10 +49,14 @@ export function setSelectedPriority(priority) {
 function clearTaskForm() {
     DOM.taskInput.value = '';
     DOM.taskNote.value = '';
-    DOM.taskResetTime.value = '';
-    DOM.taskResetWeeklyTime.value = '';
-    DOM.taskResetMonthlyTime.value = '';
-    DOM.taskResetYearlyTime.value = '';
+    DOM.taskResetTime.value = '00:00';
+    DOM.taskResetWeeklyTime.value = '00:00';
+    DOM.taskResetMonthlyTime.value = '00:00';
+    DOM.taskResetYearlyTime.value = '00:00';
+    const _everyNTimeEl = document.getElementById('taskResetEveryNTime');
+    if (_everyNTimeEl) _everyNTimeEl.value = '00:00';
+    const _everyNWeeksTimeEl = document.getElementById('taskResetEveryNWeeksTime');
+    if (_everyNWeeksTimeEl) _everyNWeeksTimeEl.value = '00:00';
     document.querySelectorAll('.weekday-btn').forEach(b => b.classList.remove('active'));
     DOM.monthDayGrid?.querySelectorAll('.day-number-btn').forEach(b => b.classList.remove('active'));
     DOM.yearlyDateList.innerHTML = '';
@@ -231,8 +235,10 @@ function _buildRecurrenceFromForm(resetType) {
         return { type: 'daily', time: DOM.taskResetTime.value || '00:00' };
     }
     if (resetType === 'weekly') {
-        const weekdays = Array.from(document.querySelectorAll('.weekday-btn.active'))
-            .map(b => parseInt(b.dataset.day, 10));
+        const weekdays = [...new Set(
+            Array.from(document.querySelectorAll('#taskResetWeeklyRow .weekday-btn.active'))
+                .map(b => parseInt(b.dataset.day, 10))
+        )];
         return { type: 'weekly', weekdays, time: DOM.taskResetWeeklyTime.value || '00:00' };
     }
     if (resetType === 'monthly') {
