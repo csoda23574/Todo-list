@@ -49,14 +49,30 @@ function _applyItemResets(now) {
         if (now < new Date(t.nextDue)) return t;
 
         const newNextDue = calcNextDueAfter(t.recurrence, new Date(t.nextDue), now);
-        if (t.done) changedItems.push(t.text);
+
+        // 완료된 항목인 경우: 완료 시점(completedAt) 이후에 초기화 시각이 도래했는지 확인
+        // 만약 이번 초기화 주기 내에(초기화 시각 이후에) 이미 완료된 것이라면 완료 상태 유지
+        const nextResetAfterCompletion = (t.done && t.completedAt)
+            ? calcNextDueAfter(t.recurrence, new Date(t.completedAt), new Date(t.completedAt))
+            : null;
+        const shouldResetDone = !t.done || !t.completedAt || !nextResetAfterCompletion || now >= nextResetAfterCompletion;
+
+        if (t.done && shouldResetDone) {
+            changedItems.push(t.text);
+        }
         anyChanged = true;
+
         return {
             ...t,
-            done: false,
-            completedAt: null,
+            done: shouldResetDone ? false : t.done,
+            completedAt: shouldResetDone ? null : t.completedAt,
             nextDue: newNextDue ? newNextDue.toISOString() : null,
-            ...(t.checklist ? { checklist: t.checklist.map(c => ({ ...c, done: false })) } : {})
+            ...(t.checklist ? {
+                checklist: t.checklist.map(c => ({
+                    ...c,
+                    done: shouldResetDone ? false : c.done,
+                }))
+            } : {})
         };
     });
 

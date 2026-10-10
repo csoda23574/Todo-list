@@ -91,10 +91,20 @@ export function toggleTodo(id, done) {
     const idx = state.todos.findIndex(t => t.id === id);
     if (idx === -1) return;
 
+    const todo = state.todos[idx];
+    let nextDue = todo.nextDue;
+    if (done && todo.recurrence) {
+        const now = new Date();
+        if (!nextDue || now >= new Date(nextDue)) {
+            nextDue = calcNextDueAfter(todo.recurrence, now, now)?.toISOString() ?? nextDue;
+        }
+    }
+
     state.todos[idx] = {
-        ...state.todos[idx],
+        ...todo,
         done,
         completedAt: done ? new Date().toISOString() : null,
+        nextDue,
     };
     saveTodos(state.todos[idx]);
     emit('todos:changed');
@@ -156,11 +166,20 @@ export function toggleChecklistItem(todoId, checklistId, done) {
     const allDone = newChecklist.every(item => item.done);
     const parentDone = allDone;
 
+    let nextDue = todo.nextDue;
+    if (parentDone && todo.recurrence) {
+        const now = new Date();
+        if (!nextDue || now >= new Date(nextDue)) {
+            nextDue = calcNextDueAfter(todo.recurrence, now, now)?.toISOString() ?? nextDue;
+        }
+    }
+
     state.todos[idx] = {
         ...todo,
         checklist: newChecklist,
         done: parentDone,
         completedAt: parentDone ? new Date().toISOString() : null,
+        nextDue,
     };
 
     saveTodos(state.todos[idx]);

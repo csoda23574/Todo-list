@@ -36,6 +36,7 @@ import { refreshHoyoStatus, refreshHoyoPolling, startHoyoPolling, stopHoyoPollin
 function bindHoyoForegroundRefresh() {
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState !== 'visible' || !state.isSignedIn) return;
+        applyResets(new Date());
         refreshHoyoStatus();
         refreshHoyoPolling();
     });

@@ -3,6 +3,8 @@
  * 상태·DOM·저장소에 의존하지 않아 실제 API 호출 없이 검증할 수 있습니다.
  */
 
+import { calcNextDueAfter } from './recurrence.js';
+
 export const HOYO_CATHERINE_REWARD_CONDITION = 'hoyolab.genshin.catherineRewardClaimed';
 export const HOYO_STARRAIL_DAILY_TRAINING_CONDITION = 'hoyolab.starrail.dailyTrainingCompleted';
 export const HOYO_ZZZ_DAILY_ENGAGEMENT_CONDITION = 'hoyolab.zzz.dailyEngagementCompleted';
@@ -105,17 +107,32 @@ export function applyHoyoStatusToTodos(todos, result, completedAt) {
             );
             const done = nextChecklist.every(item => item.done);
             completed.push({ todoId: todo.id, checklistId: link.checklistId, text: target.text, condition });
+            let nextDue = todo.nextDue;
+            if (done && todo.recurrence) {
+                const now = new Date(completedAt);
+                if (!nextDue || now >= new Date(nextDue)) {
+                    nextDue = calcNextDueAfter(todo.recurrence, now, now)?.toISOString() ?? nextDue;
+                }
+            }
             return {
                 ...todo,
                 checklist: nextChecklist,
                 done,
                 completedAt: done ? completedAt : todo.completedAt,
+                nextDue,
             };
         }
 
         if (todo.done) return todo;
         completed.push({ todoId: todo.id, checklistId: null, text: todo.text, condition });
-        return { ...todo, done: true, completedAt };
+        let nextDue = todo.nextDue;
+        if (todo.recurrence) {
+            const now = new Date(completedAt);
+            if (!nextDue || now >= new Date(nextDue)) {
+                nextDue = calcNextDueAfter(todo.recurrence, now, now)?.toISOString() ?? nextDue;
+            }
+        }
+        return { ...todo, done: true, completedAt, nextDue };
     });
 
     return completed.length > 0 ? { todos: nextTodos, completed } : { todos, completed };
