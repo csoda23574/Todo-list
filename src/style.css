@@ -754,9 +754,12 @@ body {
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
     transition: all var(--transition-base);
-    animation: slideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+}
+
+.todo-item.slide-in {
+    animation: slideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .todo-item::before {

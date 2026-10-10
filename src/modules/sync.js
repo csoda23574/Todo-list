@@ -131,7 +131,6 @@ function _sameTodo(a, b) {
         && a.done === b.done
         && (a.completedAt ?? null) === (b.completedAt ?? null)
         && (a.createdAt ?? null) === (b.createdAt ?? null)
-        && (a.updatedAt ?? null) === (b.updatedAt ?? null)
         && (a.categoryId ?? 'default') === (b.categoryId ?? 'default')
         && JSON.stringify(a.recurrence ?? null) === JSON.stringify(b.recurrence ?? null)
         && JSON.stringify(a.checklist ?? null) === JSON.stringify(b.checklist ?? null)
@@ -215,7 +214,10 @@ export function startListeners() {
         const mergedTodos = [...localMap.values()].sort((a, b) =>
             (a.order ?? 0) - (b.order ?? 0)
         );
-        if (_sameTodos(mergedTodos, state.todos)) return;
+        if (_sameTodos(mergedTodos, state.todos)) {
+            state.todos = mergedTodos; // 서버 타임스탬프 조용히 동기화
+            return;
+        }
         state.todos = mergedTodos;
         emit('todos:changed');
         emit('reset:reschedule'); // nextDue 변경 시 타이머 재예약

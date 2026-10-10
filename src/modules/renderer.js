@@ -217,22 +217,80 @@ export function createTodoElement(todo) {
 /* ───────────────────────── 할 일 목록 렌더링 ───────────────────────────── */
 
 export function renderTodos() {
-    // 카테고리 필터를 한 번만 수행 → updateStats에 재사용
     const catTodos = _catTodos();
     const filtered = _applyStateFilter(catTodos);
 
-    const fragment = document.createDocumentFragment();
-    // 콜백 함수 할당 오버헤드 방지
+    if (!DOM.todoList || !DOM.emptyState) return;
+    DOM.emptyState.classList.toggle('visible', filtered.length === 0);
+
+    // 1. 기존 DOM 요소 매핑
+    const currentChildren = Array.from(DOM.todoList.children);
+    const existingMap = new Map();
+    currentChildren.forEach(child => {
+        if (child.dataset.id) existingMap.set(child.dataset.id, child);
+    });
+
+    // 2. 현재 필터에 없는 항목 삭제
+    const targetIds = new Set(filtered.map(t => t.id));
+    currentChildren.forEach(child => {
+        if (child.dataset.id && !targetIds.has(child.dataset.id)) {
+            child.remove();
+        }
+    });
+
+    // 3. 필터링된 순서대로 DOM 제자리 갱신 및 순서 유지
+    let prevSibling = null;
     for (let i = 0; i < filtered.length; i++) {
-        fragment.appendChild(createTodoElement(filtered[i]));
+        const todo = filtered[i];
+        const existing = existingMap.get(todo.id);
+        const newEl = createTodoElement(todo);
+
+        if (existing) {
+            // 체크리스트 펼침(expanded) 상태 보존
+            const wasExpanded = existing.querySelector('.checklist-area')?.classList.contains('expanded');
+            if (wasExpanded) {
+                const newArea = newEl.querySelector('.checklist-area');
+                const newBtn = newEl.querySelector('.checklist-toggle-btn');
+                if (newArea) newArea.classList.add('expanded');
+                if (newBtn) {
+                    newBtn.setAttribute('aria-expanded', 'true');
+                    newBtn.querySelector('svg')?.classList.add('rotated');
+                }
+            }
+
+            // 내용 또는 클래스가 변경된 경우에만 부분 갱신 (전체 깜빡임 원천 차단)
+            if (existing.innerHTML !== newEl.innerHTML) {
+                existing.innerHTML = newEl.innerHTML;
+            }
+            if (existing.className !== newEl.className) {
+                existing.className = newEl.className;
+            }
+            if (existing.dataset.priority !== newEl.dataset.priority) {
+                existing.dataset.priority = newEl.dataset.priority;
+            }
+
+            // 순서가 어긋난 경우에만 DOM 이동
+            if (existing.previousElementSibling !== prevSibling) {
+                if (prevSibling) {
+                    prevSibling.after(existing);
+                } else {
+                    DOM.todoList.prepend(existing);
+                }
+            }
+            prevSibling = existing;
+        } else {
+            // 새로 추가된 항목에만 부드러운 슬라이드 애니메이션 적용
+            newEl.classList.add('slide-in');
+            if (prevSibling) {
+                prevSibling.after(newEl);
+            } else {
+                DOM.todoList.prepend(newEl);
+            }
+            prevSibling = newEl;
+        }
     }
 
-    if (!DOM.todoList || !DOM.emptyState) return;
-    DOM.todoList.innerHTML = '';
-    DOM.emptyState.classList.toggle('visible', filtered.length === 0);
-    if (filtered.length > 0) DOM.todoList.appendChild(fragment);
-
-    updateStats(catTodos); // 이미 계산된 배열 전달 — 이중 순회 방지
+    updateStats(catTodos);
 }
 
 /* ─────────────────────────── 배경 이미지 ──────────────────────────────── */
