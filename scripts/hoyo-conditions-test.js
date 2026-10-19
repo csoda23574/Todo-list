@@ -9,9 +9,8 @@ function expect(description, condition) {
 
 async function loadModule() {
     const filePath = path.join(__dirname, '..', 'src', 'modules', 'hoyo-conditions.js');
-    const source = fs.readFileSync(filePath, 'utf8');
-    const url = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
-    return import(url);
+    const { pathToFileURL } = require('url');
+    return import(pathToFileURL(filePath).href);
 }
 
 async function run() {

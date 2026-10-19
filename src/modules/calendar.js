@@ -58,7 +58,7 @@ function getPriority(todo) {
     const r = todo.recurrence || { type: 'neverReset' };
     if (r.type === 'deadline') return 1;
     if (r.type === 'yearly' || r.type === 'monthly') return 2;
-    if (r.type === 'everyN' || r.type === 'everyNWeeks' || r.type === 'weekly') return 3;
+    if (r.type === 'everyNWeeks' || r.type === 'weekly') return 3;
     if (r.type === 'daily' || r.type === 'calendar') return 4;
     return 5;
 }
@@ -82,7 +82,7 @@ function isDateMatch(todo, checkDate) {
     if (!r) return false;
     
     // Check start date (inactive before start)
-    if (r.startDate) {
+    if (r.type === 'deadline' && r.startDate) {
         const startT = r.startTime || '00:00';
         const startObj = new Date(`${r.startDate}T${startT}:00`);
         if (checkDate < normalizeDate(startObj)) return false;
@@ -114,23 +114,14 @@ function isDateMatch(todo, checkDate) {
         case 'daily': {
             return true;
         }
-        case 'everyN': {
-            if (!r.startDate || !r.n) return false;
-            const startObj = normalizeDate(new Date(r.startDate));
-            const diffTime = checkDate - startObj;
-            if (diffTime < 0) return false;
-            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays % r.n === 0;
-        }
         case 'everyNWeeks': {
-            if (!r.startDate || !r.n || r.weekday == null) return false;
+            // 시작일이 없으므로 다음 초기화 예정일(nextDue)을 기준으로 N주 간격 표시
+            if (!todo.nextDue || !r.n || r.weekday == null) return false;
             if (checkW !== r.weekday) return false;
-            const startObj = normalizeDate(new Date(r.startDate));
-            const diffTime = checkDate - startObj;
-            if (diffTime < 0) return false;
-            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-            const diffWeeks = Math.floor(diffDays / 7);
-            return diffWeeks % r.n === 0;
+            const anchor = normalizeDate(new Date(todo.nextDue));
+            const diffDays = Math.round((checkDate - anchor) / (1000 * 60 * 60 * 24));
+            if (diffDays < 0) return false;
+            return diffDays % (r.n * 7) === 0;
         }
         default:
             return false;

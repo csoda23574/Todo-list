@@ -58,7 +58,7 @@ public class HoyoLabPlugin extends Plugin {
     private static final String CONNECTIONS_KEY = "connections";
     private static final String CREDENTIAL_PREFIX = "credential_";
     private static final String KEY_ALIAS = "todo_hoyolab_credentials";
-    private static final String LOGIN_URL = "https://account.hoyoverse.com/#/login?cb_route=%2Faccount%2FaccountInfo";
+    private static final String LOGIN_URL = "https://www.hoyolab.com/accountCenter/postList";
     private static final String DS_SALT = "6s25p5ox5y14umn1p61aqyyvbvvl3lrt";
     private static final String[] COOKIE_URLS = {
         "https://www.hoyolab.com/",
@@ -194,6 +194,32 @@ public class HoyoLabPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void removeHoyoConnection(PluginCall call) {
+        String connectionId = call.getString("connectionId");
+        if (connectionId == null || connectionId.isEmpty()) {
+            resolveError(call, "invalid_id", "연결 ID가 유효하지 않습니다.");
+            return;
+        }
+        temporaryCookies.remove(connectionId);
+        PendingAuthentication pending = pendingAuthentications.remove(connectionId);
+        getActivity().runOnUiThread(() -> {
+            if (pending != null && pending.dialog != null && pending.dialog.isShowing()) pending.dialog.dismiss();
+        });
+        deleteConnection(connectionId);
+
+        JSArray connections = new JSArray();
+        for (int index = 0; index < loadConnections().length(); index++) {
+            try {
+                connections.put(JSObject.fromJSONObject(loadConnections().getJSONObject(index)));
+            } catch (Exception ignored) { }
+        }
+        JSObject result = new JSObject();
+        result.put("ok", true);
+        result.put("connections", connections);
+        call.resolve(result);
+    }
+
+    @PluginMethod
     public void closeHoyoAuthentication(PluginCall call) {
         String connectionId = call.getString("connectionId");
         PendingAuthentication pending = pendingAuthentications.remove(connectionId);
@@ -256,7 +282,9 @@ public class HoyoLabPlugin extends Plugin {
         settings.setDomStorageEnabled(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.setAcceptCookie(true);
+        cookieManager.setAcceptThirdPartyCookies(webView, true);
         webView.setBackgroundColor(Color.WHITE);
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -318,6 +346,8 @@ public class HoyoLabPlugin extends Plugin {
         return url != null && (
             url.contains("://account.hoyolab.com/")
             || url.contains("://account.hoyoverse.com/")
+            || url.contains("://www.hoyolab.com/")
+            || url.contains("://m.hoyolab.com/")
         );
     }
 
@@ -649,6 +679,19 @@ public class HoyoLabPlugin extends Plugin {
         }
         updated.put(connection);
         getPreferences().edit().putString(CONNECTIONS_KEY, updated.toString()).apply();
+    }
+
+    private void deleteConnection(String connectionId) {
+        JSONArray existing = loadConnections();
+        JSONArray updated = new JSONArray();
+        for (int index = 0; index < existing.length(); index++) {
+            JSONObject item = existing.optJSONObject(index);
+            if (item != null && !connectionId.equals(item.optString("id"))) updated.put(item);
+        }
+        getPreferences().edit()
+            .putString(CONNECTIONS_KEY, updated.toString())
+            .remove(CREDENTIAL_PREFIX + connectionId)
+            .apply();
     }
 
     private android.content.SharedPreferences getPreferences() {

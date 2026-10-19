@@ -9,14 +9,14 @@ import { saveTodos } from './storage.js';
 import { emit } from './bus.js';
 import { showToast, generateId } from './utils.js';
 import { deleteTodoRemote } from './sync.js';
-import { calcNextDueAfter } from './recurrence.js';
+import { calcInitialNextDue, calcNextDueOnComplete } from './recurrence.js';
 import { applyHoyoStatusToTodos } from './hoyo-conditions.js';
 
 /* ──────────────────────────── 추가 ────────────────────────────────────── */
 
 export function addTodo(text, note, priority, recurrence, checklist, externalCompletion = null) {
     const nextDue = recurrence
-        ? calcNextDueAfter(recurrence, new Date(), new Date())?.toISOString() ?? null
+        ? calcInitialNextDue(recurrence, new Date())?.toISOString() ?? null
         : null;
     const minOrder = state.todos.length > 0
         ? Math.min(...state.todos.map(t => t.order ?? 0)) - 1
@@ -47,8 +47,9 @@ export function editTodo(id, text, note, priority, recurrence, checklist, extern
     const idx = state.todos.findIndex(t => t.id === id);
     if (idx === -1) return;
 
+    const prev = state.todos[idx];
     const nextDue = recurrence
-        ? calcNextDueAfter(recurrence, new Date(), new Date())?.toISOString() ?? null
+        ? calcInitialNextDue(recurrence, new Date(), prev.done ? prev.completedAt : null)?.toISOString() ?? null
         : null;
     state.todos[idx] = {
         ...state.todos[idx],
@@ -94,10 +95,7 @@ export function toggleTodo(id, done) {
     const todo = state.todos[idx];
     let nextDue = todo.nextDue;
     if (done && todo.recurrence) {
-        const now = new Date();
-        if (!nextDue || now >= new Date(nextDue)) {
-            nextDue = calcNextDueAfter(todo.recurrence, now, now)?.toISOString() ?? nextDue;
-        }
+        nextDue = calcNextDueOnComplete(todo.recurrence, nextDue, new Date());
     }
 
     state.todos[idx] = {
@@ -168,10 +166,7 @@ export function toggleChecklistItem(todoId, checklistId, done) {
 
     let nextDue = todo.nextDue;
     if (parentDone && todo.recurrence) {
-        const now = new Date();
-        if (!nextDue || now >= new Date(nextDue)) {
-            nextDue = calcNextDueAfter(todo.recurrence, now, now)?.toISOString() ?? nextDue;
-        }
+        nextDue = calcNextDueOnComplete(todo.recurrence, nextDue, new Date());
     }
 
     state.todos[idx] = {

@@ -217,7 +217,7 @@ export function getYearlyDatesFromDOM() {
 
 /**
  * 항목별 초기화 타입에 따라 설정 모달의 관련 입력 행을 표시하거나 숨깁니다.
- * @param {string} type - 'deadline' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'everyN' | 'everyNWeeks' | 'neverReset'
+ * @param {string} type - 'deadline' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'everyNWeeks' | 'neverReset'
  */
 export function updateTaskResetTypeUI(type) {
     const timeTypes = new Set(['daily', 'weekday']);
@@ -226,7 +226,6 @@ export function updateTaskResetTypeUI(type) {
     document.getElementById('taskResetWeeklyRow')?.classList.toggle('hidden', type !== 'weekly');
     document.getElementById('taskResetMonthlyRow')?.classList.toggle('hidden', type !== 'monthly');
     document.getElementById('taskResetYearlyRow')?.classList.toggle('hidden', type !== 'yearly');
-    document.getElementById('taskResetEveryNRow')?.classList.toggle('hidden', type !== 'everyN');
     document.getElementById('taskResetEveryNWeeksRow')?.classList.toggle('hidden', type !== 'everyNWeeks');
     
     if (type === 'monthly') initMonthDayGrid();

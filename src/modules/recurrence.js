@@ -5,12 +5,12 @@
  *
  * recurrence 객체 구조:
  *   {
- *     type: 'daily' | 'weekday' | 'weekly' | 'monthly' | 'yearly' | 'everyN' | 'calendar',
+ *     type: 'daily' | 'weekday' | 'weekly' | 'monthly' | 'yearly' | 'everyNWeeks' | 'calendar',
  *     time: 'HH:mm',
  *     weekdays?: number[],           // weekly: 0=일 ~ 6=토
  *     days?: number[],               // monthly: 1~31
  *     dates?: { month, day }[],      // yearly
- *     n?: number,                    // everyN
+ *     n?: number, weekday?: number,  // everyNWeeks (완료 시각 기준, 시작일 없음)
  *     date?: string,                 // calendar: ISO string (1회성)
  *   }
  */
@@ -78,71 +78,65 @@ export function calcNextDue(recurrence, fromDate) {
         return null;
     }
 
-    if (recurrence.type === 'everyN') {
-        const n = recurrence.n || 1;
-        if (recurrence.startDate) {
-            let startObj = new Date(recurrence.startDate);
-            if (isNaN(startObj.getTime())) startObj = new Date(fromDate);
-            startObj.setHours(h, m, 0, 0);
-
-            if (startObj > fromDate) return startObj;
-            const next = new Date(startObj);
-            const diffDays = Math.floor((fromDate - startObj) / 86400000);
-            const jumps = Math.max(0, Math.floor(diffDays / n));
-            next.setDate(next.getDate() + jumps * n);
-            while (next <= fromDate) next.setDate(next.getDate() + n);
-            return next;
-        } else {
-            const next = new Date(fromDate);
-            next.setDate(next.getDate() + n);
-            next.setHours(h, m, 0, 0);
-            return next;
-        }
-    }
-
     if (recurrence.type === 'everyNWeeks') {
-        const n = recurrence.n || 1;
-        const weekday = recurrence.weekday ?? null; // 0(일)~6(토), 단일 값
-        if (weekday === null) return null;
-
-        if (recurrence.startDate) {
-            let startObj = new Date(recurrence.startDate);
-            if (isNaN(startObj.getTime())) startObj = new Date(fromDate);
-            startObj.setHours(h, m, 0, 0);
-
-            const first = new Date(startObj);
-            const cur = first.getDay();
-            const daysToTarget = (weekday - cur + 7) % 7;
-            first.setDate(first.getDate() + daysToTarget);
-
-            if (first > fromDate) return first;
-
-            const next = new Date(first);
-            const diffDays = Math.floor((fromDate - first) / 86400000);
-            const jumps = Math.max(0, Math.floor(diffDays / (n * 7)));
-            next.setDate(next.getDate() + jumps * n * 7);
-            while (next <= fromDate) next.setDate(next.getDate() + n * 7);
-            return next;
-        } else {
-            // fromDate 다음 날부터 시작해서 지정 요일까지 며칠인지 계산
-            const next = new Date(fromDate);
-            next.setDate(next.getDate() + 1);
-            next.setHours(h, m, 0, 0);
-            const cur = next.getDay();
-            const daysToTarget = (weekday - cur + 7) % 7;
-            // daysToTarget이 0이면 내일이 바로 해당 요일 → 그 자체가 다음 후보
-            next.setDate(next.getDate() + daysToTarget);
-            // n주 주기 맞추기: fromDate 기준 에포크 주 번호와 비교해 배수 조정
-            const epochDays = Math.floor(next.getTime() / 86_400_000);
-            const fromEpochDays = Math.floor(fromDate.getTime() / 86_400_000);
-            const weekDiff = Math.floor((epochDays - fromEpochDays + daysToTarget) / 7);
-            const remainder = weekDiff % n;
-            if (remainder !== 0) next.setDate(next.getDate() + (n - remainder) * 7);
-            return next;
-        }
+        // 시작일 없음: fromDate(완료 시각, 또는 직전 초기화 시각) 이후 첫 지정 요일 + (N-1)주.
+        // 완료 시각 기준  → 목요일 완료, 2주마다 월요일 = 다다음주 월요일
+        // 초기화 시각 기준 → 직전 월요일에서 정확히 N주 뒤 월요일
+        const n = Math.max(1, recurrence.n || 1);
+        const next = _nextWeekdayAfter(fromDate, recurrence.weekday, h, m);
+        if (!next) return null;
+        next.setDate(next.getDate() + (n - 1) * 7);
+        return next;
     }
 
     return null;
+}
+
+/** `fromDate` 이후(초과) 첫 번째 지정 요일의 h:m 시각을 반환합니다. */
+function _nextWeekdayAfter(fromDate, weekday, h, m) {
+    if (weekday == null) return null; // 0(일)~6(토)
+    const next = new Date(fromDate);
+    next.setHours(h, m, 0, 0);
+    next.setDate(next.getDate() + (weekday - next.getDay() + 7) % 7);
+    if (next <= fromDate) next.setDate(next.getDate() + 7);
+    return next;
+}
+
+/**
+ * 새로 만들거나 수정한 항목의 첫 초기화 시각을 반환합니다.
+ * N주마다는 완료 전이므로 가장 가까운 지정 요일을 첫 초기화로 잡고,
+ * 이미 완료된 항목(completedAt)이면 완료 시각 기준으로 잡습니다.
+ * @param {object} recurrence
+ * @param {Date} now
+ * @param {string|null} [completedAt]
+ * @returns {Date|null}
+ */
+export function calcInitialNextDue(recurrence, now, completedAt = null) {
+    if (recurrence?.type === 'everyNWeeks') {
+        if (completedAt) return calcNextDue(recurrence, new Date(completedAt));
+        const [h, m] = (recurrence.time || '00:00').split(':').map(Number);
+        return _nextWeekdayAfter(now, recurrence.weekday, h, m);
+    }
+    return calcNextDueAfter(recurrence, now, now);
+}
+
+/**
+ * 항목을 완료 처리할 때의 nextDue를 반환합니다.
+ * N주마다는 완료할 때마다 완료 시각을 기점으로 다시 잡고,
+ * 그 외 유형은 초기화 시각이 지났을 때만 전진합니다.
+ * @param {object} recurrence
+ * @param {string|null} nextDue - 현재 nextDue (ISO)
+ * @param {Date} now - 완료 시각
+ * @returns {string|null} ISO 문자열
+ */
+export function calcNextDueOnComplete(recurrence, nextDue, now) {
+    if (recurrence?.type === 'everyNWeeks') {
+        return calcNextDue(recurrence, now)?.toISOString() ?? nextDue;
+    }
+    if (!nextDue || now >= new Date(nextDue)) {
+        return calcNextDueAfter(recurrence, now, now)?.toISOString() ?? nextDue;
+    }
+    return nextDue;
 }
 
 /**

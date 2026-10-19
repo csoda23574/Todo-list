@@ -44,7 +44,8 @@ import {
     openSettingsModal, saveSettingsFromModal, openHoyoConnectModal, startHoyoConnection,
     tempSettings, applyCropResult, closeModal, addChecklistFormItem,
     tempBgScope, tempCatBgMeta, switchBgScope,
-    refreshExternalCompletionTargets, refreshExternalCompletionConnections
+    refreshExternalCompletionTargets, refreshExternalCompletionConnections,
+    renderHoyoSettingsList, openConfirmDeleteHoyoConnection
 } from './modals.js';
 import { switchCategory, startCategoryAdd, startCategoryRename, wasCategoryDragged, initCategoryDragSort } from './categories.js';
 import { updateTaskResetTypeUI, addYearlyDateEntry } from './reset.js';
@@ -276,6 +277,14 @@ function bindSettingsModalEvents() {
     DOM.settingsCancelBtn?.addEventListener('click', () => closeModal(DOM.settingsModal));
     DOM.settingsSaveBtn?.addEventListener('click', saveSettingsFromModal);
     document.getElementById('hoyoOpenConnectBtn')?.addEventListener('click', openHoyoConnectModal);
+    document.getElementById('hoyoConnectionList')?.addEventListener('click', e => {
+        const delBtn = e.target.closest('.hoyo-conn-delete-btn');
+        if (!delBtn) return;
+        const id = delBtn.dataset.id;
+        const game = delBtn.dataset.game;
+        const nick = delBtn.dataset.nick;
+        if (id) openConfirmDeleteHoyoConnection(id, game, nick);
+    });
     document.getElementById('hoyoConnectClose')?.addEventListener('click', () => closeModal(document.getElementById('hoyoConnectModal')));
     document.getElementById('hoyoConnectCancel')?.addEventListener('click', () => closeModal(document.getElementById('hoyoConnectModal')));
     document.getElementById('hoyoConnectStart')?.addEventListener('click', startHoyoConnection);
@@ -681,6 +690,7 @@ export function bindElectronEvents() {
                     console.warn('HoYoLAB 인증 창 닫기 실패:', error);
                 }
                 refreshExternalCompletionConnections(result.connection.id);
+                renderHoyoSettingsList();
                 const gameName = {
                     genshin: '원신',
                     starrail: '붕괴: 스타레일',

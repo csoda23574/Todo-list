@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getHoyoCredentialStorageStatus: () => ipcRenderer.invoke('hoyo:getCredentialStorageStatus'),
     beginHoyoAuthentication: (game, rememberLogin) => ipcRenderer.invoke('hoyo:beginAuthentication', game, rememberLogin),
     completeHoyoConnection: (connectionId) => ipcRenderer.invoke('hoyo:completeConnection', connectionId),
+    removeHoyoConnection: (connectionId) => ipcRenderer.invoke('hoyo:removeConnection', connectionId),
     closeHoyoAuthentication: (connectionId) => ipcRenderer.invoke('hoyo:closeAuthentication', connectionId),
     getHoyoAuthState: (connectionId) => ipcRenderer.invoke('hoyo:getAuthState', connectionId),
     checkHoyoStatus: (connectionId) => ipcRenderer.invoke('hoyo:checkStatus', connectionId),

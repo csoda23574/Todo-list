@@ -123,7 +123,6 @@ export function formatRecurrenceBadge(r) {
         const dates = (r.dates || []).map(d => `${d.month}/${d.day}`).join('·');
         return `🔄 매년 ${dates} ${time}`;
     }
-    if (r.type === 'everyN') return `🔄 ${r.n}일마다 ${time}`;
     if (r.type === 'everyNWeeks') {
         const day = r.weekday != null ? WEEKDAY_NAMES[r.weekday] : '?';
         return `🔄 ${r.n}주마다 ${day} ${time}`;

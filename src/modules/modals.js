@@ -7,7 +7,7 @@
 
 import { state } from './state.js';
 import { DOM } from './dom.js';
-import { showToast } from './utils.js';
+import { showToast, escapeHtml } from './utils.js';
 import { loadFromStorage, saveSettings, saveCategoryBg, removeCategoryBg } from './storage.js';
 import { STORAGE_KEYS, getStorageKey } from './config.js';
 import { loadFromIDB } from './idb.js';
@@ -53,8 +53,6 @@ function clearTaskForm() {
     DOM.taskResetWeeklyTime.value = '00:00';
     DOM.taskResetMonthlyTime.value = '00:00';
     DOM.taskResetYearlyTime.value = '00:00';
-    const _everyNTimeEl = document.getElementById('taskResetEveryNTime');
-    if (_everyNTimeEl) _everyNTimeEl.value = '00:00';
     const _everyNWeeksTimeEl = document.getElementById('taskResetEveryNWeeksTime');
     if (_everyNWeeksTimeEl) _everyNWeeksTimeEl.value = '00:00';
     document.querySelectorAll('.weekday-btn').forEach(b => b.classList.remove('active'));
@@ -135,36 +133,13 @@ function _populateResetFields(todo) {
         DOM.taskResetYearlyTime.value = r.time || '';
         (r.dates || []).forEach(d => addYearlyDateEntry(d.month, d.day));
         updateTaskResetTypeUI('yearly');
-    } else if (r.type === 'everyN') {
-        const elDays = document.getElementById('taskResetEveryNDays');
-        const elDate = document.getElementById('taskResetEveryNDate');
-        const elTime = document.getElementById('taskResetEveryNTime');
-        
-        if (elDays) elDays.value = r.n || 2;
-        if (elTime) elTime.value = r.time || state.settings.resetTime || '00:00';
-        
-        const todayStr = new Date().toLocaleDateString('en-CA');
-        if (elDate) {
-            elDate.value = r.startDate 
-                ? new Date(r.startDate).toLocaleDateString('en-CA') 
-                : todayStr;
-        }
-        
-        updateTaskResetTypeUI('everyN');
     } else if (r.type === 'everyNWeeks') {
         const elWeeks = document.getElementById('taskResetEveryNWeeksInput');
-        const elDate = document.getElementById('taskResetEveryNWeeksDate');
         const elTime = document.getElementById('taskResetEveryNWeeksTime');
         
         if (elWeeks) elWeeks.value = r.n || 2;
         if (elTime) elTime.value = r.time || state.settings.resetTime || '00:00';
         
-        const todayStr = new Date().toLocaleDateString('en-CA');
-        if (elDate) {
-            elDate.value = r.startDate 
-                ? new Date(r.startDate).toLocaleDateString('en-CA') 
-                : todayStr;
-        }
         const weekday = r.weekday ?? null;
         document.querySelectorAll('#taskResetEveryNWeekdaySelector .weekday-btn').forEach(b => {
             b.classList.toggle('active', Number(b.dataset.day) === weekday);
@@ -250,21 +225,12 @@ function _buildRecurrenceFromForm(resetType) {
         const dates = getYearlyDatesFromDOM();
         return { type: 'yearly', dates, time: DOM.taskResetYearlyTime.value || '00:00' };
     }
-    if (resetType === 'everyN') {
-        const n = parseInt(document.getElementById('taskResetEveryNDays')?.value, 10) || 2;
-        const time = document.getElementById('taskResetEveryNTime')?.value || '00:00';
-        const dateVal = document.getElementById('taskResetEveryNDate')?.value;
-        const startDate = dateVal ? `${dateVal}T${time}:00` : null;
-        return { type: 'everyN', n, time, startDate };
-    }
     if (resetType === 'everyNWeeks') {
         const n = parseInt(document.getElementById('taskResetEveryNWeeksInput')?.value, 10) || 2;
         const time = document.getElementById('taskResetEveryNWeeksTime')?.value || '00:00';
-        const dateVal = document.getElementById('taskResetEveryNWeeksDate')?.value;
-        const startDate = dateVal ? `${dateVal}T${time}:00` : null;
         const activeBtn = document.querySelector('#taskResetEveryNWeekdaySelector .weekday-btn.active');
         const weekday = activeBtn ? parseInt(activeBtn.dataset.day, 10) : null;
-        return { type: 'everyNWeeks', n, weekday, time, startDate };
+        return { type: 'everyNWeeks', n, weekday, time };
     }
     return null;
 }
@@ -550,10 +516,72 @@ export async function openSettingsModal() {
     if (toggleBtn) toggleBtn.style.display = '';
 }
 
+export async function renderHoyoSettingsList() {
+    const hoyoList = document.getElementById('hoyoConnectionList');
+    if (!hoyoList) return;
+    const api = getHoyoAPI();
+    if (!api) {
+        hoyoList.style.display = 'none';
+        return;
+    }
+    let connections = [];
+    try {
+        connections = await api.getHoyoConnections() || [];
+    } catch { connections = []; }
+    if (connections.length === 0) {
+        hoyoList.innerHTML = '';
+        hoyoList.style.display = 'none';
+        return;
+    }
+    const gameNames = { genshin: '원신', starrail: '붕괴: 스타레일', zzz: '젠레스 존 제로' };
+    hoyoList.innerHTML = connections.map(c => {
+        const gName = gameNames[c.game] || c.game || '게임';
+        const nick = c.nickname ? escapeHtml(c.nickname) : 'UID: ' + escapeHtml(String(c.uid));
+        const meta = c.nickname ? 'UID ' + escapeHtml(String(c.uid)) + (c.server ? ' · ' + escapeHtml(c.server) : '') : (c.server ? escapeHtml(c.server) : '');
+        return `
+            <div class="hoyo-connection-item" data-id="${escapeHtml(c.id)}">
+                <div class="hoyo-conn-info">
+                    <div class="hoyo-conn-title">
+                        <span>${nick}</span>
+                        <span class="hoyo-conn-badge">${escapeHtml(gName)}</span>
+                    </div>${meta ? `
+                    <div class="hoyo-conn-meta">${meta}</div>` : ''}
+                </div>
+                <button type="button" class="hoyo-conn-delete-btn" data-id="${escapeHtml(c.id)}" data-game="${escapeHtml(gName)}" data-nick="${escapeHtml(nick)}">연동 해제</button>
+            </div>
+        `;
+    }).join('');
+    hoyoList.style.display = '';
+}
+
+export function openConfirmDeleteHoyoConnection(connectionId, gameName, nickname) {
+    _openConfirmModalWith(
+        `${nickname} (${gameName}) 연동을 해제하시겠습니까?`,
+        '이 기기에 저장된 연동 인증 정보가 삭제됩니다.',
+        async () => {
+            const api = getHoyoAPI();
+            if (!api || !api.removeHoyoConnection) return;
+            try {
+                await api.removeHoyoConnection(connectionId);
+                showToast('HoYoLAB 연동 정보가 해제되었습니다', 'success');
+                await renderHoyoSettingsList();
+                await refreshExternalCompletionConnections();
+                refreshHoyoPolling();
+            } catch (err) {
+                console.error('연동 해제 실패:', err);
+                showToast('연동 해제에 실패했습니다', 'error');
+            }
+        }
+    );
+}
+
 function _updatePlatformSettingsSections() {
     const electronSection = document.getElementById('electronSettingsSection');
     const hoyoSection = document.getElementById('hoyoSettingsSection');
-    if (hoyoSection && getHoyoAPI()) hoyoSection.style.display = '';
+    if (hoyoSection && getHoyoAPI()) {
+        hoyoSection.style.display = '';
+        renderHoyoSettingsList();
+    }
     if (!electronSection || !window.electronAPI) return;
 
     electronSection.style.display = '';

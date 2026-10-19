@@ -331,6 +331,27 @@ async function saveHoyoConnection(connectionId, account) {
     return connection;
 }
 
+async function removeHoyoConnection(connectionId) {
+    if (typeof connectionId !== 'string' || !connectionId) return { ok: false, code: 'invalid_id' };
+    const settings = loadPersistedSettings();
+    settings.hoyo.connections = settings.hoyo.connections.filter(c => c.id !== connectionId);
+    if (settings.hoyo.encryptedCredentials) {
+        delete settings.hoyo.encryptedCredentials[connectionId];
+    }
+    persistSettings({ hoyo: settings.hoyo });
+
+    closeHoyoAuthWindows(connectionId);
+    const authSession = hoyoAuthSessions.get(connectionId);
+    if (authSession) {
+        try {
+            await authSession.clearStorageData();
+        } catch { /* ignore clear error */ }
+        hoyoAuthSessions.delete(connectionId);
+    }
+    hoyoPendingConnections.delete(connectionId);
+    return { ok: true, connections: settings.hoyo.connections };
+}
+
 function getHoyoAuthSession(connectionId) {
     const existing = hoyoAuthSessions.get(connectionId);
     if (existing) return existing;
@@ -932,6 +953,7 @@ ipcMain.handle('hoyo:getConnections', () => loadPersistedSettings().hoyo.connect
 ipcMain.handle('hoyo:getCredentialStorageStatus', () => getHoyoCredentialStorageStatus());
 ipcMain.handle('hoyo:beginAuthentication', (_, game, rememberLogin) => beginHoyoAuthentication(game, rememberLogin));
 ipcMain.handle('hoyo:completeConnection', (_, connectionId) => completeHoyoConnection(connectionId));
+ipcMain.handle('hoyo:removeConnection', (_, connectionId) => removeHoyoConnection(connectionId));
 ipcMain.handle('hoyo:closeAuthentication', (_, connectionId) => closeHoyoAuthWindows(connectionId));
 ipcMain.handle('hoyo:getAuthState', (_, connectionId) => getHoyoAuthState(connectionId));
 ipcMain.handle('hoyo:checkStatus', (_, connectionId) => runHoyoStatusCheck(connectionId));

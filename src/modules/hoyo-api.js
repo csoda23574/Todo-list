@@ -15,6 +15,7 @@ export function getHoyoAPI() {
             beginHoyoAuthentication: (game, rememberLogin) =>
                 window.electronAPI.beginHoyoAuthentication(game, rememberLogin),
             completeHoyoConnection: connectionId => window.electronAPI.completeHoyoConnection(connectionId),
+            removeHoyoConnection: connectionId => window.electronAPI.removeHoyoConnection(connectionId),
             closeHoyoAuthentication: connectionId => window.electronAPI.closeHoyoAuthentication(connectionId),
             getHoyoAuthState: connectionId => window.electronAPI.getHoyoAuthState(connectionId),
             checkHoyoStatus: connectionId => window.electronAPI.checkHoyoStatus(connectionId),
@@ -31,6 +32,7 @@ export function getHoyoAPI() {
         beginHoyoAuthentication: (game, rememberLogin) =>
             plugin.beginHoyoAuthentication({ game, rememberLogin }),
         completeHoyoConnection: connectionId => plugin.completeHoyoConnection({ connectionId }),
+        removeHoyoConnection: connectionId => plugin.removeHoyoConnection({ connectionId }),
         closeHoyoAuthentication: connectionId => plugin.closeHoyoAuthentication({ connectionId }),
         getHoyoAuthState: connectionId => plugin.getHoyoAuthState({ connectionId }),
         checkHoyoStatus: connectionId => plugin.checkHoyoStatus({ connectionId }),

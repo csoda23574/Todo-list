@@ -24,7 +24,7 @@ async function loadRecurrenceModule() {
 }
 
 async function run() {
-    const { calcNextDue, calcNextDueAfter } = await loadRecurrenceModule();
+    const { calcNextDue, calcNextDueAfter, calcInitialNextDue } = await loadRecurrenceModule();
 
     expectDate(
         'daily recurrence advances one day at the configured time',
@@ -63,6 +63,43 @@ async function run() {
     expectNull(
         'one-time calendar entries do not schedule another occurrence',
         calcNextDue({ type: 'calendar', time: '10:00' }, new Date(2026, 8, 3, 12, 0))
+    );
+
+    const biweeklyMonday = { type: 'everyNWeeks', n: 2, weekday: 1, time: '05:00' };
+
+    expectDate(
+        'every-2-weeks completed on Thursday resets the Monday after next',
+        calcNextDue(biweeklyMonday, new Date(2026, 8, 3, 12, 0)),
+        new Date(2026, 8, 14, 5, 0)
+    );
+
+    expectDate(
+        'every-2-weeks reset advances exactly two weeks regardless of completion',
+        calcNextDueAfter(biweeklyMonday, new Date(2026, 8, 14, 5, 0), new Date(2026, 8, 14, 5, 0)),
+        new Date(2026, 8, 28, 5, 0)
+    );
+
+    expectDate(
+        'every-2-weeks completed on the reset weekday after reset time skips to the Monday after next',
+        calcNextDue(biweeklyMonday, new Date(2026, 8, 14, 8, 0)),
+        new Date(2026, 8, 28, 5, 0)
+    );
+
+    expectDate(
+        'every-1-week completed on Thursday resets the next Monday',
+        calcNextDue({ type: 'everyNWeeks', n: 1, weekday: 1, time: '05:00' }, new Date(2026, 8, 3, 12, 0)),
+        new Date(2026, 8, 7, 5, 0)
+    );
+
+    expectDate(
+        'new every-2-weeks item first resets on the nearest configured weekday',
+        calcInitialNextDue(biweeklyMonday, new Date(2026, 8, 3, 12, 0)),
+        new Date(2026, 8, 7, 5, 0)
+    );
+
+    expectNull(
+        'removed every-N-days recurrence no longer schedules anything',
+        calcNextDue({ type: 'everyN', n: 3, time: '05:00', startDate: '2026-09-01T05:00:00' }, new Date(2026, 8, 3, 12, 0))
     );
 
     console.log('\nRecurrence unit checks passed.');

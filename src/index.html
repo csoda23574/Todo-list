@@ -277,7 +277,6 @@
                         <option value="weekly">매주 요일</option>
                         <option value="monthly">매월 날짜</option>
                         <option value="yearly">매년 날짜</option>
-                        <option value="everyN">N일마다</option>
                         <option value="everyNWeeks">N주마다</option>
                     </select>
                     <!-- 특정 날짜 (마감일) -->
@@ -299,20 +298,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- N일마다 -->
-                    <div class="task-reset-input-row hidden" id="taskResetEveryNRow">
-                        <div class="every-n-input-wrap">
-                            <input type="number" id="taskResetEveryNDays" class="form-input number-input" min="2" max="365" value="2" />
-                            <span class="every-n-suffix">일마다</span>
-                        </div>
-                        <div class="form-group" style="margin-top:8px; margin-bottom:0">
-                            <label class="form-label" style="font-size:11px">시작일 및 시간</label>
-                            <div style="display:flex; gap:6px;">
-                                <input type="date" id="taskResetEveryNDate" class="form-input" style="flex:1" />
-                                <input type="time" id="taskResetEveryNTime" class="form-input time-input custom-time-input" style="flex:0 0 auto" />
-                            </div>
-                        </div>
-                    </div>
                     <!-- N주마다 -->
                     <div class="task-reset-input-row hidden" id="taskResetEveryNWeeksRow">
                         <div class="every-n-input-wrap" style="margin-bottom:6px">
@@ -329,11 +314,8 @@
                             <button type="button" class="weekday-btn" data-day="6">토</button>
                         </div>
                         <div class="form-group" style="margin-top:8px; margin-bottom:0">
-                            <label class="form-label" style="font-size:11px">시작일 및 시간</label>
-                            <div style="display:flex; gap:6px;">
-                                <input type="date" id="taskResetEveryNWeeksDate" class="form-input" style="flex:1" />
-                                <input type="time" id="taskResetEveryNWeeksTime" class="form-input time-input custom-time-input" style="flex:0 0 auto" />
-                            </div>
+                            <label class="form-label" style="font-size:11px">초기화 시간 (완료한 시점 이후 첫 해당 요일부터 계산)</label>
+                            <input type="time" id="taskResetEveryNWeeksTime" class="form-input time-input custom-time-input" style="width:100%" />
                         </div>
                     </div>
                     <!-- 매일 -->
@@ -485,6 +467,7 @@
                             </div>
                             <button type="button" class="btn btn-primary" id="hoyoOpenConnectBtn">HoYoLAB 연결</button>
                         </div>
+                        <div id="hoyoConnectionList" class="hoyo-connection-list" style="display:none"></div>
                     </div>
                 </div>
 
